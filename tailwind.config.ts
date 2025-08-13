@@ -68,6 +68,19 @@ export default {
 				md: 'calc(var(--radius) - 2px)',
 				sm: 'calc(var(--radius) - 4px)'
 			},
+			backgroundImage: {
+				'gradient-primary': 'var(--gradient-primary)',
+				'gradient-hero': 'var(--gradient-hero)',
+				'gradient-card': 'var(--gradient-card)',
+			},
+			boxShadow: {
+				'soft': 'var(--shadow-soft)',
+				'hover': 'var(--shadow-hover)',
+				'purple': 'var(--shadow-purple)',
+			},
+			transitionTimingFunction: {
+				'spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+			},
 			keyframes: {
 				'accordion-down': {
 					from: {
