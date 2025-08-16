@@ -14,7 +14,136 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      customers: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quote_services: {
+        Row: {
+          created_at: string
+          id: string
+          quantity: number
+          quote_id: string
+          service_id: string
+          service_name: string
+          service_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          quantity?: number
+          quote_id: string
+          service_id: string
+          service_name: string
+          service_price: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          quantity?: number
+          quote_id?: string
+          service_id?: string
+          service_name?: string
+          service_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_services_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          age_range: string | null
+          child_name: string | null
+          children_count: number | null
+          created_at: string
+          customer_id: string | null
+          customer_name: string
+          email: string
+          event_date: string | null
+          id: string
+          notes: string | null
+          phone: string | null
+          preferences: string[] | null
+          source: string | null
+          status: string | null
+          total_estimate: number | null
+          updated_at: string
+        }
+        Insert: {
+          age_range?: string | null
+          child_name?: string | null
+          children_count?: number | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name: string
+          email: string
+          event_date?: string | null
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          preferences?: string[] | null
+          source?: string | null
+          status?: string | null
+          total_estimate?: number | null
+          updated_at?: string
+        }
+        Update: {
+          age_range?: string | null
+          child_name?: string | null
+          children_count?: number | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string
+          email?: string
+          event_date?: string | null
+          id?: string
+          notes?: string | null
+          phone?: string | null
+          preferences?: string[] | null
+          source?: string | null
+          status?: string | null
+          total_estimate?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
