@@ -9,7 +9,7 @@ const Hero = () => {
       <div className="absolute inset-0 z-0">
         <img
           src={heroImage}
-          alt="Niños disfrutando en una fiesta temática de Japi Town"
+          alt="Niños disfrutando en una fiesta temática de japitown"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/80 to-background/60"></div>
@@ -33,7 +33,7 @@ const Hero = () => {
 
             {/* Subheading */}
             <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl">
-              En Japi Town, los niños viven la experiencia única de ser adultos por un día. 
+              En japitown, los niños viven la experiencia única de ser adultos por un día. 
               Chef, constructor, artista... ¡Que elijan su aventura profesional favorita!
             </p>
 
@@ -70,7 +70,7 @@ const Hero = () => {
               <blockquote className="text-lg italic text-foreground mb-4">
                 "La fiesta de mi hija fue increíble. Los niños no querían irse y 
                 siguen hablando de cuando fueron chefs por un día. ¡Definitivamente 
-                volveremos a contratar Japi Town!"
+                volveremos a contratar japitown!"
               </blockquote>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-primary rounded-full"></div>

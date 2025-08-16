@@ -19,7 +19,7 @@ const HowItWorks = () => {
     {
       icon: PartyPopper,
       title: "3. ¡A Disfrutar!",
-      description: "El día de la fiesta, transformamos tu espacio en Japi Town. Los niños vivirán aventuras increíbles que recordarán para siempre.",
+      description: "El día de la fiesta, transformamos tu espacio en japitown. Los niños vivirán aventuras increíbles que recordarán para siempre.",
       color: "bg-accent/10 text-accent"
     }
   ];
