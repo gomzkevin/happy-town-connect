@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
-import japitownLogo from "@/assets/logo fondo blanco.png";
+import japitownLogo from "@/assets/japitown-logo-oficial.png";
 
 const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
