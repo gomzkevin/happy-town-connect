@@ -12,7 +12,7 @@ const Hero = () => {
           alt="Niños disfrutando en una fiesta temática de Japi Town"
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/80 to-background/60"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-background/98 via-background/90 to-background/75"></div>
       </div>
 
       {/* Content */}
@@ -20,7 +20,7 @@ const Hero = () => {
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-8">
             {/* Badge */}
-            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium">
+            <div className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm font-medium shadow-soft">
               <Star className="h-4 w-4 fill-current" />
               #1 en Fiestas Temáticas en Oaxaca
             </div>

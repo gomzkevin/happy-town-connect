@@ -1,75 +1,12 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  ChefHat, 
-  Hammer, 
-  Palette, 
-  Scissors, 
-  Stethoscope, 
-  Camera,
-  ShoppingBag,
-  Music
-} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { servicesData } from "@/data/services";
+import { useServices } from "@/contexts/ServicesContext";
 
 const Services = () => {
-  const services = [
-    {
-      icon: ChefHat,
-      title: "Estación Chef",
-      description: "Los pequeños chefs preparan deliciosas recetas y aprenden sobre cocina saludable.",
-      price: "Desde $800",
-      category: "Estación"
-    },
-    {
-      icon: Hammer,
-      title: "Taller de Construcción",
-      description: "Construyen proyectos increíbles usando herramientas seguras y su creatividad.",
-      price: "Desde $750",
-      category: "Taller"
-    },
-    {
-      icon: Palette,
-      title: "Estudio de Arte",
-      description: "Expresan su creatividad pintando, dibujando y creando obras de arte únicas.",
-      price: "Desde $650",
-      category: "Estación"
-    },
-    {
-      icon: Scissors,
-      title: "Salón de Belleza",
-      description: "Maquillaje, peinados y tratamientos de spa para sentirse como verdaderos profesionales.",
-      price: "Desde $700",
-      category: "Spa"
-    },
-    {
-      icon: Stethoscope,
-      title: "Hospital Veterinario",
-      description: "Cuidan y atienden a sus mascotas de peluche como verdaderos veterinarios.",
-      price: "Desde $750",
-      category: "Estación"
-    },
-    {
-      icon: Camera,
-      title: "Estudio Fotográfico",
-      description: "Sesión de fotos profesional con disfraces y accesorios temáticos.",
-      price: "Desde $600",
-      category: "Taller"
-    },
-    {
-      icon: ShoppingBag,
-      title: "Supermercado",
-      description: "Aprenden sobre compras responsables y manejo de dinero de juguete.",
-      price: "Desde $550",
-      category: "Estación"
-    },
-    {
-      icon: Music,
-      title: "Estudio Musical",
-      description: "Componen, cantan y tocan instrumentos en su propio estudio de grabación.",
-      price: "Desde $700",
-      category: "Taller"
-    }
-  ];
+  const navigate = useNavigate();
+  const { addService } = useServices();
 
   const getCategoryColor = (category: string) => {
     switch (category) {
@@ -100,12 +37,13 @@ const Services = () => {
 
         {/* Services Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
-          {services.map((service, index) => {
+          {servicesData.map((service, index) => {
             const IconComponent = service.icon;
             return (
               <Card 
                 key={index} 
                 className="group hover:shadow-hover transition-smooth cursor-pointer bg-gradient-card border-0"
+                onClick={() => navigate(`/servicio/${service.id}`)}
               >
                 <CardHeader className="text-center">
                   <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-spring">
@@ -124,9 +62,22 @@ const Services = () => {
                   <CardDescription className="text-sm leading-relaxed">
                     {service.description}
                   </CardDescription>
-                  <div className="pt-2">
-                    <span className="text-lg font-bold text-primary">{service.price}</span>
-                    <p className="text-xs text-muted-foreground">MXN por fiesta</p>
+                  <div className="pt-2 space-y-3">
+                    <div>
+                      <span className="text-lg font-bold text-primary">{service.price}</span>
+                      <p className="text-xs text-muted-foreground">MXN por fiesta</p>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addService(service);
+                      }}
+                    >
+                      Agregar a Cotización
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
