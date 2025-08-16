@@ -12,7 +12,7 @@ const Hero = () => {
           alt="Niños disfrutando en una fiesta temática de Japi Town"
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-background/98 via-background/90 to-background/75"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/80 to-background/60"></div>
       </div>
 
       {/* Content */}
@@ -58,7 +58,7 @@ const Hero = () => {
               <Button variant="hero" size="lg" className="text-lg">
                 Cotizar Mi Fiesta
               </Button>
-              <Button variant="outline" size="lg" className="text-lg">
+              <Button variant="purple" size="lg" className="text-lg">
                 Ver Nuestras Fiestas
               </Button>
             </div>
