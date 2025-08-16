@@ -18,6 +18,10 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				'japitown': ['Fredoka', 'sans-serif'],
+				'sans': ['Fredoka', 'sans-serif'],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -31,6 +35,12 @@ export default {
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
 					foreground: 'hsl(var(--secondary-foreground))'
+				},
+				japitown: {
+					'purple-dark': 'hsl(var(--japitown-purple-dark))',
+					'mint': 'hsl(var(--japitown-mint))',
+					'orange': 'hsl(var(--japitown-orange))',
+					'pink': 'hsl(var(--japitown-pink))',
 				},
 				destructive: {
 					DEFAULT: 'hsl(var(--destructive))',

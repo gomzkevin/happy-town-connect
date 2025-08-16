@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import japitownLogo from "@/assets/japitown-logo.png";
 
 const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -18,7 +19,11 @@ const Navigation = () => {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <h1 className="text-2xl font-bold text-gradient">Japi Town</h1>
+              <img 
+                src={japitownLogo} 
+                alt="japitown - Eventos Infantiles" 
+                className="h-12 w-auto"
+              />
             </div>
           </div>
 

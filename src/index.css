@@ -17,12 +17,18 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 15%;
 
-    /* Japi Town Brand Colors */
-    --primary: 49 100% 67%; /* Yellow #FFDE59 */
+    /* japitown Brand Colors */
+    --primary: 49 100% 67%; /* Yellow #ffe158 */
     --primary-foreground: 240 10% 15%;
 
-    --secondary: 264 52% 70%; /* Purple #A184DF */
+    --secondary: 260 44% 72%; /* Purple #a68bea */
     --secondary-foreground: 0 0% 100%;
+    
+    /* Additional japitown colors */
+    --japitown-purple-dark: 263 42% 71%; /* Purple #aa91e4 */
+    --japitown-mint: 166 63% 75%; /* Mint #b8f2e6 */
+    --japitown-orange: 36 100% 64%; /* Orange #ffb448 */
+    --japitown-pink: 330 85% 90%; /* Pink #ffd6e7 */
 
     --muted: 49 15% 95%;
     --muted-foreground: 240 5% 45%;
