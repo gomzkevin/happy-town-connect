@@ -12,6 +12,7 @@ export interface QuoteData {
   ageRange?: string;
   childName?: string;
   preferences?: string[];
+  location?: string;
   source: 'onboarding' | 'services';
 }
 
@@ -31,7 +32,7 @@ export const useQuotes = () => {
       }, 0);
 
       // Create the quote
-      const { data: quote, error: quoteError } = await supabase
+        const { data: quote, error: quoteError } = await supabase
         .from('quotes')
         .insert({
           customer_name: quoteData.customerName,
@@ -42,6 +43,7 @@ export const useQuotes = () => {
           age_range: quoteData.ageRange,
           child_name: quoteData.childName,
           preferences: quoteData.preferences,
+          location: quoteData.location,
           total_estimate: totalEstimate,
           source: quoteData.source,
           status: 'pending'

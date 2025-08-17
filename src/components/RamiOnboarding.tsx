@@ -32,6 +32,7 @@ interface OnboardingData {
   email: string;
   phone: string;
   eventDate: string;
+  location: string;
 }
 
 const preferenceOptions = [
@@ -58,10 +59,12 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
     customerName: '',
     email: '',
     phone: '',
-    eventDate: ''
+    eventDate: '',
+    location: ''
   });
   
   const [recommendedServices, setRecommendedServices] = useState<typeof servicesData>([]);
+  const [showAllServices, setShowAllServices] = useState(false);
   const { submitQuote, isSubmitting } = useQuotes();
   const { addService, selectedServices } = useServices();
 
@@ -79,12 +82,12 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
       // Preference-based filtering
       const preferenceMatch = preferences.some(pref => {
         switch (pref) {
-          case 'cooking': return service.category === 'culinary' || service.title.toLowerCase().includes('chef');
-          case 'building': return service.category === 'construction' || service.title.toLowerCase().includes('construcción');
-          case 'painting': return service.category === 'art' || service.title.toLowerCase().includes('arte');
-          case 'music': return service.title.toLowerCase().includes('música') || service.title.toLowerCase().includes('dj');
-          case 'games': return service.category === 'entertainment' || service.title.toLowerCase().includes('juegos');
-          case 'photos': return service.title.toLowerCase().includes('foto');
+          case 'cooking': return service.id === 'chef' || service.title.toLowerCase().includes('chef');
+          case 'building': return service.id === 'construccion' || service.title.toLowerCase().includes('construcción');
+          case 'painting': return service.id === 'arte' || service.title.toLowerCase().includes('arte');
+          case 'music': return service.id === 'musica' || service.title.toLowerCase().includes('música');
+          case 'games': return service.title.toLowerCase().includes('juegos') || service.id === 'supermercado';
+          case 'photos': return service.id === 'fotografia' || service.title.toLowerCase().includes('foto');
           default: return false;
         }
       });
@@ -142,6 +145,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
         ageRange: `${data.age} años`,
         childName: data.childName,
         preferences: data.preferences,
+        location: data.location,
         source: 'onboarding'
       });
       onClose();
@@ -181,7 +185,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
             <div className="text-center">
               <div className="text-4xl mb-4">🎂</div>
               <h2 className="text-xl font-bold">
-                ¡Perfecto {data.childName}! Ahora cuéntame sobre la fiesta:
+                ¡Perfecto! Ahora cuéntame sobre la fiesta de {data.childName}:
               </h2>
             </div>
             
@@ -265,15 +269,16 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
             </div>
 
             <div className="grid gap-4">
-              {recommendedServices.map((service) => {
+              {(showAllServices ? servicesData : recommendedServices).map((service, index) => {
                 const Icon = service.icon;
                 const isSelected = selectedServices.some(s => s.service.id === service.id);
+                const isRecommended = recommendedServices.some(r => r.id === service.id);
                 return (
                   <Card
                     key={service.id}
                     className={`cursor-pointer transition-all hover:scale-[1.02] ${
                       isSelected ? 'ring-2 ring-primary bg-primary/5' : ''
-                    }`}
+                    } ${isRecommended && showAllServices ? 'ring-1 ring-primary/50' : ''}`}
                     onClick={() => handleServiceToggle(service)}
                   >
                     <CardContent className="p-4">
@@ -282,7 +287,12 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                           <Icon className="h-6 w-6 text-primary" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold">{service.title}</h3>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold">{service.title}</h3>
+                            {isRecommended && showAllServices && (
+                              <Badge variant="default" className="text-xs">Recomendado</Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground mb-2">
                             {service.description}
                           </p>
@@ -302,6 +312,30 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                 );
               })}
             </div>
+
+            {!showAllServices && recommendedServices.length > 0 && (
+              <div className="text-center">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowAllServices(true)}
+                  className="w-full"
+                >
+                  Ver más opciones
+                </Button>
+              </div>
+            )}
+
+            {showAllServices && (
+              <div className="text-center">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowAllServices(false)}
+                  className="w-full"
+                >
+                  Mostrar solo recomendaciones
+                </Button>
+              </div>
+            )}
 
             <div className="text-center text-sm text-muted-foreground">
               💡 Siempre puedes añadir más servicios después
@@ -418,6 +452,17 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                   onChange={(e) => setData(prev => ({ ...prev, eventDate: e.target.value }))}
                 />
               </div>
+
+              <div>
+                <Label htmlFor="location">Ubicación del evento *</Label>
+                <Input
+                  id="location"
+                  value={data.location}
+                  onChange={(e) => setData(prev => ({ ...prev, location: e.target.value }))}
+                  placeholder="Ej: Delegación Benito Juárez, CDMX"
+                  required
+                />
+              </div>
             </div>
           </div>
         );
@@ -433,7 +478,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
       case 2: return data.preferences.length > 0;
       case 3: return true; // Can proceed without selecting services
       case 4: return true;
-      case 5: return data.customerName.trim() !== '' && data.email.trim() !== '';
+      case 5: return data.customerName.trim() !== '' && data.email.trim() !== '' && data.location.trim() !== '';
       default: return false;
     }
   };
@@ -475,7 +520,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
               onClick={handleSubmit}
               disabled={!canProceed() || isSubmitting}
             >
-              {isSubmitting ? 'Enviando...' : 'Enviar Cotización'}
+              {isSubmitting ? 'Solicitando...' : 'Solicitar Cotización'}
             </Button>
           )}
         </div>
