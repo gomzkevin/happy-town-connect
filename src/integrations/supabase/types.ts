@@ -90,6 +90,7 @@ export type Database = {
           email: string
           event_date: string | null
           id: string
+          location: string | null
           notes: string | null
           phone: string | null
           preferences: string[] | null
@@ -108,6 +109,7 @@ export type Database = {
           email: string
           event_date?: string | null
           id?: string
+          location?: string | null
           notes?: string | null
           phone?: string | null
           preferences?: string[] | null
@@ -126,6 +128,7 @@ export type Database = {
           email?: string
           event_date?: string | null
           id?: string
+          location?: string | null
           notes?: string | null
           phone?: string | null
           preferences?: string[] | null
