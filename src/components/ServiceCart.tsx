@@ -70,15 +70,15 @@ const ServiceCart = () => {
             </Button>
           </SheetTrigger>
           
-          <SheetContent className="w-full sm:max-w-md">
-            <SheetHeader>
+          <SheetContent className="w-full sm:max-w-md flex flex-col">
+            <SheetHeader className="flex-shrink-0">
               <SheetTitle className="flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5" />
                 Mi Cotización
               </SheetTitle>
             </SheetHeader>
             
-            <div className="mt-6 space-y-4">
+            <div className="flex-1 overflow-y-auto mt-6 space-y-4">
               {selectedServices.map((item) => {
                 const IconComponent = item.service.icon;
                 const price = parseInt(item.service.price.replace(/[^\d]/g, ''));
