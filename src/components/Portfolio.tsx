@@ -4,10 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, MapPin } from "lucide-react";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { useEvents } from "@/hooks/useEvents";
+import { useNavigate } from "react-router-dom";
 
 const Portfolio = () => {
   const { openOnboarding } = useOnboarding();
   const { events, loading } = useEvents();
+  const navigate = useNavigate();
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Fecha por confirmar';
@@ -56,6 +58,7 @@ const Portfolio = () => {
               <Card 
                 key={event.id} 
                 className="group hover:shadow-hover transition-smooth cursor-pointer overflow-hidden bg-gradient-card border-0"
+                onClick={() => navigate(`/evento/${event.id}`)}
               >
                 <div className="relative overflow-hidden">
                   <img

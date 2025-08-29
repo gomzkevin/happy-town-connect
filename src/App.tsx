@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ServicesProvider } from "@/contexts/ServicesContext";
 import Index from "./pages/Index";
 import ServiceDetail from "@/components/ServiceDetail";
+import EventDetail from "@/components/EventDetail";
 import ServiceCart from "@/components/ServiceCart";
 import NotFound from "./pages/NotFound";
 
@@ -21,6 +22,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/servicio/:id" element={<ServiceDetail />} />
+            <Route path="/evento/:id" element={<EventDetail />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
