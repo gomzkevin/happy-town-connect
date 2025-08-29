@@ -1,7 +1,17 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
+import { renderAsync } from "npm:@react-email/components@0.0.22";
+import React from "npm:react@18.3.1";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import { QuoteEmail } from './_templates/quote-email.tsx';
+import { QuotePDF } from './_templates/quote-pdf.tsx';
 
+// Initialize clients
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL') ?? '',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,103 +28,104 @@ interface QuoteEmailRequest {
   childName?: string;
   preferences?: string[];
   location?: string;
-  services: {
+  services: Array<{
     name: string;
     price: number;
     quantity: number;
-  }[];
+  }>;
   totalEstimate: number;
 }
 
-const generateQuoteHTML = (data: QuoteEmailRequest) => {
-  const servicesHTML = data.services.map(service => `
-    <tr style="border-bottom: 1px solid #eee;">
-      <td style="padding: 12px; text-align: left;">${service.name}</td>
-      <td style="padding: 12px; text-align: center;">${service.quantity}</td>
-      <td style="padding: 12px; text-align: right;">$${service.price}</td>
-      <td style="padding: 12px; text-align: right; font-weight: bold;">$${service.price * service.quantity}</td>
-    </tr>
-  `).join('');
+// Generate PDF using Puppeteer
+async function generatePDF(htmlContent: string): Promise<Uint8Array> {
+  try {
+    // Use Deno's built-in fetch with a serverless PDF service
+    // For production, you might want to use a dedicated PDF service
+    const response = await fetch('https://api.html-pdf.app/v1/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': Deno.env.get('HTML_PDF_API_KEY') || '', // Optional: use a PDF service
+      },
+      body: JSON.stringify({
+        html: htmlContent,
+        format: 'A4',
+        printOptions: {
+          marginTop: '20mm',
+          marginBottom: '20mm',
+          marginLeft: '15mm',
+          marginRight: '15mm',
+        }
+      })
+    });
 
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Tu Cotización - JapiTown</title>
-    </head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #ff6b35; margin: 0;">🎉 JapiTown</h1>
-        <p style="color: #666; font-size: 18px; margin: 10px 0;">¡Tu cotización está lista!</p>
-      </div>
+    if (!response.ok) {
+      // Fallback: return HTML as text if PDF service fails
+      console.warn('PDF service unavailable, sending HTML content instead');
+      return new TextEncoder().encode(htmlContent);
+    }
 
-      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-        <h2 style="color: #333; margin-top: 0;">Hola ${data.customerName} 👋</h2>
-        <p>Estamos emocionados de ser parte de la celebración de ${data.childName || 'tu pequeño'}. Aquí tienes los detalles de tu cotización personalizada:</p>
-      </div>
+    return new Uint8Array(await response.arrayBuffer());
+  } catch (error) {
+    console.error('PDF generation failed:', error);
+    // Fallback: return HTML content
+    return new TextEncoder().encode(htmlContent);
+  }
+}
 
-      <div style="margin-bottom: 20px;">
-        <h3 style="color: #ff6b35; border-bottom: 2px solid #ff6b35; padding-bottom: 5px;">📋 Detalles del Evento</h3>
-        <ul style="list-style: none; padding: 0;">
-          ${data.childName ? `<li style="padding: 5px 0;"><strong>Niño(a):</strong> ${data.childName}</li>` : ''}
-          ${data.eventDate ? `<li style="padding: 5px 0;"><strong>Fecha:</strong> ${data.eventDate}</li>` : ''}
-          ${data.childrenCount ? `<li style="padding: 5px 0;"><strong>Número de niños:</strong> ${data.childrenCount}</li>` : ''}
-          ${data.ageRange ? `<li style="padding: 5px 0;"><strong>Edad:</strong> ${data.ageRange}</li>` : ''}
-          ${data.location ? `<li style="padding: 5px 0;"><strong>Ubicación:</strong> ${data.location}</li>` : ''}
-        </ul>
-      </div>
+// Send WhatsApp notification
+async function sendWhatsAppNotification(
+  phoneNumber: string, 
+  message: string, 
+  settings: any
+): Promise<boolean> {
+  if (!settings?.whatsapp_enabled || !settings?.whatsapp_api_url) {
+    return false;
+  }
 
-      <div style="margin-bottom: 20px;">
-        <h3 style="color: #ff6b35; border-bottom: 2px solid #ff6b35; padding-bottom: 5px;">🎪 Servicios Seleccionados</h3>
-        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          <thead>
-            <tr style="background: #ff6b35; color: white;">
-              <th style="padding: 12px; text-align: left;">Servicio</th>
-              <th style="padding: 12px; text-align: center;">Cantidad</th>
-              <th style="padding: 12px; text-align: right;">Precio</th>
-              <th style="padding: 12px; text-align: right;">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${servicesHTML}
-          </tbody>
-          <tfoot>
-            <tr style="background: #f8f9fa; font-weight: bold; font-size: 18px;">
-              <td colspan="3" style="padding: 15px; text-align: right;">Total Estimado:</td>
-              <td style="padding: 15px; text-align: right; color: #ff6b35;">$${data.totalEstimate}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+  try {
+    const response = await fetch(settings.whatsapp_api_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${settings.whatsapp_api_token}`,
+      },
+      body: JSON.stringify({
+        to: phoneNumber,
+        message: message,
+        type: 'text'
+      })
+    });
 
-      <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; border-left: 4px solid #2196f3; margin-bottom: 20px;">
-        <h3 style="color: #1976d2; margin-top: 0;">💡 Próximos Pasos</h3>
-        <ol style="margin: 0; padding-left: 20px;">
-          <li>Revisaremos tu solicitud en las próximas 24 horas</li>
-          <li>Te contactaremos para confirmar detalles y disponibilidad</li>
-          <li>Finalizaremos los detalles de tu evento perfecto</li>
-        </ol>
-      </div>
+    return response.ok;
+  } catch (error) {
+    console.error('WhatsApp notification failed:', error);
+    return false;
+  }
+}
 
-      <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px;">
-        <h3 style="color: #333; margin-top: 0;">¿Tienes preguntas?</h3>
-        <p style="margin: 10px 0;">Estamos aquí para ayudarte a crear la fiesta perfecta</p>
-        <div style="margin: 15px 0;">
-          <a href="tel:+1234567890" style="display: inline-block; background: #25d366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px;">📞 Llamar</a>
-          <a href="https://wa.me/1234567890" style="display: inline-block; background: #25d366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px;">💬 WhatsApp</a>
-        </div>
-      </div>
-
-      <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px;">
-        <p>JapiTown - Creando sonrisas, un evento a la vez 🎉</p>
-        <p style="margin: 5px 0;">Este es un mensaje automático, por favor no responder a este email.</p>
-      </div>
-    </body>
-    </html>
-  `;
-};
+// Log to quote history
+async function logQuoteHistory(
+  quoteId: string,
+  actionType: string,
+  recipient: string,
+  status: string,
+  metadata?: any,
+  errorMessage?: string
+) {
+  try {
+    await supabase.from('quote_history').insert({
+      quote_id: quoteId,
+      action_type: actionType,
+      recipient: recipient,
+      status: status,
+      metadata: metadata,
+      error_message: errorMessage
+    });
+  } catch (error) {
+    console.error('Failed to log quote history:', error);
+  }
+}
 
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
@@ -123,45 +134,170 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const quoteData: QuoteEmailRequest = await req.json();
+    const data: QuoteEmailRequest = await req.json();
+    console.log('Processing quote email request for:', data.customerName);
 
-    console.log("Processing quote email for:", quoteData.email);
+    // Get company settings and templates from database
+    const [companyResult, templateResult, notificationResult] = await Promise.all([
+      supabase.from('company_settings').select('*').single(),
+      supabase.from('email_templates').select('*').eq('template_type', 'quote').eq('is_active', true).single(),
+      supabase.from('notification_settings').select('*').single()
+    ]);
 
-    // Send email to customer
-    const emailResponse = await resend.emails.send({
-      from: "JapiTown <no-reply@japitown.com>",
-      to: [quoteData.email],
-      subject: `🎉 Tu Cotización JapiTown - ${quoteData.childName ? `Fiesta de ${quoteData.childName}` : 'Tu Evento Especial'}`,
-      html: generateQuoteHTML(quoteData),
+    const companySettings = companyResult.data;
+    const emailTemplate = templateResult.data;
+    const notificationSettings = notificationResult.data;
+
+    // Generate quote number and current date
+    const quoteNumber = `QUO-${Date.now().toString().slice(-6)}`;
+    const createdDate = new Date().toLocaleDateString('es-MX', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
 
-    console.log("Email sent successfully:", emailResponse);
+    // Prepare email data
+    const emailData = {
+      customerName: data.customerName,
+      companyName: companySettings?.company_name || 'JapiTown',
+      companyEmail: companySettings?.email || 'cotizaciones@japitown.com',
+      companyPhone: companySettings?.phone,
+      companyAddress: companySettings?.address,
+      services: data.services,
+      totalEstimate: data.totalEstimate,
+      eventDate: data.eventDate,
+      childrenCount: data.childrenCount,
+      location: data.location,
+      termsConditions: companySettings?.terms_conditions,
+    };
 
-    // TODO: Send internal notification
-    // TODO: Send WhatsApp notification to customer
-    // TODO: Send WhatsApp alert to admin
+    // Generate email HTML
+    const emailHtml = await renderAsync(
+      React.createElement(QuoteEmail, emailData)
+    );
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: "Cotización enviada exitosamente",
-      emailId: emailResponse.data?.id 
-    }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders,
-      },
+    // Generate PDF HTML
+    const pdfHtml = await renderAsync(
+      React.createElement(QuotePDF, {
+        ...emailData,
+        email: data.email,
+        phone: data.phone,
+        quoteNumber,
+        createdDate,
+      })
+    );
+
+    // Generate PDF
+    let pdfBuffer: Uint8Array;
+    try {
+      pdfBuffer = await generatePDF(pdfHtml);
+      await logQuoteHistory(quoteNumber, 'pdf_generated', data.email, 'success');
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      pdfBuffer = new TextEncoder().encode(pdfHtml);
+      await logQuoteHistory(quoteNumber, 'pdf_generated', data.email, 'failed', null, error.message);
+    }
+
+    // Send email with PDF attachment
+    const emailSubject = emailTemplate?.subject || `🎉 Tu cotización personalizada de ${emailData.companyName} está lista`;
+    
+    const emailResult = await resend.emails.send({
+      from: `${emailData.companyName} <${emailData.companyEmail}>`,
+      to: [data.email],
+      subject: emailSubject,
+      html: emailHtml,
+      attachments: [
+        {
+          filename: `Cotización-${quoteNumber}-${data.customerName.replace(/\s+/g, '-')}.pdf`,
+          content: pdfBuffer,
+        },
+      ],
     });
-  } catch (error: any) {
-    console.error("Error in send-quote-email function:", error);
+
+    if (emailResult.error) {
+      await logQuoteHistory(quoteNumber, 'email_sent', data.email, 'failed', emailResult, emailResult.error.message);
+      throw emailResult.error;
+    }
+
+    await logQuoteHistory(quoteNumber, 'email_sent', data.email, 'success', {
+      email_id: emailResult.data?.id,
+      services_count: data.services.length,
+      total_estimate: data.totalEstimate
+    });
+
+    // Send WhatsApp notifications if enabled
+    if (notificationSettings?.whatsapp_enabled) {
+      // Client notification
+      if (notificationSettings.client_notification_enabled && data.phone) {
+        const clientMessage = notificationSettings.client_whatsapp_template || 
+          `Hola ${data.customerName}! Te hemos enviado tu cotización por correo electrónico. ¡Revisa tu bandeja de entrada! 🎉`;
+        
+        const clientWhatsAppSuccess = await sendWhatsAppNotification(
+          data.phone,
+          clientMessage,
+          notificationSettings
+        );
+
+        await logQuoteHistory(
+          quoteNumber, 
+          'whatsapp_sent', 
+          data.phone, 
+          clientWhatsAppSuccess ? 'success' : 'failed'
+        );
+      }
+
+      // Admin notification
+      if (notificationSettings.admin_notification_enabled && companySettings?.whatsapp_number) {
+        const adminMessage = notificationSettings.admin_whatsapp_template
+          ?.replace('{{customer_name}}', data.customerName)
+          ?.replace('{{total_estimate}}', data.totalEstimate.toString()) ||
+          `Nueva cotización generada para: ${data.customerName} - Total estimado: $${data.totalEstimate.toLocaleString()}`;
+        
+        const adminWhatsAppSuccess = await sendWhatsAppNotification(
+          companySettings.whatsapp_number,
+          adminMessage,
+          notificationSettings
+        );
+
+        await logQuoteHistory(
+          quoteNumber, 
+          'whatsapp_sent', 
+          companySettings.whatsapp_number, 
+          adminWhatsAppSuccess ? 'success' : 'failed'
+        );
+      }
+    }
+
+    console.log('Quote email sent successfully:', emailResult.data?.id);
+
     return new Response(
       JSON.stringify({ 
-        error: "Error al enviar la cotización",
-        details: error.message 
+        success: true, 
+        emailId: emailResult.data?.id,
+        quoteNumber: quoteNumber
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
+      }
+    );
+  } catch (error: any) {
+    console.error("Error in send-quote-email function:", error);
+    
+    return new Response(
+      JSON.stringify({ 
+        error: error.message || 'An unexpected error occurred',
+        success: false 
       }),
       {
         status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+        headers: { 
+          "Content-Type": "application/json", 
+          ...corsHeaders 
+        },
       }
     );
   }

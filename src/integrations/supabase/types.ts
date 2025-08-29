@@ -44,6 +44,48 @@ export type Database = {
         }
         Relationships: []
       }
+      company_settings: {
+        Row: {
+          address: string | null
+          company_name: string
+          created_at: string
+          email: string
+          id: string
+          logo_url: string | null
+          phone: string | null
+          terms_conditions: string | null
+          updated_at: string
+          website_url: string | null
+          whatsapp_number: string | null
+        }
+        Insert: {
+          address?: string | null
+          company_name?: string
+          created_at?: string
+          email?: string
+          id?: string
+          logo_url?: string | null
+          phone?: string | null
+          terms_conditions?: string | null
+          updated_at?: string
+          website_url?: string | null
+          whatsapp_number?: string | null
+        }
+        Update: {
+          address?: string | null
+          company_name?: string
+          created_at?: string
+          email?: string
+          id?: string
+          logo_url?: string | null
+          phone?: string | null
+          terms_conditions?: string | null
+          updated_at?: string
+          website_url?: string | null
+          whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           created_at: string
@@ -67,6 +109,39 @@ export type Database = {
           id?: string
           name?: string
           phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_templates: {
+        Row: {
+          created_at: string
+          html_content: string
+          id: string
+          is_active: boolean
+          name: string
+          subject: string
+          template_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          html_content: string
+          id?: string
+          is_active?: boolean
+          name: string
+          subject: string
+          template_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          html_content?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          subject?: string
+          template_type?: string
           updated_at?: string
         }
         Relationships: []
@@ -145,6 +220,78 @@ export type Database = {
           services?: string[] | null
           title?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      notification_settings: {
+        Row: {
+          admin_notification_enabled: boolean
+          admin_whatsapp_template: string | null
+          client_notification_enabled: boolean
+          client_whatsapp_template: string | null
+          created_at: string
+          id: string
+          updated_at: string
+          whatsapp_api_token: string | null
+          whatsapp_api_url: string | null
+          whatsapp_enabled: boolean
+        }
+        Insert: {
+          admin_notification_enabled?: boolean
+          admin_whatsapp_template?: string | null
+          client_notification_enabled?: boolean
+          client_whatsapp_template?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          whatsapp_api_token?: string | null
+          whatsapp_api_url?: string | null
+          whatsapp_enabled?: boolean
+        }
+        Update: {
+          admin_notification_enabled?: boolean
+          admin_whatsapp_template?: string | null
+          client_notification_enabled?: boolean
+          client_whatsapp_template?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          whatsapp_api_token?: string | null
+          whatsapp_api_url?: string | null
+          whatsapp_enabled?: boolean
+        }
+        Relationships: []
+      }
+      quote_history: {
+        Row: {
+          action_type: string
+          created_at: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          quote_id: string
+          recipient: string | null
+          status: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          quote_id: string
+          recipient?: string | null
+          status?: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          quote_id?: string
+          recipient?: string | null
+          status?: string
         }
         Relationships: []
       }

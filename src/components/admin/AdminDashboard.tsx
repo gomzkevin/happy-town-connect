@@ -13,6 +13,9 @@ import { useEventMutations } from '@/hooks/useEventMutations';
 import { ServiceForm } from './ServiceForm';
 import { EventForm } from './EventForm';
 import { ConfirmDialog } from './ConfirmDialog';
+import { CompanySettingsForm } from './CompanySettingsForm';
+import { NotificationSettingsForm } from './NotificationSettingsForm';
+import { QuoteHistoryView } from './QuoteHistoryView';
 
 const AdminDashboard = () => {
   const { user, signOut, isAdmin } = useAuth();
@@ -239,8 +242,11 @@ const AdminDashboard = () => {
 
         <Tabs defaultValue="services" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="services">Gestión de Servicios</TabsTrigger>
-            <TabsTrigger value="events">Gestión de Eventos</TabsTrigger>
+            <TabsTrigger value="services">Servicios</TabsTrigger>
+            <TabsTrigger value="events">Eventos</TabsTrigger>
+            <TabsTrigger value="settings">Configuración</TabsTrigger>
+            <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
+            <TabsTrigger value="history">Historial</TabsTrigger>
           </TabsList>
           
           <TabsContent value="services" className="space-y-6">
@@ -355,6 +361,18 @@ const AdminDashboard = () => {
                 </Card>
               ))}
             </div>
+          </TabsContent>
+          
+          <TabsContent value="settings" className="space-y-6">
+            <CompanySettingsForm />
+          </TabsContent>
+          
+          <TabsContent value="notifications" className="space-y-6">
+            <NotificationSettingsForm />
+          </TabsContent>
+          
+          <TabsContent value="history" className="space-y-6">
+            <QuoteHistoryView />
           </TabsContent>
         </Tabs>
         
