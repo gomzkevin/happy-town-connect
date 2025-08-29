@@ -28,17 +28,19 @@ const Services = () => {
     }
   };
 
+  const handleServiceClick = (serviceId: string) => {
+    navigate(`/servicio/${serviceId}`);
+  };
+
   return (
-    <section id="services" className="py-20 bg-muted/30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
+    <section id="servicios" className="py-20 bg-background">
+      <div className="container mx-auto px-4">
         <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            Nuestros <span className="text-gradient">Servicios</span>
+          <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            Nuestros Servicios
           </h2>
-          <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-            Cada estación requiere un espacio mínimo de 2x2 metros. Combina diferentes servicios 
-            para crear la experiencia perfecta para tu pequeño y sus invitados.
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Descubre nuestras increíbles estaciones temáticas diseñadas para crear momentos mágicos
           </p>
         </div>
 
@@ -49,60 +51,61 @@ const Services = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
             {services.map((service, index) => {
               const IconComponent = (LucideIcons as any)[service.icon] || LucideIcons.Star;
-            return (
-              <Card 
-                key={index} 
-                className="group hover:shadow-hover transition-smooth cursor-pointer bg-gradient-card border-0"
-                onClick={() => navigate(`/servicio/${service.id}`)}
-              >
-                <CardHeader className="text-center">
-                  <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-spring">
-                    <IconComponent className="h-8 w-8 text-primary-foreground" />
-                  </div>
-                  <div className="space-y-2">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(service.category)}`}>
-                      {service.category}
-                    </span>
-                    <CardTitle className="text-lg group-hover:text-primary transition-smooth">
-                      {service.title}
-                    </CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="text-center space-y-4">
-                  <CardDescription className="text-sm leading-relaxed">
-                    {service.description}
-                  </CardDescription>
-                  <div className="pt-2 space-y-3">
-                    <div>
-                      <span className="text-lg font-bold text-primary">{service.price}</span>
-                      <p className="text-xs text-muted-foreground">MXN por fiesta</p>
+              
+              return (
+                <Card 
+                  key={service.id}
+                  className="group hover:shadow-lg transition-all duration-300 cursor-pointer transform hover:-translate-y-1"
+                  onClick={() => handleServiceClick(service.id)}
+                >
+                  <CardHeader className="text-center pb-2">
+                    <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <IconComponent className="w-8 h-8 text-primary" />
                     </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        addService(service);
-                      }}
+                    <Badge 
+                      variant="secondary" 
+                      className={`${getCategoryColor(service.category)} mb-2 text-xs`}
                     >
-                      Agregar a Cotización
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
+                      {service.category}
+                    </Badge>
+                    <CardTitle className="text-lg">{service.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-center">
+                    <CardDescription className="mb-4 text-sm leading-relaxed">
+                      {service.description}
+                    </CardDescription>
+                    <div className="space-y-3">
+                      <div className="text-2xl font-bold text-primary">
+                        {service.price}
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addService(service);
+                        }}
+                      >
+                        Agregar a Cotización
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
             })}
           </div>
         )}
 
-        {/* CTA Section */}
-        <div className="text-center">
-          <div className="bg-gradient-card p-8 rounded-2xl shadow-soft max-w-2xl mx-auto">
-            <h3 className="text-2xl font-bold mb-4">¿Listo para crear la fiesta perfecta?</h3>
-            <p className="text-muted-foreground mb-6">
-              Combina los servicios que más le gusten a tu pequeño y recibe una cotización personalizada.
-            </p>
+        {/* Call to Action */}
+        <div className="text-center bg-gradient-to-r from-primary/10 to-secondary/10 rounded-2xl p-8">
+          <h3 className="text-2xl font-bold mb-4">
+            ¿Listo para crear una fiesta inolvidable?
+          </h3>
+          <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
+            Nuestro equipo te ayudará a diseñar la experiencia perfecta combinando los servicios ideales para tu evento especial.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button variant="hero" size="lg" onClick={openOnboarding}>
               Solicitar Cotización
             </Button>

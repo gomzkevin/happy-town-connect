@@ -2,18 +2,21 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Check, Clock, Users, MapPin, Calendar } from "lucide-react";
-import { servicesData } from "@/data/services";
-import { useServices } from "@/contexts/ServicesContext";
+import { ArrowLeft, Plus, Check, Clock, Users, MapPin, Calendar, Star } from "lucide-react";
+import { useServices as useServicesContext } from "@/contexts/ServicesContext";
+import { useServices } from "@/hooks/useServices";
 import { useState } from "react";
+import * as LucideIcons from "lucide-react";
 
 const ServiceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addService, selectedServices } = useServices();
+  const { addService, selectedServices } = useServicesContext();
+  const { services } = useServices();
   const [isAdded, setIsAdded] = useState(false);
 
-  const service = servicesData.find(s => s.id === id);
+  const service = services.find(s => s.id === id);
+  const IconComponent = service ? (LucideIcons as any)[service.icon] || LucideIcons.Star : LucideIcons.Star;
   
   if (!service) {
     return (
@@ -27,16 +30,17 @@ const ServiceDetail = () => {
   }
 
   const isSelected = selectedServices.some(item => item.service.id === service.id);
-  const IconComponent = service.icon;
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case "Estación":
+      case "Estaciones de Juego":
         return "bg-primary/10 text-primary";
-      case "Taller":
+      case "Talleres Creativos":
         return "bg-secondary/10 text-secondary";
-      case "Spa":
+      case "Gastronomía":
         return "bg-accent/10 text-accent";
+      case "Servicios Profesionales":
+        return "bg-muted/10 text-muted-foreground";
       default:
         return "bg-muted/10 text-muted-foreground";
     }
@@ -97,17 +101,85 @@ const ServiceDetail = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground leading-relaxed mb-6">
-                  {service.detailedDescription}
+                  {service.description}
                 </p>
-                <h4 className="font-semibold mb-4">¿Qué incluye?</h4>
-                <ul className="space-y-2">
-                  {service.features.map((feature, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                      <span className="text-sm text-muted-foreground">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
+                
+                {/* Features */}
+                {service.features && service.features.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                      <Check className="w-5 h-5 text-green-500" />
+                      Incluye
+                    </h3>
+                    <ul className="space-y-2">
+                      {service.features.map((feature, index) => (
+                        <li key={index} className="flex items-center gap-2">
+                          <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Service Details */}
+                <div className="grid md:grid-cols-2 gap-6 mb-8">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Clock className="w-5 h-5" />
+                        Duración
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-semibold text-primary">
+                        {service.duration || '2 horas'}
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Users className="w-5 h-5" />
+                        Participantes
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-semibold text-primary">
+                        Hasta {service.max_participants || 8} niños
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Calendar className="w-5 h-5" />
+                        Edad Recomendada
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-semibold text-primary">
+                        {service.age_range || '4-12 años'}
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <MapPin className="w-5 h-5" />
+                        Espacio Requerido
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-semibold text-primary">
+                        {service.space_requirements || 'Espacio estándar'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -155,48 +227,6 @@ const ServiceDetail = () => {
                   >
                     Ver Todos los Servicios
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Details Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Detalles del Servicio</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Clock className="h-4 w-4 text-primary" />
-                  <div>
-                    <div className="text-sm font-medium">Duración</div>
-                    <div className="text-sm text-muted-foreground">{service.duration}</div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <Users className="h-4 w-4 text-primary" />
-                  <div>
-                    <div className="text-sm font-medium">Participantes</div>
-                    <div className="text-sm text-muted-foreground">
-                      Hasta {service.maxParticipants} niños
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-4 w-4 text-primary" />
-                  <div>
-                    <div className="text-sm font-medium">Edad</div>
-                    <div className="text-sm text-muted-foreground">{service.ageRange}</div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <MapPin className="h-4 w-4 text-primary" />
-                  <div>
-                    <div className="text-sm font-medium">Espacio Requerido</div>
-                    <div className="text-sm text-muted-foreground">{service.spaceRequirement}</div>
-                  </div>
                 </div>
               </CardContent>
             </Card>

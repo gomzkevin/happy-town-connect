@@ -1,47 +1,39 @@
-import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
-import { servicesData } from '@/data/services';
-import { useQuotes } from '@/hooks/useQuotes';
-import { useServices } from '@/contexts/ServicesContext';
-import { 
-  ChefHat, 
-  Hammer, 
-  Palette, 
-  Gamepad2, 
-  Stethoscope,
-  ShoppingBag,
-  ArrowRight,
-  ArrowLeft,
-  Sparkles
-} from 'lucide-react';
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { ChevronLeft, ChevronRight, PartyPopper, Users, Calendar, MapPin, Heart, Star, Gift, Crown, Palette, Sparkles, Music, Camera, Utensils, Gamepad2 } from "lucide-react";
+import { useServices } from "@/hooks/useServices";
+import { useQuotes } from "@/hooks/useQuotes";
+import { Service } from "@/contexts/ServicesContext";
+import * as LucideIcons from "lucide-react";
+import raminegrito from "@/assets/raminegrito.png";
 
 interface OnboardingData {
   childName: string;
-  age: number;
-  childrenCount: number;
+  eventDate: string;
+  childrenCount: number | null;
+  ageRange: string;
   preferences: string[];
+  location: string;
   customerName: string;
   email: string;
   phone: string;
-  eventDate: string;
-  location: string;
 }
 
 const preferenceOptions = [
-  { id: 'creative', label: 'Crear', icon: Palette, color: 'bg-purple-100 text-purple-700' },
-  { id: 'cooking', label: 'Cocinar', icon: ChefHat, color: 'bg-orange-100 text-orange-700' },
-  { id: 'sports', label: 'Deportes', icon: Gamepad2, color: 'bg-blue-100 text-blue-700' },
-  { id: 'building', label: 'Construir', icon: Hammer, color: 'bg-yellow-100 text-yellow-700' },
-  { id: 'caring', label: 'Cuidar', icon: Stethoscope, color: 'bg-green-100 text-green-700' },
-  { id: 'shopping', label: 'Comprar', icon: ShoppingBag, color: 'bg-pink-100 text-pink-700' },
+  { id: "active", label: "Juegos Activos", icon: Gamepad2, color: "bg-red-100 text-red-800" },
+  { id: "creative", label: "Talleres Creativos", icon: Palette, color: "bg-blue-100 text-blue-800" },
+  { id: "relaxed", label: "Actividades Tranquilas", icon: Heart, color: "bg-green-100 text-green-800" },
+  { id: "food", label: "Experiencias Gastronómicas", icon: Utensils, color: "bg-yellow-100 text-yellow-800" },
+  { id: "roleplay", label: "Juegos de Rol", icon: Crown, color: "bg-purple-100 text-purple-800" },
+  { id: "spa", label: "Experiencias de Spa", icon: Sparkles, color: "bg-pink-100 text-pink-800" },
+  { id: "educational", label: "Educativo y Divertido", icon: Star, color: "bg-indigo-100 text-indigo-800" },
+  { id: "party", label: "Ambiente de Fiesta", icon: PartyPopper, color: "bg-orange-100 text-orange-800" },
 ];
 
 interface RamiOnboardingProps {
@@ -50,88 +42,54 @@ interface RamiOnboardingProps {
 }
 
 export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose }) => {
-  const [step, setStep] = useState(1);
-  const [data, setData] = useState<OnboardingData>({
-    childName: '',
-    age: 6,
-    childrenCount: 10,
-    preferences: [],
-    customerName: '',
-    email: '',
-    phone: '',
-    eventDate: '',
-    location: ''
-  });
-  
-  const [recommendedServices, setRecommendedServices] = useState<typeof servicesData>([]);
-  const [showAllServices, setShowAllServices] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+  const { services } = useServices();
   const { submitQuote, isSubmitting } = useQuotes();
-  const { addService, selectedServices } = useServices();
 
-  const totalSteps = 5;
-  const progress = (step / totalSteps) * 100;
+  const [data, setData] = useState<OnboardingData>({
+    childName: "",
+    eventDate: "",
+    childrenCount: null,
+    ageRange: "",
+    preferences: [],
+    location: "",
+    customerName: "",
+    email: "",
+    phone: "",
+  });
 
-  const getRecommendations = () => {
-    const { age, preferences, childrenCount } = data;
-    
-    let recommendations = servicesData.filter(service => {
-      // Age-based filtering
-      const [minAge, maxAge] = service.ageRange.split('-').map(a => parseInt(a.replace(/\D/g, '')));
-      const ageMatch = age >= minAge && age <= maxAge;
-      
-      // Preference-based filtering
-      const preferenceMatch = preferences.some(pref => {
-        switch (pref) {
-          case 'creative': return ['caballetes', 'yesitos', 'decora-cupcake', 'decora-tote-bag', 'decora-gorra', 'haz-pulsera'].includes(service.id);
-          case 'cooking': return ['hamburgueseria', 'decora-cupcake'].includes(service.id);
-          case 'sports': return ['boliche', 'pesca'].includes(service.id);
-          case 'building': return service.id === 'construccion';
-          case 'caring': return ['guarderia', 'veterinaria', 'spa'].includes(service.id);
-          case 'shopping': return service.id === 'supermercado';
-          default: return false;
-        }
-      });
-      
-      // Group size compatibility
-      const capacityMatch = service.maxParticipants >= childrenCount;
-      
-      return (ageMatch || preferenceMatch) && capacityMatch;
-    }).slice(0, 4); // Limit to 4 recommendations
-    
-    // If no matches, show popular services for the age group
-    if (recommendations.length === 0) {
-      recommendations = servicesData.filter(service => {
-        const [minAge, maxAge] = service.ageRange.split('-').map(a => parseInt(a.replace(/\D/g, '')));
-        return data.age >= minAge && data.age <= maxAge && service.maxParticipants >= childrenCount;
-      }).slice(0, 4);
-    }
-    
-    setRecommendedServices(recommendations);
-  };
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  const [recommendations, setRecommendations] = useState<Service[]>([]);
 
   const handleNext = () => {
-    if (step === 2) {
-      getRecommendations();
+    if (currentStep < 5) {
+      setCurrentStep(currentStep + 1);
+      if (currentStep === 2) {
+        generateRecommendations();
+      }
     }
-    setStep(step + 1);
   };
 
-  const handlePreferenceToggle = (preference: string) => {
-    setData(prev => ({
-      ...prev,
-      preferences: prev.preferences.includes(preference)
-        ? prev.preferences.filter(p => p !== preference)
-        : [...prev.preferences, preference]
-    }));
-  };
+  const generateRecommendations = () => {
+    if (!data.preferences.length || !services.length) return;
 
-  const handleServiceToggle = (service: typeof servicesData[0]) => {
-    const isSelected = selectedServices.some(s => s.service.id === service.id);
-    if (isSelected) {
-      // Remove from selection (would need removeService function)
-    } else {
-      addService(service);
-    }
+    const servicePreferenceMap: Record<string, string[]> = {
+      active: ["boliche", "pesca", "construccion"],
+      creative: ["caballetes", "yesitos", "decora-tote-bag", "decora-gorra", "haz-pulsera"],
+      relaxed: ["guarderia", "spa"],
+      food: ["hamburgueseria", "decora-cupcake"],
+      roleplay: ["veterinaria", "supermercado"],
+      spa: ["spa"],
+      educational: ["veterinaria", "construccion"],
+      party: ["boliche", "hamburgueseria", "decora-cupcake"]
+    };
+
+    const filtered = services.filter(service => 
+      data.preferences.some(pref => servicePreferenceMap[pref]?.includes(service.id))
+    ).slice(0, 6);
+
+    setRecommendations(filtered);
+    setSelectedServices(filtered.slice(0, 3));
   };
 
   const handleSubmit = async () => {
@@ -141,8 +99,8 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
         email: data.email,
         phone: data.phone,
         eventDate: data.eventDate,
-        childrenCount: data.childrenCount,
-        ageRange: `${data.age} años`,
+        childrenCount: data.childrenCount || undefined,
+        ageRange: data.ageRange,
         childName: data.childName,
         preferences: data.preferences,
         location: data.location,
@@ -150,379 +108,149 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
       });
       onClose();
     } catch (error) {
-      // Error handled in useQuotes hook
-    }
-  };
-
-  const renderStep = () => {
-    switch (step) {
-      case 1:
-        return (
-          <div className="space-y-6 text-center">
-            <div className="text-6xl mb-4">🐕</div>
-            <h2 className="text-2xl font-bold">¡Hola! Soy Rami</h2>
-            <p className="text-muted-foreground">
-              Voy a ayudarte a crear la fiesta perfecta. ¿Cómo se llama el festejado?
-            </p>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="childName">Nombre del festejado</Label>
-                <Input
-                  id="childName"
-                  value={data.childName}
-                  onChange={(e) => setData(prev => ({ ...prev, childName: e.target.value }))}
-                  placeholder="Ej: Sofia, Diego, etc."
-                  className="text-center text-lg"
-                />
-              </div>
-            </div>
-          </div>
-        );
-
-      case 2:
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="text-4xl mb-4">🎂</div>
-              <h2 className="text-xl font-bold">
-                ¡Perfecto! Ahora cuéntame sobre la fiesta de {data.childName}:
-              </h2>
-            </div>
-            
-            <div className="space-y-6">
-              <div>
-                <Label>¿Cuántos años cumple?</Label>
-                <div className="px-4 py-6">
-                  <Slider
-                    value={[data.age]}
-                    onValueChange={(value) => setData(prev => ({ ...prev, age: value[0] }))}
-                    min={3}
-                    max={12}
-                    step={1}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-sm text-muted-foreground mt-2">
-                    <span>3 años</span>
-                    <span className="font-bold text-primary text-lg">{data.age} años</span>
-                    <span>12 años</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <Label>¿Cuántos niños van a venir?</Label>
-                <div className="px-4 py-6">
-                  <Slider
-                    value={[data.childrenCount]}
-                    onValueChange={(value) => setData(prev => ({ ...prev, childrenCount: value[0] }))}
-                    min={5}
-                    max={30}
-                    step={5}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-sm text-muted-foreground mt-2">
-                    <span>5 niños</span>
-                    <span className="font-bold text-primary text-lg">{data.childrenCount} niños</span>
-                    <span>30 niños</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <Label>¿Qué le gusta más hacer a {data.childName}?</Label>
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  {preferenceOptions.map((option) => {
-                    const Icon = option.icon;
-                    const isSelected = data.preferences.includes(option.id);
-                    return (
-                      <Card
-                        key={option.id}
-                        className={`cursor-pointer transition-all hover:scale-105 ${
-                          isSelected ? 'ring-2 ring-primary bg-primary/5' : ''
-                        }`}
-                        onClick={() => handlePreferenceToggle(option.id)}
-                      >
-                        <CardContent className="p-4 text-center">
-                          <Icon className="h-8 w-8 mx-auto mb-2 text-primary" />
-                          <span className="text-sm font-medium">{option.label}</span>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 3:
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="text-4xl mb-4">✨</div>
-              <h2 className="text-xl font-bold">
-                ¡Genial! Creo que a {data.childName} le encantarán estas actividades:
-              </h2>
-              <p className="text-muted-foreground mt-2">
-                Puedes seleccionar las que más te gusten
-              </p>
-            </div>
-
-            <div className="grid gap-4">
-              {(showAllServices ? servicesData : recommendedServices).map((service, index) => {
-                const Icon = service.icon;
-                const isSelected = selectedServices.some(s => s.service.id === service.id);
-                const isRecommended = recommendedServices.some(r => r.id === service.id);
-                return (
-                  <Card
-                    key={service.id}
-                    className={`cursor-pointer transition-all hover:scale-[1.02] ${
-                      isSelected ? 'ring-2 ring-primary bg-primary/5' : ''
-                    } ${isRecommended && showAllServices ? 'ring-1 ring-primary/50' : ''}`}
-                    onClick={() => handleServiceToggle(service)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <div className="bg-primary/10 p-3 rounded-lg">
-                          <Icon className="h-6 w-6 text-primary" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold">{service.title}</h3>
-                            {isRecommended && showAllServices && (
-                              <Badge variant="default" className="text-xs">Recomendado</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {service.description}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary">{service.ageRange}</Badge>
-                            <Badge variant="outline">{service.price}</Badge>
-                          </div>
-                        </div>
-                        {isSelected && (
-                          <div className="text-primary">
-                            <Sparkles className="h-5 w-5" />
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-
-            {!showAllServices && recommendedServices.length > 0 && (
-              <div className="text-center">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowAllServices(true)}
-                  className="w-full"
-                >
-                  Ver más opciones
-                </Button>
-              </div>
-            )}
-
-            {showAllServices && (
-              <div className="text-center">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowAllServices(false)}
-                  className="w-full"
-                >
-                  Mostrar solo recomendaciones
-                </Button>
-              </div>
-            )}
-
-            <div className="text-center text-sm text-muted-foreground">
-              💡 Siempre puedes añadir más servicios después
-            </div>
-          </div>
-        );
-
-      case 4:
-        const totalServices = selectedServices.length;
-        const totalEstimate = selectedServices.reduce((total, item) => {
-          const price = parseInt(item.service.price.replace(/[^\d]/g, ''));
-          return total + (price * item.quantity);
-        }, 0);
-
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="text-4xl mb-4">🎉</div>
-              <h2 className="text-xl font-bold">
-                ¡Perfecto! Esta fiesta será increíble
-              </h2>
-              <p className="text-muted-foreground">
-                Resumen de la fiesta de {data.childName}
-              </p>
-            </div>
-
-            <div className="bg-muted/30 p-4 rounded-lg space-y-3">
-              <div className="flex justify-between">
-                <span>Edad:</span>
-                <span className="font-medium">{data.age} años</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Invitados:</span>
-                <span className="font-medium">{data.childrenCount} niños</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Actividades:</span>
-                <span className="font-medium">{totalServices} servicios</span>
-              </div>
-              <div className="flex justify-between text-lg font-bold">
-                <span>Estimado total:</span>
-                <span className="text-primary">${totalEstimate.toLocaleString()}</span>
-              </div>
-            </div>
-
-            {selectedServices.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="font-semibold">Servicios seleccionados:</h3>
-                {selectedServices.map((item) => (
-                  <div key={item.service.id} className="flex justify-between text-sm">
-                    <span>{item.service.title} x{item.quantity}</span>
-                    <span>{item.service.price}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-
-      case 5:
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="text-4xl mb-4">📝</div>
-              <h2 className="text-xl font-bold">
-                ¡Casi listo! Solo necesito tus datos
-              </h2>
-              <p className="text-muted-foreground">
-                Para enviarte la cotización personalizada
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="customerName">Tu nombre completo *</Label>
-                <Input
-                  id="customerName"
-                  value={data.customerName}
-                  onChange={(e) => setData(prev => ({ ...prev, customerName: e.target.value }))}
-                  placeholder="Ej: Ana García"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={data.email}
-                  onChange={(e) => setData(prev => ({ ...prev, email: e.target.value }))}
-                  placeholder="ana@email.com"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="phone">Teléfono</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={data.phone}
-                  onChange={(e) => setData(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="(55) 1234-5678"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="eventDate">Fecha del evento</Label>
-                <Input
-                  id="eventDate"
-                  type="date"
-                  value={data.eventDate}
-                  onChange={(e) => setData(prev => ({ ...prev, eventDate: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="location">Ubicación del evento *</Label>
-                <Input
-                  id="location"
-                  value={data.location}
-                  onChange={(e) => setData(prev => ({ ...prev, location: e.target.value }))}
-                  placeholder="Ej: Delegación Benito Juárez, CDMX"
-                  required
-                />
-              </div>
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  const canProceed = () => {
-    switch (step) {
-      case 1: return data.childName.trim() !== '';
-      case 2: return data.preferences.length > 0;
-      case 3: return true; // Can proceed without selecting services
-      case 4: return true;
-      case 5: return data.customerName.trim() !== '' && data.email.trim() !== '' && data.location.trim() !== '';
-      default: return false;
+      console.error('Error submitting quote:', error);
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <Progress value={progress} className="w-full" />
-          <div className="text-sm text-muted-foreground text-center mt-2">
-            Paso {step} de {totalSteps}
-          </div>
+          <DialogTitle className="flex items-center gap-2 text-2xl">
+            <img src={raminegrito} alt="Rami" className="w-8 h-8" />
+            ¡Hola! Soy Rami y te ayudaré a planear la fiesta perfecta
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="py-6">
-          {renderStep()}
-        </div>
+        <div className="space-y-6">
+          <Progress value={(currentStep / 5) * 100} className="w-full" />
 
-        <div className="flex justify-between">
-          <Button
-            variant="outline"
-            onClick={() => setStep(step - 1)}
-            disabled={step === 1}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Anterior
-          </Button>
-
-          {step < totalSteps ? (
-            <Button
-              onClick={handleNext}
-              disabled={!canProceed()}
-            >
-              Siguiente
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-          ) : (
-            <Button
-              onClick={handleSubmit}
-              disabled={!canProceed() || isSubmitting}
-            >
-              {isSubmitting ? 'Solicitando...' : 'Solicitar Cotización'}
-            </Button>
+          {currentStep === 1 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-xl font-semibold mb-2">¡Cuéntame sobre el festejado! 🎉</h3>
+              </div>
+              <div className="space-y-4 max-w-md mx-auto">
+                <div>
+                  <Label htmlFor="childName">¿Cómo se llama el niño o niña que cumple años?</Label>
+                  <Input
+                    id="childName"
+                    value={data.childName}
+                    onChange={(e) => setData({ ...data, childName: e.target.value })}
+                    placeholder="Ej: María, Juan, etc."
+                  />
+                </div>
+              </div>
+            </div>
           )}
+
+          {currentStep === 2 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-xl font-semibold mb-2">Detalles de la Fiesta 🎈</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Label htmlFor="eventDate">¿Cuándo será la fiesta?</Label>
+                  <Input
+                    id="eventDate"
+                    type="date"
+                    value={data.eventDate}
+                    onChange={(e) => setData({ ...data, eventDate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="childrenCount">¿Cuántos niños aproximadamente?</Label>
+                  <Input
+                    id="childrenCount"
+                    type="number"
+                    value={data.childrenCount || ""}
+                    onChange={(e) => setData({ ...data, childrenCount: parseInt(e.target.value) || null })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>¿Qué tipo de actividades les gustan más?</Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                  {preferenceOptions.map((option) => (
+                    <div
+                      key={option.id}
+                      className={`flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                        data.preferences.includes(option.id)
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => setData(prev => ({
+                        ...prev,
+                        preferences: prev.preferences.includes(option.id)
+                          ? prev.preferences.filter(p => p !== option.id)
+                          : [...prev.preferences, option.id]
+                      }))}
+                    >
+                      <option.icon className="w-8 h-8 mb-2 text-primary" />
+                      <span className="text-sm text-center font-medium">{option.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 5 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-xl font-semibold mb-2">¡Casi terminamos! 🎯</h3>
+              </div>
+              <div className="max-w-md mx-auto space-y-4">
+                <div>
+                  <Label htmlFor="customerName">Tu nombre completo</Label>
+                  <Input
+                    id="customerName"
+                    value={data.customerName}
+                    onChange={(e) => setData({ ...data, customerName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="email">Correo electrónico</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={data.email}
+                    onChange={(e) => setData({ ...data, email: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between pt-6 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
+              disabled={currentStep === 1}
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Anterior
+            </Button>
+
+            {currentStep < 5 ? (
+              <Button
+                onClick={handleNext}
+                disabled={currentStep === 1 && !data.childName}
+              >
+                Siguiente
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSubmit}
+                disabled={!data.customerName || !data.email || isSubmitting}
+              >
+                {isSubmitting ? "Enviando..." : "Solicitar Cotización"}
+              </Button>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

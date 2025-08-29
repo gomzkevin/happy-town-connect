@@ -2,18 +2,16 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 export interface Service {
   id: string;
-  icon: React.ComponentType<{ className?: string }>;
   title: string;
   description: string;
   price: string;
   category: string;
-  detailedDescription: string;
-  features: string[];
-  images: string[];
-  spaceRequirement: string;
-  duration: string;
-  ageRange: string;
-  maxParticipants: number;
+  icon: string;
+  features?: string[];
+  duration?: string;
+  max_participants?: number;
+  age_range?: string;
+  space_requirements?: string;
 }
 
 export interface SelectedService {
