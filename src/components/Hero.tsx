@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { ArrowDown, Star } from "lucide-react";
 import heroImage from "@/assets/hero-image.jpg";
+import { useOnboarding } from "@/hooks/useOnboarding";
 import { RamiOnboarding } from "./RamiOnboarding";
-import { useState } from "react";
 
 const Hero = () => {
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const { showOnboarding, openOnboarding, closeOnboarding } = useOnboarding();
   return (
     <section id="inicio" className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background Image */}
@@ -62,7 +62,7 @@ const Hero = () => {
                 variant="hero" 
                 size="lg" 
                 className="text-lg"
-                onClick={() => setShowOnboarding(true)}
+                onClick={openOnboarding}
               >
                 Cotizar Mi Fiesta
               </Button>
@@ -109,7 +109,7 @@ const Hero = () => {
       
       <RamiOnboarding 
         isOpen={showOnboarding} 
-        onClose={() => setShowOnboarding(false)} 
+        onClose={closeOnboarding} 
       />
     </section>
   );

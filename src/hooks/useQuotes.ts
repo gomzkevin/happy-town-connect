@@ -70,6 +70,35 @@ export const useQuotes = () => {
         if (servicesError) throw servicesError;
       }
 
+      // Send email via Edge Function
+      const emailData = {
+        customerName: quoteData.customerName,
+        email: quoteData.email,
+        phone: quoteData.phone,
+        eventDate: quoteData.eventDate,
+        childrenCount: quoteData.childrenCount,
+        ageRange: quoteData.ageRange,
+        childName: quoteData.childName,
+        preferences: quoteData.preferences,
+        location: quoteData.location,
+        services: selectedServices.map(item => ({
+          name: item.service.title,
+          price: parseInt(item.service.price.replace(/[^\d]/g, '')),
+          quantity: item.quantity
+        })),
+        totalEstimate
+      };
+
+      const { data: emailResult, error: emailError } = await supabase.functions.invoke(
+        'send-quote-email',
+        { body: emailData }
+      );
+
+      if (emailError) {
+        console.error('Error sending email:', emailError);
+        // Continue with success even if email fails
+      }
+
       // Clear the cart
       clearSelection();
 

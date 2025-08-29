@@ -1,21 +1,28 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { servicesData } from "@/data/services";
-import { useServices } from "@/contexts/ServicesContext";
+import { useServices as useServicesContext } from "@/contexts/ServicesContext";
+import { useServices } from "@/hooks/useServices";
+import { useOnboarding } from "@/hooks/useOnboarding";
+import * as LucideIcons from "lucide-react";
 
 const Services = () => {
   const navigate = useNavigate();
-  const { addService } = useServices();
+  const { addService } = useServicesContext();
+  const { services, loading } = useServices();
+  const { openOnboarding } = useOnboarding();
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case "Estación":
+      case "Estaciones de Juego":
         return "bg-primary/10 text-primary";
-      case "Taller":
+      case "Talleres Creativos":
         return "bg-secondary/10 text-secondary";
-      case "Spa":
+      case "Gastronomía":
         return "bg-accent/10 text-accent";
+      case "Servicios Profesionales":
+        return "bg-muted/10 text-muted-foreground";
       default:
         return "bg-muted/10 text-muted-foreground";
     }
@@ -36,9 +43,12 @@ const Services = () => {
         </div>
 
         {/* Services Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
-          {servicesData.map((service, index) => {
-            const IconComponent = service.icon;
+        {loading ? (
+          <div className="text-center py-8">Cargando servicios...</div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
+            {services.map((service, index) => {
+              const IconComponent = (LucideIcons as any)[service.icon] || LucideIcons.Star;
             return (
               <Card 
                 key={index} 
@@ -82,8 +92,9 @@ const Services = () => {
                 </CardContent>
               </Card>
             );
-          })}
-        </div>
+            })}
+          </div>
+        )}
 
         {/* CTA Section */}
         <div className="text-center">
@@ -92,7 +103,7 @@ const Services = () => {
             <p className="text-muted-foreground mb-6">
               Combina los servicios que más le gusten a tu pequeño y recibe una cotización personalizada.
             </p>
-            <Button variant="hero" size="lg">
+            <Button variant="hero" size="lg" onClick={openOnboarding}>
               Solicitar Cotización
             </Button>
           </div>
