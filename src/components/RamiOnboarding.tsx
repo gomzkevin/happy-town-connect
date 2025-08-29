@@ -23,6 +23,8 @@ interface OnboardingData {
   customerName: string;
   email: string;
   phone: string;
+  comments: string;
+  selectedServices: string[];
 }
 
 const preferenceOptions = [
@@ -56,6 +58,8 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
     customerName: "",
     email: "",
     phone: "",
+    comments: "",
+    selectedServices: [],
   });
 
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
@@ -147,17 +151,32 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">¡Perfecto {data.childName}! Cuéntame más detalles 🎈</h3>
+                <h3 className="text-xl font-semibold mb-2">¡Perfecto! Ahora cuéntame sobre la fiesta de {data.childName} 🎈</h3>
               </div>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label htmlFor="eventDate">¿Cuándo será la fiesta?</Label>
-                  <Input
-                    id="eventDate"
-                    type="date"
-                    value={data.eventDate}
-                    onChange={(e) => setData({ ...data, eventDate: e.target.value })}
-                  />
+                  <Label>¿Qué edad tiene {data.childName}?</Label>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    {[
+                      { value: "2-4", label: "2-4 años" },
+                      { value: "5-7", label: "5-7 años" },
+                      { value: "8-10", label: "8-10 años" },
+                      { value: "11-13", label: "11-13 años" }
+                    ].map((age) => (
+                      <div
+                        key={age.value}
+                        className={`p-3 rounded-lg border-2 cursor-pointer transition-all text-center ${
+                          data.ageRange === age.value
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border hover:border-primary/50'
+                        }`}
+                        onClick={() => setData({ ...data, ageRange: age.value })}
+                      >
+                        <span className="font-medium text-sm">{age.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="childrenCount">¿Cuántos niños aproximadamente?</Label>
@@ -166,6 +185,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                     type="number"
                     value={data.childrenCount || ""}
                     onChange={(e) => setData({ ...data, childrenCount: parseInt(e.target.value) || null })}
+                    placeholder="Ej: 15"
                   />
                 </div>
               </div>
@@ -200,40 +220,28 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">¿Qué edad tiene {data.childName}? 🎂</h3>
-              </div>
-              <div className="max-w-md mx-auto space-y-4">
-                <div>
-                  <Label>Selecciona el rango de edad</Label>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    {[
-                      { value: "2-4", label: "2-4 años" },
-                      { value: "5-7", label: "5-7 años" },
-                      { value: "8-10", label: "8-10 años" },
-                      { value: "11-13", label: "11-13 años" }
-                    ].map((age) => (
-                      <div
-                        key={age.value}
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all text-center ${
-                          data.ageRange === age.value
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                        onClick={() => setData({ ...data, ageRange: age.value })}
-                      >
-                        <span className="font-medium">{age.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <h3 className="text-xl font-semibold mb-2">¡Servicios recomendados para {data.childName}! ⭐</h3>
+                <p className="text-muted-foreground">Selecciona los servicios que más te interesen</p>
               </div>
               
               {recommendations.length > 0 && (
                 <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-center">¡Servicios recomendados para {data.childName}! ⭐</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {recommendations.slice(0, 4).map((service) => (
-                      <Card key={service.id} className="cursor-pointer transition-all hover:shadow-lg">
+                    {recommendations.map((service) => (
+                      <Card 
+                        key={service.id} 
+                        className={`cursor-pointer transition-all hover:shadow-lg ${
+                          data.selectedServices.includes(service.id)
+                            ? 'ring-2 ring-primary bg-primary/5'
+                            : ''
+                        }`}
+                        onClick={() => setData(prev => ({
+                          ...prev,
+                          selectedServices: prev.selectedServices.includes(service.id)
+                            ? prev.selectedServices.filter(s => s !== service.id)
+                            : [...prev.selectedServices, service.id]
+                        }))}
+                      >
                         <CardContent className="p-4">
                           <div className="flex items-center gap-3">
                             <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
@@ -242,10 +250,18 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                                 { className: "w-6 h-6 text-primary" }
                               )}
                             </div>
-                            <div>
+                            <div className="flex-1">
                               <h5 className="font-semibold">{service.title}</h5>
                               <p className="text-sm text-muted-foreground">{service.description}</p>
+                              <p className="text-sm font-medium text-primary mt-1">{service.price}</p>
                             </div>
+                            {data.selectedServices.includes(service.id) && (
+                              <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -259,9 +275,18 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
           {currentStep === 4 && (
             <div className="space-y-6">
               <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">¡Ya casi terminamos! 📍</h3>
+                <h3 className="text-xl font-semibold mb-2">Detalles del evento 📍</h3>
               </div>
               <div className="max-w-md mx-auto space-y-4">
+                <div>
+                  <Label htmlFor="eventDate">¿Cuándo será la fiesta?</Label>
+                  <Input
+                    id="eventDate"
+                    type="date"
+                    value={data.eventDate}
+                    onChange={(e) => setData({ ...data, eventDate: e.target.value })}
+                  />
+                </div>
                 <div>
                   <Label htmlFor="location">¿En qué zona será la fiesta?</Label>
                   <Input
@@ -269,6 +294,35 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                     value={data.location}
                     onChange={(e) => setData({ ...data, location: e.target.value })}
                     placeholder="Ej: Polanco, Roma Norte, Satelite..."
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 5 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-xl font-semibold mb-2">Información de contacto 📞</h3>
+              </div>
+              <div className="max-w-md mx-auto space-y-4">
+                <div>
+                  <Label htmlFor="customerName">Tu nombre completo</Label>
+                  <Input
+                    id="customerName"
+                    value={data.customerName}
+                    onChange={(e) => setData({ ...data, customerName: e.target.value })}
+                    placeholder="Ej: María González"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="email">Correo electrónico</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={data.email}
+                    onChange={(e) => setData({ ...data, email: e.target.value })}
+                    placeholder="Ej: maria@email.com"
                   />
                 </div>
                 <div>
@@ -280,31 +334,14 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                     placeholder="Ej: 55 1234 5678"
                   />
                 </div>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 5 && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">¡Casi terminamos! 🎯</h3>
-              </div>
-              <div className="max-w-md mx-auto space-y-4">
                 <div>
-                  <Label htmlFor="customerName">Tu nombre completo</Label>
-                  <Input
-                    id="customerName"
-                    value={data.customerName}
-                    onChange={(e) => setData({ ...data, customerName: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Correo electrónico</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={data.email}
-                    onChange={(e) => setData({ ...data, email: e.target.value })}
+                  <Label htmlFor="comments">Comentarios adicionales (opcional)</Label>
+                  <textarea
+                    id="comments"
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={data.comments}
+                    onChange={(e) => setData({ ...data, comments: e.target.value })}
+                    placeholder="¿Hay algo especial que debamos saber sobre la fiesta?"
                   />
                 </div>
               </div>
@@ -326,9 +363,9 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                 onClick={handleNext}
                 disabled={
                   (currentStep === 1 && !data.childName) ||
-                  (currentStep === 2 && (!data.eventDate || !data.childrenCount || data.preferences.length === 0)) ||
-                  (currentStep === 3 && !data.ageRange) ||
-                  (currentStep === 4 && (!data.location || !data.phone))
+                  (currentStep === 2 && (!data.ageRange || !data.childrenCount || data.preferences.length === 0)) ||
+                  (currentStep === 3 && data.selectedServices.length === 0) ||
+                  (currentStep === 4 && (!data.eventDate || !data.location))
                 }
               >
                 Siguiente
@@ -337,7 +374,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
             ) : (
               <Button
                 onClick={handleSubmit}
-                disabled={!data.customerName || !data.email || isSubmitting}
+                disabled={!data.customerName || !data.email || !data.phone || isSubmitting}
               >
                 {isSubmitting ? "Enviando..." : "Solicitar Cotización"}
               </Button>
