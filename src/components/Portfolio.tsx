@@ -2,8 +2,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, MapPin } from "lucide-react";
+import { useOnboarding } from "@/hooks/useOnboarding";
 
 const Portfolio = () => {
+  const { openOnboarding } = useOnboarding();
   // Mock data for portfolio - in real app this would come from API
   const events = [
     {
@@ -165,7 +167,7 @@ const Portfolio = () => {
               <Button variant="hero">
                 Ver Todas las Fiestas
               </Button>
-              <Button variant="outline">
+              <Button variant="outline" onClick={openOnboarding}>
                 Planear Mi Fiesta
               </Button>
             </div>

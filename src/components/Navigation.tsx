@@ -2,11 +2,12 @@ import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import japitownLogo from "@/assets/japitown-logo-oficial.png";
+import { useOnboarding } from "@/hooks/useOnboarding";
 import { RamiOnboarding } from "./RamiOnboarding";
 
 const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const { showOnboarding, openOnboarding, closeOnboarding } = useOnboarding();
 
   const navItems = [
     { name: "Inicio", href: "#inicio" },
@@ -40,7 +41,7 @@ const Navigation = () => {
                 {item.name}
               </a>
             ))}
-            <Button variant="hero" size="sm" onClick={() => setShowOnboarding(true)}>
+            <Button variant="hero" size="sm" onClick={openOnboarding}>
               Cotizar Fiesta
             </Button>
           </div>
@@ -77,7 +78,7 @@ const Navigation = () => {
                   size="sm" 
                   className="w-full"
                   onClick={() => {
-                    setShowOnboarding(true);
+                    openOnboarding();
                     setIsOpen(false);
                   }}
                 >
@@ -91,7 +92,7 @@ const Navigation = () => {
       
       <RamiOnboarding 
         isOpen={showOnboarding} 
-        onClose={() => setShowOnboarding(false)} 
+        onClose={closeOnboarding} 
       />
     </nav>
   );
