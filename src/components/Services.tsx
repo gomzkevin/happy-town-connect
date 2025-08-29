@@ -4,14 +4,19 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { useServices as useServicesContext } from "@/contexts/ServicesContext";
 import { useServices } from "@/hooks/useServices";
+import { useServiceImages } from "@/hooks/useServiceImages";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import * as LucideIcons from "lucide-react";
 
-const Services = () => {
-  const navigate = useNavigate();
-  const { addService } = useServicesContext();
-  const { services, loading } = useServices();
-  const { openOnboarding } = useOnboarding();
+const ServiceCard = ({ service, onAddToCart, onViewDetails }: { 
+  service: any; 
+  onAddToCart: (service: any) => void; 
+  onViewDetails: (serviceId: string) => void; 
+}) => {
+  const { images } = useServiceImages(service.id);
+  const IconComponent = (LucideIcons as any)[service.icon] || LucideIcons.Star;
+  
+  const primaryImage = images.find(img => img.is_primary) || images[0];
 
   const getCategoryColor = (category: string) => {
     switch (category) {
@@ -27,6 +32,72 @@ const Services = () => {
         return "bg-muted/10 text-muted-foreground";
     }
   };
+
+  return (
+    <Card 
+      className="group hover:shadow-hover transition-all duration-300 cursor-pointer transform hover:-translate-y-1 overflow-hidden"
+      onClick={() => onViewDetails(service.id)}
+    >
+      {/* Image Section */}
+      <div className="relative h-48 overflow-hidden">
+        {primaryImage ? (
+          <img 
+            src={primaryImage.image_url} 
+            alt={primaryImage.alt_text || service.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
+            <IconComponent className="w-16 h-16 text-primary/60" />
+          </div>
+        )}
+        <div className="absolute top-3 left-3">
+          <Badge 
+            variant="secondary" 
+            className={`${getCategoryColor(service.category)} text-xs font-medium`}
+          >
+            {service.category}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Content Section */}
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg leading-tight">{service.title}</CardTitle>
+      </CardHeader>
+      
+      <CardContent className="pt-0">
+        <CardDescription className="mb-4 text-sm leading-relaxed line-clamp-3">
+          {service.description}
+        </CardDescription>
+        
+        <div className="space-y-3">
+          <div className="text-2xl font-bold text-primary">
+            {service.price}
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full hover:bg-primary hover:text-primary-foreground transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddToCart(service);
+            }}
+          >
+            Agregar a Cotización
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const Services = () => {
+  const navigate = useNavigate();
+  const { addService } = useServicesContext();
+  const { services, loading } = useServices();
+  const { openOnboarding } = useOnboarding();
+
 
   const handleServiceClick = (serviceId: string) => {
     navigate(`/servicio/${serviceId}`);
@@ -50,49 +121,7 @@ const Services = () => {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
             {services.map((service, index) => {
-              const IconComponent = (LucideIcons as any)[service.icon] || LucideIcons.Star;
-              
-              return (
-                <Card 
-                  key={service.id}
-                  className="group hover:shadow-lg transition-all duration-300 cursor-pointer transform hover:-translate-y-1"
-                  onClick={() => handleServiceClick(service.id)}
-                >
-                  <CardHeader className="text-center pb-2">
-                    <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      <IconComponent className="w-8 h-8 text-primary" />
-                    </div>
-                    <Badge 
-                      variant="secondary" 
-                      className={`${getCategoryColor(service.category)} mb-2 text-xs`}
-                    >
-                      {service.category}
-                    </Badge>
-                    <CardTitle className="text-lg">{service.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="text-center">
-                    <CardDescription className="mb-4 text-sm leading-relaxed">
-                      {service.description}
-                    </CardDescription>
-                    <div className="space-y-3">
-                      <div className="text-2xl font-bold text-primary">
-                        {service.price}
-                      </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="w-full"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          addService(service);
-                        }}
-                      >
-                        Agregar a Cotización
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
+              return <ServiceCard key={service.id} service={service} onAddToCart={addService} onViewDetails={handleServiceClick} />;
             })}
           </div>
         )}

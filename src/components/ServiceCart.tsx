@@ -69,16 +69,13 @@ const ServiceCart = () => {
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
         <Button 
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50"
-          size="icon"
+          className="fixed bottom-6 right-6 h-12 px-4 rounded-full shadow-hover z-50 bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 animate-fade-in"
+          variant="default"
         >
-          <ShoppingCart className="h-6 w-6" />
-          <Badge 
-            variant="destructive" 
-            className="absolute -top-2 -right-2 h-6 w-6 p-0 flex items-center justify-center text-xs"
-          >
+          <ShoppingCart className="h-5 w-5 mr-2" />
+          <span className="font-medium">
             {selectedServices.reduce((total, item) => total + item.quantity, 0)}
-          </Badge>
+          </span>
         </Button>
       </SheetTrigger>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
