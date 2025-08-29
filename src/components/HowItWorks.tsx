@@ -1,8 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, Calendar, PartyPopper } from "lucide-react";
+import { useOnboarding } from "@/hooks/useOnboarding";
 
 const HowItWorks = () => {
+  const { openOnboarding } = useOnboarding();
   const steps = [
     {
       icon: MessageCircle,
@@ -82,7 +84,7 @@ const HowItWorks = () => {
               ¡Comencemos a planificar juntos!
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button variant="hero" size="lg">
+              <Button variant="hero" size="lg" onClick={openOnboarding}>
                 Iniciar Planificación
               </Button>
               <Button variant="outline" size="lg">
