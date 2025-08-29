@@ -3,8 +3,7 @@ import { Resend } from "npm:resend@2.0.0";
 import { renderAsync } from "npm:@react-email/components@0.0.22";
 import React from "npm:react@18.3.1";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
-import { QuoteEmail } from './_templates/quote-email.tsx';
-import { QuotePDF } from './_templates/quote-pdf.tsx';
+import { QuoteEmailComplete } from './_templates/quote-email-complete.tsx';
 
 // Initialize clients
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
@@ -36,42 +35,6 @@ interface QuoteEmailRequest {
   totalEstimate: number;
 }
 
-// Generate PDF using Puppeteer
-async function generatePDF(htmlContent: string): Promise<Uint8Array> {
-  try {
-    // Use Deno's built-in fetch with a serverless PDF service
-    // For production, you might want to use a dedicated PDF service
-    const response = await fetch('https://api.html-pdf.app/v1/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': Deno.env.get('HTML_PDF_API_KEY') || '', // Optional: use a PDF service
-      },
-      body: JSON.stringify({
-        html: htmlContent,
-        format: 'A4',
-        printOptions: {
-          marginTop: '20mm',
-          marginBottom: '20mm',
-          marginLeft: '15mm',
-          marginRight: '15mm',
-        }
-      })
-    });
-
-    if (!response.ok) {
-      // Fallback: return HTML as text if PDF service fails
-      console.warn('PDF service unavailable, sending HTML content instead');
-      return new TextEncoder().encode(htmlContent);
-    }
-
-    return new Uint8Array(await response.arrayBuffer());
-  } catch (error) {
-    console.error('PDF generation failed:', error);
-    // Fallback: return HTML content
-    return new TextEncoder().encode(htmlContent);
-  }
-}
 
 // Send WhatsApp notification
 async function sendWhatsAppNotification(
@@ -159,6 +122,8 @@ const handler = async (req: Request): Promise<Response> => {
     // Prepare email data
     const emailData = {
       customerName: data.customerName,
+      email: data.email,
+      phone: data.phone,
       companyName: companySettings?.company_name || 'JapiTown',
       companyEmail: companySettings?.email || 'cotizaciones@japitown.com',
       companyPhone: companySettings?.phone,
@@ -169,49 +134,23 @@ const handler = async (req: Request): Promise<Response> => {
       childrenCount: data.childrenCount,
       location: data.location,
       termsConditions: companySettings?.terms_conditions,
+      quoteNumber,
+      createdDate,
     };
 
-    // Generate email HTML
+    // Generate complete email HTML with all quote information
     const emailHtml = await renderAsync(
-      React.createElement(QuoteEmail, emailData)
+      React.createElement(QuoteEmailComplete, emailData)
     );
 
-    // Generate PDF HTML
-    const pdfHtml = await renderAsync(
-      React.createElement(QuotePDF, {
-        ...emailData,
-        email: data.email,
-        phone: data.phone,
-        quoteNumber,
-        createdDate,
-      })
-    );
-
-    // Generate PDF
-    let pdfBuffer: Uint8Array;
-    try {
-      pdfBuffer = await generatePDF(pdfHtml);
-      await logQuoteHistory(quoteNumber, 'pdf_generated', data.email, 'success');
-    } catch (error) {
-      console.error('PDF generation failed:', error);
-      pdfBuffer = new TextEncoder().encode(pdfHtml);
-      await logQuoteHistory(quoteNumber, 'pdf_generated', data.email, 'failed', null, error.message);
-    }
-
-    // Send email with PDF attachment
-    const emailSubject = emailTemplate?.subject || `🎉 Tu cotización personalizada de ${emailData.companyName} está lista`;
+    // Send email without PDF attachment
+    const emailSubject = emailTemplate?.subject || `🎉 Tu cotización #${quoteNumber} de ${emailData.companyName} está lista`;
     
     const emailResult = await resend.emails.send({
       from: `${emailData.companyName} <${emailData.companyEmail}>`,
       to: [data.email],
       subject: emailSubject,
       html: emailHtml,
-      attachments: [
-        {
-          filename: `Cotización-${quoteNumber}-${data.customerName.replace(/\s+/g, '-')}.pdf`,
-          content: pdfBuffer,
-        },
-      ],
     });
 
     if (emailResult.error) {
@@ -222,7 +161,8 @@ const handler = async (req: Request): Promise<Response> => {
     await logQuoteHistory(quoteNumber, 'email_sent', data.email, 'success', {
       email_id: emailResult.data?.id,
       services_count: data.services.length,
-      total_estimate: data.totalEstimate
+      total_estimate: data.totalEstimate,
+      format: 'html_email'
     });
 
     // Send WhatsApp notifications if enabled
