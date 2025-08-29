@@ -2,11 +2,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Check, Clock, Users, MapPin, Calendar, Star, Upload, X } from "lucide-react";
+import { ArrowLeft, Plus, Check, Clock, Users, MapPin, Calendar, Star, Upload, X, Trash2 } from "lucide-react";
 import { useServices as useServicesContext } from "@/contexts/ServicesContext";
 import { useServices } from "@/hooks/useServices";
 import { useServiceImages } from "@/hooks/useServiceImages";
+import { useImageMutations } from "@/hooks/useImageMutations";
 import { useAuth } from "@/contexts/AuthContext";
+import { ConfirmDialog } from "./admin/ConfirmDialog";
 import { useState, useRef } from "react";
 import * as LucideIcons from "lucide-react";
 
@@ -15,12 +17,28 @@ const ServiceDetail = () => {
   const navigate = useNavigate();
   const { addService, selectedServices } = useServicesContext();
   const { services } = useServices();
-  const { images, loading: imagesLoading, uploadImage } = useServiceImages(id);
+  const { images, loading: imagesLoading, uploadImage, refetch } = useServiceImages(id);
+  const { deleteServiceImage } = useImageMutations();
   const { isAdmin } = useAuth();
   const [isAdded, setIsAdded] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, imageId: '', imageUrl: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDeleteImage = async () => {
+    try {
+      await deleteServiceImage(deleteDialog.imageId, deleteDialog.imageUrl);
+      refetch();
+      setDeleteDialog({ open: false, imageId: '', imageUrl: '' });
+    } catch (error) {
+      console.error('Error deleting image:', error);
+    }
+  };
+
+  const openDeleteDialog = (imageId: string, imageUrl: string) => {
+    setDeleteDialog({ open: true, imageId, imageUrl });
+  };
 
   const service = services.find(s => s.id === id);
   const IconComponent = service ? (LucideIcons as any)[service.icon] || LucideIcons.Star : LucideIcons.Star;
@@ -147,12 +165,23 @@ const ServiceDetail = () => {
                 ) : images.length > 0 ? (
                   <div className="space-y-4">
                     {/* Main Image */}
-                    <div className="aspect-video relative overflow-hidden">
+                    <div className="aspect-video relative overflow-hidden group">
                       <img
                         src={images[selectedImageIndex]?.image_url}
                         alt={images[selectedImageIndex]?.alt_text || service.title}
                         className="w-full h-full object-cover"
                       />
+                      {isAdmin && (
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => openDeleteDialog(images[selectedImageIndex]?.id, images[selectedImageIndex]?.image_url)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     
                     {/* Thumbnail Grid */}
@@ -331,6 +360,17 @@ const ServiceDetail = () => {
           </div>
         </div>
       </div>
+      
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}
+        title="Eliminar Imagen"
+        description="¿Estás seguro de que quieres eliminar esta imagen? Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onConfirm={handleDeleteImage}
+        variant="destructive"
+      />
     </div>
   );
 };

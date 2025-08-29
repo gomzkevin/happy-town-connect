@@ -1,7 +1,9 @@
 import { useParams, Link } from 'react-router-dom';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventImages } from '@/hooks/useEventImages';
+import { useImageMutations } from '@/hooks/useImageMutations';
 import { useAuth } from '@/contexts/AuthContext';
+import { ConfirmDialog } from './admin/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,10 +16,22 @@ import { toast } from 'sonner';
 const EventDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { events, loading: eventsLoading } = useEvents();
-  const { images, loading: imagesLoading, uploadImage } = useEventImages(id || '');
+  const { images, loading: imagesLoading, uploadImage, refetch } = useEventImages(id || '');
+  const { deleteEventImage } = useImageMutations();
   const { isAdmin } = useAuth();
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, imageId: '', imageUrl: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDeleteImage = async () => {
+    try {
+      await deleteEventImage(deleteDialog.imageId, deleteDialog.imageUrl);
+      refetch();
+      setDeleteDialog({ open: false, imageId: '', imageUrl: '' });
+    } catch (error) {
+      console.error('Error deleting image:', error);
+    }
+  };
 
   if (!id || eventsLoading) {
     return (
@@ -233,6 +247,17 @@ const EventDetail = () => {
           </CardContent>
         </Card>
       </div>
+      
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}
+        title="Eliminar Imagen"
+        description="¿Estás seguro de que quieres eliminar esta imagen? Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onConfirm={handleDeleteImage}
+        variant="destructive"
+      />
     </div>
   );
 };
