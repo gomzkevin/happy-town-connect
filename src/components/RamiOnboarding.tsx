@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, PartyPopper, Users, Calendar, MapPin, Heart, Star, Gift, Crown, Palette, Sparkles, Music, Camera, Utensils, Gamepad2 } from "lucide-react";
 import { useServices } from "@/hooks/useServices";
 import { useQuotes } from "@/hooks/useQuotes";
@@ -157,26 +158,17 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <Label>¿Qué edad tiene {data.childName}?</Label>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    {[
-                      { value: "2-4", label: "2-4 años" },
-                      { value: "5-7", label: "5-7 años" },
-                      { value: "8-10", label: "8-10 años" },
-                      { value: "11-13", label: "11-13 años" }
-                    ].map((age) => (
-                      <div
-                        key={age.value}
-                        className={`p-3 rounded-lg border-2 cursor-pointer transition-all text-center ${
-                          data.ageRange === age.value
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                        onClick={() => setData({ ...data, ageRange: age.value })}
-                      >
-                        <span className="font-medium text-sm">{age.label}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <Select value={data.ageRange} onValueChange={(value) => setData({ ...data, ageRange: value })}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecciona el rango de edad" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2-4">2-4 años</SelectItem>
+                      <SelectItem value="5-7">5-7 años</SelectItem>
+                      <SelectItem value="8-10">8-10 años</SelectItem>
+                      <SelectItem value="11-13">11-13 años</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="childrenCount">¿Cuántos niños aproximadamente?</Label>
