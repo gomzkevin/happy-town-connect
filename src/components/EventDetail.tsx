@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventImages } from '@/hooks/useEventImages';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +15,7 @@ const EventDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { events, loading: eventsLoading } = useEvents();
   const { images, loading: imagesLoading, uploadImage } = useEventImages(id || '');
+  const { isAdmin } = useAuth();
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -171,23 +173,25 @@ const EventDetail = () => {
                   Todas las fotos de este evento
                 </CardDescription>
               </div>
-              <div>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleImageUpload}
-                  accept="image/*"
-                  className="hidden"
-                />
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingImage}
-                  variant="outline"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  {uploadingImage ? 'Subiendo...' : 'Subir Imagen'}
-                </Button>
-              </div>
+              {isAdmin && (
+                <div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                    variant="outline"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {uploadingImage ? 'Subiendo...' : 'Subir Imagen'}
+                  </Button>
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -198,13 +202,15 @@ const EventDetail = () => {
             ) : images.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-muted-foreground mb-4">No hay imágenes disponibles para este evento</p>
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingImage}
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Subir primera imagen
-                </Button>
+                {isAdmin && (
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Subir primera imagen
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

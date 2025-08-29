@@ -6,6 +6,7 @@ import { ArrowLeft, Plus, Check, Clock, Users, MapPin, Calendar, Star, Upload, X
 import { useServices as useServicesContext } from "@/contexts/ServicesContext";
 import { useServices } from "@/hooks/useServices";
 import { useServiceImages } from "@/hooks/useServiceImages";
+import { useAuth } from "@/contexts/AuthContext";
 import { useState, useRef } from "react";
 import * as LucideIcons from "lucide-react";
 
@@ -15,6 +16,7 @@ const ServiceDetail = () => {
   const { addService, selectedServices } = useServicesContext();
   const { services } = useServices();
   const { images, loading: imagesLoading, uploadImage } = useServiceImages(id);
+  const { isAdmin } = useAuth();
   const [isAdded, setIsAdded] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -114,25 +116,27 @@ const ServiceDetail = () => {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle>Galería de Imágenes</CardTitle>
-                  <div className="flex gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploadingImage}
-                      className="gap-2"
-                    >
-                      <Upload className="h-4 w-4" />
-                      {uploadingImage ? 'Subiendo...' : 'Subir Imagen'}
-                    </Button>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingImage}
+                        className="gap-2"
+                      >
+                        <Upload className="h-4 w-4" />
+                        {uploadingImage ? 'Subiendo...' : 'Subir Imagen'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-0">

@@ -1,13 +1,16 @@
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Shield } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import japitownLogo from "@/assets/japitown-logo-oficial.png";
 import { useOnboarding } from "@/hooks/useOnboarding";
+import { useAuth } from "@/contexts/AuthContext";
 import { RamiOnboarding } from "./RamiOnboarding";
 
 const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { showOnboarding, openOnboarding, closeOnboarding } = useOnboarding();
+  const { user, isAdmin } = useAuth();
 
   const navItems = [
     { name: "Inicio", href: "#inicio" },
@@ -44,6 +47,23 @@ const Navigation = () => {
             <Button variant="hero" size="sm" onClick={openOnboarding}>
               Cotizar Fiesta
             </Button>
+            {user ? (
+              isAdmin ? (
+                <Link to="/admin">
+                  <Button variant="outline" size="sm">
+                    <Shield className="h-4 w-4 mr-2" />
+                    Admin
+                  </Button>
+                </Link>
+              ) : null
+            ) : (
+              <Link to="/auth">
+                <Button variant="outline" size="sm">
+                  <Shield className="h-4 w-4 mr-2" />
+                  Admin
+                </Button>
+              </Link>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -84,6 +104,23 @@ const Navigation = () => {
                 >
                   Cotizar Fiesta
                 </Button>
+                {user ? (
+                  isAdmin ? (
+                    <Link to="/admin">
+                      <Button variant="outline" size="sm" className="w-full mt-2">
+                        <Shield className="h-4 w-4 mr-2" />
+                        Admin
+                      </Button>
+                    </Link>
+                  ) : null
+                ) : (
+                  <Link to="/auth">
+                    <Button variant="outline" size="sm" className="w-full mt-2">
+                      <Shield className="h-4 w-4 mr-2" />
+                      Admin
+                    </Button>
+                  </Link>
+                )}
               </div>
             </div>
           </div>
