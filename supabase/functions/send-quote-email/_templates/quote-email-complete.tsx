@@ -24,6 +24,7 @@ interface QuoteEmailCompleteProps {
   companyEmail: string
   companyPhone?: string
   companyAddress?: string
+  logoUrl?: string
   services: Array<{
     name: string
     price: number
@@ -46,6 +47,7 @@ export const QuoteEmailComplete = ({
   companyEmail,
   companyPhone,
   companyAddress,
+  logoUrl,
   services,
   totalEstimate,
   termsConditions,
@@ -67,6 +69,20 @@ export const QuoteEmailComplete = ({
       <Container style={container}>
         {/* Header */}
         <Section style={header}>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt={`${companyName} Logo`}
+              style={{
+                width: '120px',
+                height: 'auto',
+                marginBottom: '16px',
+                display: 'block',
+                marginLeft: 'auto',
+                marginRight: 'auto'
+              }}
+            />
+          )}
           <Heading style={h1}>{companyName}</Heading>
           <Text style={subtitle}>Entretenimiento Infantil Premium</Text>
         </Section>

@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useEvents } from '@/hooks/useEvents';
 import { useEventImages } from '@/hooks/useEventImages';
 import { useImageMutations } from '@/hooks/useImageMutations';
@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 
 const EventDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { events, loading: eventsLoading } = useEvents();
   const { images, loading: imagesLoading, uploadImage, refetch, uploadFeaturedImage, deleteFeaturedImage } = useEventImages(id || '');
   const { deleteEventImage } = useImageMutations();
@@ -140,12 +142,14 @@ const EventDetail = () => {
       <div className="bg-gradient-to-b from-primary/5 to-background">
         <div className="container mx-auto px-4 py-8">
           <div className="mb-6">
-            <Link to="/">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Volver al portfolio
-              </Button>
-            </Link>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => navigate(searchParams.get('from') === 'admin' ? '/admin' : '/')}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              {searchParams.get('from') === 'admin' ? 'Volver al panel admin' : 'Volver al portfolio'}
+            </Button>
           </div>
           
           <div className="grid lg:grid-cols-2 gap-8 items-start">

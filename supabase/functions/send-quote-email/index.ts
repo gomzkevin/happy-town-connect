@@ -48,6 +48,7 @@ const corsHeaders = {
 };
 
 interface QuoteEmailRequest {
+  quoteId: string; // UUID from the database
   customerName: string;
   email: string;
   phone?: string;
@@ -158,6 +159,7 @@ const handler = async (req: Request): Promise<Response> => {
       companyEmail: companySettings?.email || 'cotizaciones@japitown.com',
       companyPhone: companySettings?.phone,
       companyAddress: companySettings?.address,
+      logoUrl: companySettings?.logo_url,
       services: data.services,
       totalEstimate: data.totalEstimate,
       eventDate: data.eventDate,
@@ -184,15 +186,16 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     if (emailResult.error) {
-      await logQuoteHistory(quoteNumber, 'email_sent', data.email, 'failed', emailResult, emailResult.error.message);
+      await logQuoteHistory(data.quoteId, 'email_sent', data.email, 'failed', emailResult, emailResult.error.message);
       throw emailResult.error;
     }
 
-    await logQuoteHistory(quoteNumber, 'email_sent', data.email, 'success', {
+    await logQuoteHistory(data.quoteId, 'email_sent', data.email, 'success', {
       email_id: emailResult.data?.id,
       services_count: data.services.length,
       total_estimate: data.totalEstimate,
-      format: 'html_email'
+      format: 'html_email',
+      quote_number: quoteNumber
     });
 
     // Send WhatsApp notifications if enabled
@@ -209,7 +212,7 @@ const handler = async (req: Request): Promise<Response> => {
         );
 
         await logQuoteHistory(
-          quoteNumber, 
+          data.quoteId, 
           'whatsapp_sent', 
           data.phone, 
           clientWhatsAppSuccess ? 'success' : 'failed'
@@ -230,7 +233,7 @@ const handler = async (req: Request): Promise<Response> => {
         );
 
         await logQuoteHistory(
-          quoteNumber, 
+          data.quoteId, 
           'whatsapp_sent', 
           companySettings.whatsapp_number, 
           adminWhatsAppSuccess ? 'success' : 'failed'

@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import * as LucideIcons from "lucide-react";
 const ServiceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addService, selectedServices } = useServicesContext();
   const { services } = useServices();
   const { images, loading: imagesLoading, uploadImage, refetch } = useServiceImages(id);
@@ -103,7 +104,7 @@ const ServiceDetail = () => {
             <Button 
               variant="ghost" 
               size="sm"
-              onClick={() => navigate('/')}
+              onClick={() => navigate(searchParams.get('from') === 'admin' ? '/admin' : '/')}
               className="gap-2"
             >
               <ArrowLeft className="h-4 w-4" />

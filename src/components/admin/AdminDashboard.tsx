@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Upload, Image, Calendar, Settings, Plus, Edit, Trash2 } from 'lucide-react';
+import { LogOut, Upload, Image, Calendar, Settings, Plus, Edit, Trash2, Home } from 'lucide-react';
 import { useServices } from '@/hooks/useServices';
 import { useEvents } from '@/hooks/useEvents';
 import { useServiceMutations } from '@/hooks/useServiceMutations';
@@ -176,6 +176,10 @@ const AdminDashboard = () => {
             <span className="text-sm text-muted-foreground">
               {user?.email}
             </span>
+            <Button onClick={() => navigate('/')} variant="outline" size="sm">
+              <Home className="w-4 h-4 mr-2" />
+              Volver al Sitio
+            </Button>
             <Button onClick={handleSignOut} variant="outline" size="sm">
               <LogOut className="w-4 h-4 mr-2" />
               Cerrar Sesión
@@ -286,7 +290,7 @@ const AdminDashboard = () => {
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => navigate(`/servicio/${service.id}`)}
+                          onClick={() => navigate(`/servicio/${service.id}?from=admin`)}
                         >
                           <Image className="h-4 w-4 mr-1" />
                           Imágenes
@@ -343,7 +347,7 @@ const AdminDashboard = () => {
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => navigate(`/evento/${event.id}`)}
+                          onClick={() => navigate(`/evento/${event.id}?from=admin`)}
                         >
                           <Image className="h-4 w-4 mr-1" />
                           Imágenes

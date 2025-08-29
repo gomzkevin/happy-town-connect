@@ -72,6 +72,7 @@ export const useQuotes = () => {
 
       // Send email via Edge Function
       const emailData = {
+        quoteId: quote.id, // Pass the real UUID
         customerName: quoteData.customerName,
         email: quoteData.email,
         phone: quoteData.phone,
