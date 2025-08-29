@@ -114,7 +114,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <img src={raminegrito} alt="Rami" className="w-8 h-8" />
@@ -147,7 +147,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">Detalles de la Fiesta 🎈</h3>
+                <h3 className="text-xl font-semibold mb-2">¡Perfecto {data.childName}! Cuéntame más detalles 🎈</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -171,7 +171,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
               </div>
 
               <div>
-                <Label>¿Qué tipo de actividades les gustan más?</Label>
+                <Label>¿Qué tipo de actividades le gustan más a {data.childName}?</Label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                   {preferenceOptions.map((option) => (
                     <div
@@ -192,6 +192,93 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                       <span className="text-sm text-center font-medium">{option.label}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 3 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-xl font-semibold mb-2">¿Qué edad tiene {data.childName}? 🎂</h3>
+              </div>
+              <div className="max-w-md mx-auto space-y-4">
+                <div>
+                  <Label>Selecciona el rango de edad</Label>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    {[
+                      { value: "2-4", label: "2-4 años" },
+                      { value: "5-7", label: "5-7 años" },
+                      { value: "8-10", label: "8-10 años" },
+                      { value: "11-13", label: "11-13 años" }
+                    ].map((age) => (
+                      <div
+                        key={age.value}
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all text-center ${
+                          data.ageRange === age.value
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border hover:border-primary/50'
+                        }`}
+                        onClick={() => setData({ ...data, ageRange: age.value })}
+                      >
+                        <span className="font-medium">{age.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {recommendations.length > 0 && (
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-center">¡Servicios recomendados para {data.childName}! ⭐</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {recommendations.slice(0, 4).map((service) => (
+                      <Card key={service.id} className="cursor-pointer transition-all hover:shadow-lg">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                              {service.icon && React.createElement(
+                                (LucideIcons as any)[service.icon], 
+                                { className: "w-6 h-6 text-primary" }
+                              )}
+                            </div>
+                            <div>
+                              <h5 className="font-semibold">{service.title}</h5>
+                              <p className="text-sm text-muted-foreground">{service.description}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {currentStep === 4 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-xl font-semibold mb-2">¡Ya casi terminamos! 📍</h3>
+              </div>
+              <div className="max-w-md mx-auto space-y-4">
+                <div>
+                  <Label htmlFor="location">¿En qué zona será la fiesta?</Label>
+                  <Input
+                    id="location"
+                    value={data.location}
+                    onChange={(e) => setData({ ...data, location: e.target.value })}
+                    placeholder="Ej: Polanco, Roma Norte, Satelite..."
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="phone">Tu número de teléfono</Label>
+                  <Input
+                    id="phone"
+                    value={data.phone}
+                    onChange={(e) => setData({ ...data, phone: e.target.value })}
+                    placeholder="Ej: 55 1234 5678"
+                  />
                 </div>
               </div>
             </div>
@@ -237,7 +324,12 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
             {currentStep < 5 ? (
               <Button
                 onClick={handleNext}
-                disabled={currentStep === 1 && !data.childName}
+                disabled={
+                  (currentStep === 1 && !data.childName) ||
+                  (currentStep === 2 && (!data.eventDate || !data.childrenCount || data.preferences.length === 0)) ||
+                  (currentStep === 3 && !data.ageRange) ||
+                  (currentStep === 4 && (!data.location || !data.phone))
+                }
               >
                 Siguiente
                 <ChevronRight className="w-4 h-4" />
