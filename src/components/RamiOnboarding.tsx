@@ -15,9 +15,9 @@ import {
   ChefHat, 
   Hammer, 
   Palette, 
-  Music, 
   Gamepad2, 
-  Camera,
+  Stethoscope,
+  ShoppingBag,
   ArrowRight,
   ArrowLeft,
   Sparkles
@@ -36,12 +36,12 @@ interface OnboardingData {
 }
 
 const preferenceOptions = [
+  { id: 'creative', label: 'Crear', icon: Palette, color: 'bg-purple-100 text-purple-700' },
   { id: 'cooking', label: 'Cocinar', icon: ChefHat, color: 'bg-orange-100 text-orange-700' },
+  { id: 'sports', label: 'Deportes', icon: Gamepad2, color: 'bg-blue-100 text-blue-700' },
   { id: 'building', label: 'Construir', icon: Hammer, color: 'bg-yellow-100 text-yellow-700' },
-  { id: 'painting', label: 'Pintar', icon: Palette, color: 'bg-purple-100 text-purple-700' },
-  { id: 'music', label: 'Música', icon: Music, color: 'bg-blue-100 text-blue-700' },
-  { id: 'games', label: 'Juegos', icon: Gamepad2, color: 'bg-green-100 text-green-700' },
-  { id: 'photos', label: 'Fotos', icon: Camera, color: 'bg-pink-100 text-pink-700' },
+  { id: 'caring', label: 'Cuidar', icon: Stethoscope, color: 'bg-green-100 text-green-700' },
+  { id: 'shopping', label: 'Comprar', icon: ShoppingBag, color: 'bg-pink-100 text-pink-700' },
 ];
 
 interface RamiOnboardingProps {
@@ -82,12 +82,12 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
       // Preference-based filtering
       const preferenceMatch = preferences.some(pref => {
         switch (pref) {
-          case 'cooking': return service.id === 'chef' || service.title.toLowerCase().includes('chef');
-          case 'building': return service.id === 'construccion' || service.title.toLowerCase().includes('construcción');
-          case 'painting': return service.id === 'arte' || service.title.toLowerCase().includes('arte');
-          case 'music': return service.id === 'musica' || service.title.toLowerCase().includes('música');
-          case 'games': return service.title.toLowerCase().includes('juegos') || service.id === 'supermercado';
-          case 'photos': return service.id === 'fotografia' || service.title.toLowerCase().includes('foto');
+          case 'creative': return ['caballetes', 'yesitos', 'decora-cupcake', 'decora-tote-bag', 'decora-gorra', 'haz-pulsera'].includes(service.id);
+          case 'cooking': return ['hamburgueseria', 'decora-cupcake'].includes(service.id);
+          case 'sports': return ['boliche', 'pesca'].includes(service.id);
+          case 'building': return service.id === 'construccion';
+          case 'caring': return ['guarderia', 'veterinaria', 'spa'].includes(service.id);
+          case 'shopping': return service.id === 'supermercado';
           default: return false;
         }
       });
