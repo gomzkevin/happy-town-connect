@@ -7,7 +7,7 @@ import { ConfirmDialog } from './admin/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Upload, Calendar, MapPin, Users } from 'lucide-react';
+import { ArrowLeft, Upload, Calendar, MapPin, Users, Trash2, Image as ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useRef, useState } from 'react';
@@ -16,20 +16,52 @@ import { toast } from 'sonner';
 const EventDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { events, loading: eventsLoading } = useEvents();
-  const { images, loading: imagesLoading, uploadImage, refetch } = useEventImages(id || '');
+  const { images, loading: imagesLoading, uploadImage, refetch, uploadFeaturedImage, deleteFeaturedImage } = useEventImages(id || '');
   const { deleteEventImage } = useImageMutations();
   const { isAdmin } = useAuth();
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [deleteDialog, setDeleteDialog] = useState({ open: false, imageId: '', imageUrl: '' });
+  const [uploadingFeatured, setUploadingFeatured] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, imageId: '', imageUrl: '', isFeatured: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const featuredInputRef = useRef<HTMLInputElement>(null);
 
   const handleDeleteImage = async () => {
     try {
-      await deleteEventImage(deleteDialog.imageId, deleteDialog.imageUrl);
-      refetch();
-      setDeleteDialog({ open: false, imageId: '', imageUrl: '' });
+      if (deleteDialog.isFeatured) {
+        await deleteFeaturedImage(id!, deleteDialog.imageUrl);
+        window.location.reload(); // Refresh to show updated featured image
+      } else {
+        await deleteEventImage(deleteDialog.imageId, deleteDialog.imageUrl);
+        refetch();
+      }
+      setDeleteDialog({ open: false, imageId: '', imageUrl: '', isFeatured: false });
     } catch (error) {
       console.error('Error deleting image:', error);
+    }
+  };
+
+  const handleFeaturedImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !id) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La imagen debe ser menor a 5MB');
+      return;
+    }
+
+    try {
+      setUploadingFeatured(true);
+      await uploadFeaturedImage(file, id);
+      toast.success('Imagen destacada actualizada exitosamente');
+      window.location.reload(); // Refresh to show new featured image
+    } catch (error) {
+      toast.error('Error al subir la imagen destacada');
+      console.error('Upload error:', error);
+    } finally {
+      setUploadingFeatured(false);
+      if (featuredInputRef.current) {
+        featuredInputRef.current.value = '';
+      }
     }
   };
 
@@ -163,15 +195,70 @@ const EventDetail = () => {
             </div>
 
             {/* Featured Image */}
-            {event.featured_image_url && (
-              <div className="lg:order-first">
-                <img
-                  src={event.featured_image_url}
-                  alt={event.title}
-                  className="w-full h-96 object-cover rounded-lg shadow-lg"
-                />
-              </div>
-            )}
+            <div className="lg:order-first">
+              {event.featured_image_url ? (
+                <div className="relative group">
+                  <img
+                    src={event.featured_image_url}
+                    alt={event.title}
+                    className="w-full h-96 object-cover rounded-lg shadow-lg"
+                  />
+                  {isAdmin && (
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                      <input
+                        type="file"
+                        ref={featuredInputRef}
+                        onChange={handleFeaturedImageUpload}
+                        accept="image/*"
+                        className="hidden"
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => featuredInputRef.current?.click()}
+                        disabled={uploadingFeatured}
+                      >
+                        <Upload className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => setDeleteDialog({ 
+                          open: true, 
+                          imageId: '', 
+                          imageUrl: event.featured_image_url!, 
+                          isFeatured: true 
+                        })}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : isAdmin ? (
+                <div className="w-full h-96 border-2 border-dashed border-muted-foreground/25 rounded-lg flex items-center justify-center">
+                  <div className="text-center">
+                    <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-muted-foreground mb-4">No hay imagen destacada</p>
+                    <input
+                      type="file"
+                      ref={featuredInputRef}
+                      onChange={handleFeaturedImageUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <Button
+                      onClick={() => featuredInputRef.current?.click()}
+                      disabled={uploadingFeatured}
+                      variant="outline"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {uploadingFeatured ? 'Subiendo...' : 'Agregar imagen destacada'}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
@@ -235,6 +322,22 @@ const EventDetail = () => {
                       alt={image.caption || event.title}
                       className="w-full h-48 object-cover rounded-lg shadow-md hover:shadow-lg transition-shadow"
                     />
+                    {isAdmin && (
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => setDeleteDialog({ 
+                            open: true, 
+                            imageId: image.id, 
+                            imageUrl: image.image_url, 
+                            isFeatured: false 
+                          })}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
                     {image.caption && (
                       <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
                         <p className="text-sm">{image.caption}</p>
@@ -251,8 +354,10 @@ const EventDetail = () => {
       <ConfirmDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}
-        title="Eliminar Imagen"
-        description="¿Estás seguro de que quieres eliminar esta imagen? Esta acción no se puede deshacer."
+        title={deleteDialog.isFeatured ? "Eliminar Imagen Destacada" : "Eliminar Imagen"}
+        description={deleteDialog.isFeatured 
+          ? "¿Estás seguro de que quieres eliminar la imagen destacada? Esta acción no se puede deshacer." 
+          : "¿Estás seguro de que quieres eliminar esta imagen? Esta acción no se puede deshacer."}
         confirmText="Eliminar"
         cancelText="Cancelar"
         onConfirm={handleDeleteImage}
