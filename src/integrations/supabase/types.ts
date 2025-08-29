@@ -41,6 +41,83 @@ export type Database = {
         }
         Relationships: []
       }
+      event_images: {
+        Row: {
+          caption: string | null
+          created_at: string
+          event_id: string | null
+          id: string
+          image_url: string
+          order_index: number | null
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          image_url: string
+          order_index?: number | null
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          image_url?: string
+          order_index?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_images_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          created_at: string
+          description: string | null
+          event_date: string | null
+          featured_image_url: string | null
+          guest_count: number | null
+          id: string
+          is_featured: boolean | null
+          location: string | null
+          services: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          event_date?: string | null
+          featured_image_url?: string | null
+          guest_count?: number | null
+          id?: string
+          is_featured?: boolean | null
+          location?: string | null
+          services?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          event_date?: string | null
+          featured_image_url?: string | null
+          guest_count?: number | null
+          id?: string
+          is_featured?: boolean | null
+          location?: string | null
+          services?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       quote_services: {
         Row: {
           created_at: string
@@ -143,6 +220,44 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_images: {
+        Row: {
+          alt_text: string | null
+          created_at: string
+          id: string
+          image_url: string
+          is_primary: boolean | null
+          order_index: number | null
+          service_id: string | null
+        }
+        Insert: {
+          alt_text?: string | null
+          created_at?: string
+          id?: string
+          image_url: string
+          is_primary?: boolean | null
+          order_index?: number | null
+          service_id?: string | null
+        }
+        Update: {
+          alt_text?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string
+          is_primary?: boolean | null
+          order_index?: number | null
+          service_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_images_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
             referencedColumns: ["id"]
           },
         ]

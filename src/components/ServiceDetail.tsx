@@ -2,10 +2,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Check, Clock, Users, MapPin, Calendar, Star } from "lucide-react";
+import { ArrowLeft, Plus, Check, Clock, Users, MapPin, Calendar, Star, Upload, X } from "lucide-react";
 import { useServices as useServicesContext } from "@/contexts/ServicesContext";
 import { useServices } from "@/hooks/useServices";
-import { useState } from "react";
+import { useServiceImages } from "@/hooks/useServiceImages";
+import { useState, useRef } from "react";
 import * as LucideIcons from "lucide-react";
 
 const ServiceDetail = () => {
@@ -13,7 +14,11 @@ const ServiceDetail = () => {
   const navigate = useNavigate();
   const { addService, selectedServices } = useServicesContext();
   const { services } = useServices();
+  const { images, loading: imagesLoading, uploadImage } = useServiceImages(id);
   const [isAdded, setIsAdded] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const service = services.find(s => s.id === id);
   const IconComponent = service ? (LucideIcons as any)[service.icon] || LucideIcons.Star : LucideIcons.Star;
@@ -50,6 +55,23 @@ const ServiceDetail = () => {
     addService(service);
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingImage(true);
+      await uploadImage(file, `${service.title} - Image`);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   return (
@@ -89,9 +111,81 @@ const ServiceDetail = () => {
           <div className="lg:col-span-2 space-y-8">
             {/* Image Gallery */}
             <Card className="overflow-hidden">
-              <div className="aspect-video bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
-                <IconComponent className="h-24 w-24 text-primary/50" />
-              </div>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle>Galería de Imágenes</CardTitle>
+                  <div className="flex gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingImage}
+                      className="gap-2"
+                    >
+                      <Upload className="h-4 w-4" />
+                      {uploadingImage ? 'Subiendo...' : 'Subir Imagen'}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {imagesLoading ? (
+                  <div className="aspect-video bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
+                    <div>Cargando imágenes...</div>
+                  </div>
+                ) : images.length > 0 ? (
+                  <div className="space-y-4">
+                    {/* Main Image */}
+                    <div className="aspect-video relative overflow-hidden">
+                      <img
+                        src={images[selectedImageIndex]?.image_url}
+                        alt={images[selectedImageIndex]?.alt_text || service.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    
+                    {/* Thumbnail Grid */}
+                    {images.length > 1 && (
+                      <div className="flex gap-2 p-4 overflow-x-auto">
+                        {images.map((image, index) => (
+                          <button
+                            key={image.id}
+                            onClick={() => setSelectedImageIndex(index)}
+                            className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                              index === selectedImageIndex
+                                ? 'border-primary shadow-md'
+                                : 'border-border hover:border-primary/50'
+                            }`}
+                          >
+                            <img
+                              src={image.image_url}
+                              alt={image.alt_text || `Imagen ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="aspect-video bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
+                    <div className="text-center">
+                      <IconComponent className="h-24 w-24 text-primary/50 mx-auto mb-4" />
+                      <p className="text-muted-foreground">No hay imágenes disponibles</p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Sube la primera imagen de este servicio
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
             </Card>
 
             {/* Description */}
