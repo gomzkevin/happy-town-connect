@@ -2,10 +2,9 @@ import { Button } from "@/components/ui/button";
 import { ArrowDown, Star } from "lucide-react";
 import heroImage from "@/assets/hero-image.jpg";
 import { useOnboarding } from "@/hooks/useOnboarding";
-import { RamiOnboarding } from "./RamiOnboarding";
 
 const Hero = () => {
-  const { showOnboarding, openOnboarding, closeOnboarding } = useOnboarding();
+  const { openOnboarding } = useOnboarding();
   return (
     <section id="inicio" className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background Image */}
@@ -106,11 +105,6 @@ const Hero = () => {
       <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
         <ArrowDown className="h-6 w-6 text-primary" />
       </div>
-      
-      <RamiOnboarding 
-        isOpen={showOnboarding} 
-        onClose={closeOnboarding} 
-      />
     </section>
   );
 };
