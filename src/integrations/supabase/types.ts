@@ -147,6 +147,54 @@ export type Database = {
           },
         ]
       }
+      services: {
+        Row: {
+          age_range: string | null
+          category: string
+          created_at: string
+          description: string
+          duration: string | null
+          features: string[] | null
+          icon: string
+          id: string
+          max_participants: number | null
+          price: string
+          space_requirements: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          age_range?: string | null
+          category: string
+          created_at?: string
+          description: string
+          duration?: string | null
+          features?: string[] | null
+          icon: string
+          id: string
+          max_participants?: number | null
+          price: string
+          space_requirements?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          age_range?: string | null
+          category?: string
+          created_at?: string
+          description?: string
+          duration?: string | null
+          features?: string[] | null
+          icon?: string
+          id?: string
+          max_participants?: number | null
+          price?: string
+          space_requirements?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
