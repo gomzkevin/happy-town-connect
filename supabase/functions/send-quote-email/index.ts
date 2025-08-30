@@ -15,8 +15,16 @@ const supabase = createClient(supabaseUrl!, supabaseServiceRoleKey!);
 const resendApiKey = Deno.env.get("RESEND_API_KEY");
 console.log("🔧 RESEND_API_KEY validation:", resendApiKey ? "Key found" : "Key missing");
 
-// Initialize Resend client globally
-const resend = new Resend(resendApiKey);
+// Initialize Resend client conditionally to prevent startup failures
+let resend: Resend | null = null;
+if (resendApiKey) {
+  try {
+    resend = new Resend(resendApiKey);
+    console.log("✅ Resend client initialized successfully");
+  } catch (error) {
+    console.error("❌ Failed to initialize Resend client:", error.message);
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -111,6 +119,11 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     console.log("📧 Processing quote email request...");
+    
+    // Check if Resend client is available
+    if (!resend) {
+      throw new Error("Email service is not properly configured. Please check RESEND_API_KEY.");
+    }
     
     const data: QuoteEmailRequest = await req.json();
     console.log('Processing quote email request for:', data.customerName);
