@@ -55,6 +55,8 @@ export const useQuotes = () => {
 
       // Create quote services entries
       if (selectedServices.length > 0 && quote) {
+        console.log('Selected services for quote:', selectedServices);
+        
         const quoteServices = selectedServices.map(item => ({
           quote_id: quote.id,
           service_id: item.service.id,
@@ -63,11 +65,19 @@ export const useQuotes = () => {
           quantity: item.quantity
         }));
 
-        const { error: servicesError } = await supabase
-          .from('quote_services')
-          .insert(quoteServices);
+        console.log('Quote services to insert:', quoteServices);
 
-        if (servicesError) throw servicesError;
+        const { data: insertedServices, error: servicesError } = await supabase
+          .from('quote_services')
+          .insert(quoteServices)
+          .select();
+
+        if (servicesError) {
+          console.error('Error inserting quote services:', servicesError);
+          throw servicesError;
+        }
+
+        console.log('Successfully inserted quote services:', insertedServices);
       }
 
       // Send email via Edge Function

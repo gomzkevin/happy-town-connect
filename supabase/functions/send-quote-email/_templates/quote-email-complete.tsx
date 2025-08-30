@@ -56,6 +56,8 @@ export const QuoteEmailComplete = ({
 }: QuoteEmailCompleteProps) => (
   <Html>
     <Head>
+      <meta charSet="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <style>{`
         @media print {
           body { -webkit-print-color-adjust: exact; color-adjust: exact; }
