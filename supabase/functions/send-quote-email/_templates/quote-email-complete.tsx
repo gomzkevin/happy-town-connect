@@ -267,7 +267,7 @@ const container = {
 const header = {
   padding: '32px 24px',
   textAlign: 'center' as const,
-        backgroundColor: '#a68bea',
+  backgroundColor: '#a68bea',
   color: '#ffffff',
 }
 
