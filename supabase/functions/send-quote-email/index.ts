@@ -5,16 +5,18 @@ import React from "npm:react@18.3.1";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { QuoteEmailComplete } from './_templates/quote-email-complete.tsx';
 
-// Initialize Supabase client (like it was working at 9:27 AM)
+// Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-console.log("🚀 Edge Function initializing...");
-console.log("🔧 Environment check - Supabase URL:", supabaseUrl ? "Found" : "Missing");
-console.log("🔧 Environment check - Service Role Key:", supabaseServiceRoleKey ? "Found" : "Missing");
-
 const supabase = createClient(supabaseUrl!, supabaseServiceRoleKey!);
-console.log("✅ Edge Function initialized successfully");
+
+// Initialize RESEND_API_KEY validation (exactly like version 6 that worked)
+const resendApiKey = Deno.env.get("RESEND_API_KEY");
+console.log("🔧 RESEND_API_KEY validation:", resendApiKey ? "Key found" : "Key missing");
+
+// Initialize Resend client globally
+const resend = new Resend(resendApiKey);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,23 +112,6 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     console.log("📧 Processing quote email request...");
     
-    // Check RESEND_API_KEY (validate but don't block function startup)
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    
-    if (!resendApiKey) {
-      console.error("❌ RESEND_API_KEY environment variable is missing");
-      throw new Error("RESEND_API_KEY environment variable is required");
-    }
-    
-    if (!resendApiKey.startsWith("re_")) {
-      console.error("❌ Invalid RESEND_API_KEY format");
-      throw new Error("RESEND_API_KEY must start with 're_'");
-    }
-    
-    // Initialize Resend client
-    const resend = new Resend(resendApiKey);
-    console.log("✅ Resend client initialized successfully");
-
     const data: QuoteEmailRequest = await req.json();
     console.log('Processing quote email request for:', data.customerName);
 
