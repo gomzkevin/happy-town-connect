@@ -94,7 +94,7 @@ const ServiceCard = ({ service, onAddToCart, onViewDetails }: {
 
 const Services = () => {
   const navigate = useNavigate();
-  const { addService } = useServicesContext();
+  const { addService, selectedServices, getRemainingToMinimum } = useServicesContext();
   const { services, loading } = useServices();
   const { openOnboarding } = useOnboarding();
 
@@ -113,6 +113,21 @@ const Services = () => {
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Descubre nuestras increíbles estaciones temáticas diseñadas para crear momentos mágicos
           </p>
+          
+          {/* Services Counter and Minimum Notice */}
+          <div className="mt-6 flex flex-col items-center gap-3">
+            {selectedServices.length > 0 && (
+              <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium">
+                <span>{selectedServices.length} servicios seleccionados</span>
+                {getRemainingToMinimum() > 0 && (
+                  <span className="text-orange-600">• Faltan {getRemainingToMinimum()} para continuar</span>
+                )}
+              </div>
+            )}
+            <p className="text-sm text-muted-foreground">
+              <strong>Mínimo requerido: 3 servicios</strong> para solicitar cotización
+            </p>
+          </div>
         </div>
 
         {/* Services Grid */}

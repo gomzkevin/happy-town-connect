@@ -26,6 +26,9 @@ interface ServicesContextType {
   updateQuantity: (serviceId: string, quantity: number) => void;
   clearSelection: () => void;
   getTotalPrice: () => number;
+  hasMinimumServices: () => boolean;
+  canRemoveService: (serviceId: string) => boolean;
+  getRemainingToMinimum: () => number;
 }
 
 const ServicesContext = createContext<ServicesContextType | undefined>(undefined);
@@ -40,6 +43,8 @@ export const useServices = () => {
 
 export const ServicesProvider = ({ children }: { children: ReactNode }) => {
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
+  
+  const MINIMUM_SERVICES = 3;
 
   const addService = (service: Service) => {
     setSelectedServices(prev => {
@@ -84,6 +89,18 @@ export const ServicesProvider = ({ children }: { children: ReactNode }) => {
     }, 0);
   };
 
+  const hasMinimumServices = () => {
+    return selectedServices.length >= MINIMUM_SERVICES;
+  };
+
+  const canRemoveService = (serviceId: string) => {
+    return selectedServices.length > MINIMUM_SERVICES;
+  };
+
+  const getRemainingToMinimum = () => {
+    return Math.max(0, MINIMUM_SERVICES - selectedServices.length);
+  };
+
   return (
     <ServicesContext.Provider value={{
       selectedServices,
@@ -91,7 +108,10 @@ export const ServicesProvider = ({ children }: { children: ReactNode }) => {
       removeService,
       updateQuantity,
       clearSelection,
-      getTotalPrice
+      getTotalPrice,
+      hasMinimumServices,
+      canRemoveService,
+      getRemainingToMinimum
     }}>
       {children}
     </ServicesContext.Provider>

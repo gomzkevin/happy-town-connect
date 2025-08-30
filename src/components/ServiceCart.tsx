@@ -12,7 +12,7 @@ import { useQuotes } from "@/hooks/useQuotes";
 import * as LucideIcons from "lucide-react";
 
 const ServiceCart = () => {
-  const { selectedServices, removeService, updateQuantity, clearSelection, getTotalPrice } = useServices();
+  const { selectedServices, removeService, updateQuantity, clearSelection, getTotalPrice, hasMinimumServices, canRemoveService, getRemainingToMinimum } = useServices();
   const { submitQuote, isSubmitting } = useQuotes();
   const [isOpen, setIsOpen] = useState(false);
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -28,6 +28,7 @@ const ServiceCart = () => {
     location: "",
   });
 
+  // Always show cart when there are services or to show minimum requirement
   if (selectedServices.length === 0) {
     return null;
   }
@@ -113,6 +114,7 @@ const ServiceCart = () => {
                                   size="icon"
                                   className="h-6 w-6"
                                   onClick={() => updateQuantity(item.service.id, item.quantity - 1)}
+                                  disabled={item.quantity === 1 && !canRemoveService(item.service.id)}
                                 >
                                   <Minus className="h-3 w-3" />
                                 </Button>
@@ -130,6 +132,8 @@ const ServiceCart = () => {
                                   size="icon"
                                   className="h-6 w-6 text-destructive hover:text-destructive"
                                   onClick={() => removeService(item.service.id)}
+                                  disabled={!canRemoveService(item.service.id)}
+                                  title={!canRemoveService(item.service.id) ? "Mínimo 3 servicios requeridos" : ""}
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
@@ -142,6 +146,18 @@ const ServiceCart = () => {
                   );
                 })}
               </div>
+
+              {/* Minimum Services Notice */}
+              {!hasMinimumServices() && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                  <p className="text-sm text-orange-800 font-medium">
+                    ⚠️ Selecciona {getRemainingToMinimum()} servicio{getRemainingToMinimum() > 1 ? 's' : ''} más para continuar
+                  </p>
+                  <p className="text-xs text-orange-600 mt-1">
+                    Mínimo requerido: 3 servicios
+                  </p>
+                </div>
+              )}
 
               {/* Total */}
               <div className="border-t pt-4">
@@ -160,8 +176,9 @@ const ServiceCart = () => {
                   onClick={() => setShowQuoteForm(true)}
                   className="w-full"
                   size="lg"
+                  disabled={!hasMinimumServices()}
                 >
-                  Solicitar Cotización
+                  {hasMinimumServices() ? 'Solicitar Cotización' : `Faltan ${getRemainingToMinimum()} servicios`}
                 </Button>
                 <Button 
                   variant="outline" 
