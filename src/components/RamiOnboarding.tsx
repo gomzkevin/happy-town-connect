@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, PartyPopper, Users, Calendar, MapPin, Heart, Star, Gift, Crown, Palette, Sparkles, Music, Camera, Utensils, Gamepad2 } from "lucide-react";
 import { useServices } from "@/hooks/useServices";
 import { useQuotes } from "@/hooks/useQuotes";
-import { Service } from "@/contexts/ServicesContext";
+import { Service, useServices as useServicesContext } from "@/contexts/ServicesContext";
 import * as LucideIcons from "lucide-react";
 import raminegrito from "@/assets/raminegrito.png";
 
@@ -25,7 +25,6 @@ interface OnboardingData {
   email: string;
   phone: string;
   comments: string;
-  selectedServices: string[];
 }
 
 const preferenceOptions = [
@@ -48,6 +47,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
   const [currentStep, setCurrentStep] = useState(1);
   const { services } = useServices();
   const { submitQuote, isSubmitting } = useQuotes();
+  const { selectedServices, addService, removeService, clearSelection } = useServicesContext();
 
   const [data, setData] = useState<OnboardingData>({
     childName: "",
@@ -60,10 +60,8 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
     email: "",
     phone: "",
     comments: "",
-    selectedServices: [],
   });
 
-  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [recommendations, setRecommendations] = useState<Service[]>([]);
 
   const handleNext = () => {
@@ -94,7 +92,9 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
     ).slice(0, 6);
 
     setRecommendations(filtered);
-    setSelectedServices(filtered.slice(0, 3));
+    // Clear previous selection and add recommended services
+    clearSelection();
+    filtered.slice(0, 3).forEach(service => addService(service));
   };
 
   const handleSubmit = async () => {
@@ -223,16 +223,18 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                       <Card 
                         key={service.id} 
                         className={`cursor-pointer transition-all hover:shadow-lg ${
-                          data.selectedServices.includes(service.id)
+                          selectedServices.some(item => item.service.id === service.id)
                             ? 'ring-2 ring-primary bg-primary/5'
                             : ''
                         }`}
-                        onClick={() => setData(prev => ({
-                          ...prev,
-                          selectedServices: prev.selectedServices.includes(service.id)
-                            ? prev.selectedServices.filter(s => s !== service.id)
-                            : [...prev.selectedServices, service.id]
-                        }))}
+                        onClick={() => {
+                          const isSelected = selectedServices.some(item => item.service.id === service.id);
+                          if (isSelected) {
+                            removeService(service.id);
+                          } else {
+                            addService(service);
+                          }
+                        }}
                       >
                         <CardContent className="p-4">
                           <div className="flex items-center gap-3">
@@ -247,7 +249,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                               <p className="text-sm text-muted-foreground">{service.description}</p>
                               <p className="text-sm font-medium text-primary mt-1">{service.price}</p>
                             </div>
-                            {data.selectedServices.includes(service.id) && (
+                            {selectedServices.some(item => item.service.id === service.id) && (
                               <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
                                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -356,7 +358,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                 disabled={
                   (currentStep === 1 && !data.childName) ||
                   (currentStep === 2 && (!data.ageRange || !data.childrenCount || data.preferences.length === 0)) ||
-                  (currentStep === 3 && data.selectedServices.length === 0) ||
+                  (currentStep === 3 && selectedServices.length === 0) ||
                   (currentStep === 4 && (!data.eventDate || !data.location))
                 }
               >
