@@ -5,42 +5,16 @@ import React from "npm:react@18.3.1";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { QuoteEmailComplete } from './_templates/quote-email-complete.tsx';
 
-// Validate and initialize Resend client
-const resendApiKey = Deno.env.get("RESEND_API_KEY");
-console.log("🔧 RESEND_API_KEY validation:", resendApiKey ? "Key found" : "Key missing");
-console.log("🔧 API Key format:", resendApiKey ? (resendApiKey.startsWith("re_") ? "Valid format" : "Invalid format") : "N/A");
-
-if (!resendApiKey) {
-  console.error("❌ RESEND_API_KEY is not set");
-  throw new Error("RESEND_API_KEY environment variable is required");
-}
-
-if (!resendApiKey.startsWith("re_")) {
-  console.error("❌ RESEND_API_KEY has invalid format:", resendApiKey.substring(0, 5) + "...");
-  throw new Error("RESEND_API_KEY must start with 're_'");
-}
-
-let resend: Resend;
-try {
-  resend = new Resend(resendApiKey);
-  console.log("✅ Resend client initialized successfully");
-} catch (error) {
-  console.error("❌ Failed to initialize Resend client:", error);
-  throw error;
-}
-
-// Initialize Supabase client
+// Initialize environment variables (will be validated inside handler)
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-console.log("🔧 Supabase URL:", supabaseUrl ? "URL found" : "URL missing");
-console.log("🔧 Service Role Key:", supabaseServiceRoleKey ? "Key found" : "Key missing");
-
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error("Supabase environment variables are required");
+// Initialize Supabase client only if variables are available
+let supabase: any = null;
+if (supabaseUrl && supabaseServiceRoleKey) {
+  supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+  console.log("✅ Supabase client initialized");
 }
-
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -128,6 +102,25 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Validate required environment variables
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    
+    if (!supabase) {
+      throw new Error("Supabase client not initialized - missing environment variables");
+    }
+    
+    if (!resendApiKey) {
+      throw new Error("RESEND_API_KEY environment variable is required");
+    }
+    
+    if (!resendApiKey.startsWith("re_")) {
+      throw new Error("RESEND_API_KEY must start with 're_'");
+    }
+    
+    // Initialize Resend client
+    const resend = new Resend(resendApiKey);
+    console.log("✅ Resend client initialized successfully");
+
     const data: QuoteEmailRequest = await req.json();
     console.log('Processing quote email request for:', data.customerName);
 
