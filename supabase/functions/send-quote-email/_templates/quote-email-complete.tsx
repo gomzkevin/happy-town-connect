@@ -267,7 +267,7 @@ const container = {
 const header = {
   padding: '32px 24px',
   textAlign: 'center' as const,
-  backgroundColor: '#ff6b6b',
+        backgroundColor: '#a68bea',
   color: '#ffffff',
 }
 
@@ -301,7 +301,7 @@ const subtitle = {
 const quoteInfo = {
   padding: '20px 24px',
   backgroundColor: '#f8f9fa',
-  borderBottom: '3px solid #ff6b6b',
+  borderBottom: '3px solid #a68bea',
 }
 
 const leftColumn = {
@@ -316,7 +316,7 @@ const rightColumn = {
 const quoteNumber = {
   fontSize: '18px',
   fontWeight: 'bold',
-  color: '#ff6b6b',
+  color: '#a68bea',
   margin: '0 0 4px',
 }
 
@@ -392,7 +392,7 @@ const tableCell = {
 }
 
 const totalRow = {
-  backgroundColor: '#ff6b6b',
+  backgroundColor: '#a68bea',
   color: '#ffffff',
 }
 

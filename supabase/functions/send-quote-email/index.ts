@@ -155,7 +155,7 @@ const handler = async (req: Request): Promise<Response> => {
       customerName: data.customerName,
       email: data.email,
       phone: data.phone,
-      companyName: companySettings?.company_name || 'JapiTown',
+      companyName: companySettings?.company_name || 'Japitown',
       companyEmail: companySettings?.email || 'cotizaciones@japitown.com',
       companyPhone: companySettings?.phone,
       companyAddress: companySettings?.address,
