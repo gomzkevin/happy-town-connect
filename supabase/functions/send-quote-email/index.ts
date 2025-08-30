@@ -5,16 +5,16 @@ import React from "npm:react@18.3.1";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { QuoteEmailComplete } from './_templates/quote-email-complete.tsx';
 
-// Initialize environment variables (will be validated inside handler)
+// Initialize Supabase client (like it was working at 9:27 AM)
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-// Initialize Supabase client only if variables are available
-let supabase: any = null;
-if (supabaseUrl && supabaseServiceRoleKey) {
-  supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-  console.log("✅ Supabase client initialized");
-}
+console.log("🚀 Edge Function initializing...");
+console.log("🔧 Environment check - Supabase URL:", supabaseUrl ? "Found" : "Missing");
+console.log("🔧 Environment check - Service Role Key:", supabaseServiceRoleKey ? "Found" : "Missing");
+
+const supabase = createClient(supabaseUrl!, supabaseServiceRoleKey!);
+console.log("✅ Edge Function initialized successfully");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -96,24 +96,30 @@ async function logQuoteHistory(
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
+  console.log("🔔 Request received:", req.method);
+  
+  // Handle CORS preflight requests (always return 200)
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    console.log("✅ CORS preflight request handled");
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    });
   }
 
   try {
-    // Validate required environment variables
+    console.log("📧 Processing quote email request...");
+    
+    // Check RESEND_API_KEY (validate but don't block function startup)
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     
-    if (!supabase) {
-      throw new Error("Supabase client not initialized - missing environment variables");
-    }
-    
     if (!resendApiKey) {
+      console.error("❌ RESEND_API_KEY environment variable is missing");
       throw new Error("RESEND_API_KEY environment variable is required");
     }
     
     if (!resendApiKey.startsWith("re_")) {
+      console.error("❌ Invalid RESEND_API_KEY format");
       throw new Error("RESEND_API_KEY must start with 're_'");
     }
     
