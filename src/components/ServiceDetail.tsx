@@ -12,6 +12,34 @@ import { ConfirmDialog } from "./admin/ConfirmDialog";
 import { useState, useRef } from "react";
 import * as LucideIcons from "lucide-react";
 
+import icono01 from "@/assets/Iconos-01.png";
+import icono02 from "@/assets/Iconos-02.png";
+import icono03 from "@/assets/Iconos-03.png";
+import icono04 from "@/assets/Iconos-04.png";
+import icono05 from "@/assets/Iconos-05.png";
+import icono06 from "@/assets/Iconos-06.png";
+import icono07 from "@/assets/Iconos-07.png";
+import icono08 from "@/assets/Iconos-08.png";
+import icono09 from "@/assets/Iconos-09.png";
+import icono10 from "@/assets/Iconos-10.png";
+import icono11 from "@/assets/Iconos-11.png";
+import icono12 from "@/assets/Iconos-12.png";
+
+const serviceIconMap: Record<string, string> = {
+  pesca: icono01,
+  caballetes: icono02,
+  hamburgueseria: icono03,
+  boliche: icono04,
+  supermercado: icono05,
+  spa: icono06,
+  veterinaria: icono07,
+  "decora-cupcake": icono08,
+  "haz-pulsera": icono09,
+  yesitos: icono10,
+  construccion: icono11,
+  guarderia: icono12,
+};
+
 const ServiceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -111,8 +139,8 @@ const ServiceDetail = () => {
               Volver
             </Button>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center">
-                <IconComponent className="h-6 w-6 text-primary-foreground" />
+              <div className="w-12 h-12 rounded-full flex items-center justify-center">
+                <img src={serviceIconMap[service.id]} alt={service.title} className="w-10 h-10 object-contain" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold">{service.title}</h1>
@@ -211,7 +239,7 @@ const ServiceDetail = () => {
                 ) : (
                   <div className="aspect-video bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
                     <div className="text-center">
-                      <IconComponent className="h-24 w-24 text-primary/50 mx-auto mb-4" />
+                      <img src={serviceIconMap[service.id]} alt={service.title} className="h-24 w-24 object-contain mx-auto mb-4" />
                       <p className="text-muted-foreground">No hay imágenes disponibles</p>
                       <p className="text-sm text-muted-foreground mt-2">
                         Sube la primera imagen de este servicio
