@@ -676,6 +676,7 @@ export type Database = {
           description: string
           duration: string | null
           features: string[] | null
+          hora_extra: number | null
           icon: string
           id: string
           is_active: boolean
@@ -696,6 +697,7 @@ export type Database = {
           description: string
           duration?: string | null
           features?: string[] | null
+          hora_extra?: number | null
           icon: string
           id: string
           is_active?: boolean
@@ -716,6 +718,7 @@ export type Database = {
           description?: string
           duration?: string | null
           features?: string[] | null
+          hora_extra?: number | null
           icon?: string
           id?: string
           is_active?: boolean
