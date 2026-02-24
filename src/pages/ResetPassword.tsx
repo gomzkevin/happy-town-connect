@@ -16,20 +16,31 @@ const ResetPassword = () => {
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isRecovery, setIsRecovery] = useState(false);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // Listen for the PASSWORD_RECOVERY event
+    // Listen for PASSWORD_RECOVERY event from Supabase
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecovery(true);
+        setChecking(false);
       }
     });
 
-    // Also check hash for type=recovery
-    const hash = window.location.hash;
-    if (hash.includes('type=recovery')) {
-      setIsRecovery(true);
-    }
+    // Also check if user already has a session (recovery link auto-logs in)
+    const checkSession = async () => {
+      // Give Supabase a moment to process the hash tokens
+      await new Promise(r => setTimeout(r, 1500));
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // User has a valid session from the recovery link
+        setIsRecovery(true);
+      }
+      setChecking(false);
+    };
+
+    checkSession();
 
     return () => subscription.unsubscribe();
   }, []);
@@ -63,6 +74,14 @@ const ResetPassword = () => {
     setIsLoading(false);
   };
 
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   if (!isRecovery) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-secondary/5 p-4">
@@ -89,7 +108,7 @@ const ResetPassword = () => {
         <CardHeader className="text-center">
           <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
             {success ? (
-              <CheckCircle className="h-6 w-6 text-green-600" />
+              <CheckCircle className="h-6 w-6 text-primary" />
             ) : (
               <KeyRound className="h-6 w-6 text-primary" />
             )}

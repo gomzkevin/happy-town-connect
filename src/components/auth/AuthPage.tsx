@@ -19,6 +19,7 @@ const AuthPage = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('signin');
+  const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
   useEffect(() => {
@@ -98,68 +99,103 @@ const AuthPage = () => {
             </TabsList>
             
             <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    placeholder="admin@ejemplo.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Contraseña</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    placeholder="••••••••"
-                  />
-                </div>
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Iniciar Sesión
-                </Button>
-                {resetSent ? (
-                  <p className="text-sm text-center text-muted-foreground">
-                    ✓ Revisa tu email para restablecer tu contraseña
+              {forgotMode ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Ingresa tu email y te enviaremos un enlace para restablecer tu contraseña.
                   </p>
-                ) : (
+                  {resetSent ? (
+                    <Alert>
+                      <AlertDescription>✓ Revisa tu email para restablecer tu contraseña</AlertDescription>
+                    </Alert>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="reset-email">Email</Label>
+                        <Input
+                          id="reset-email"
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          required
+                          placeholder="admin@ejemplo.com"
+                        />
+                      </div>
+                      {error && (
+                        <Alert variant="destructive">
+                          <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                      )}
+                      <Button
+                        className="w-full"
+                        disabled={isLoading}
+                        onClick={async () => {
+                          if (!email) { setError('Ingresa tu email'); return; }
+                          setIsLoading(true);
+                          setError('');
+                          const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                            redirectTo: `${window.location.origin}/reset-password`,
+                          });
+                          if (error) setError(error.message);
+                          else setResetSent(true);
+                          setIsLoading(false);
+                        }}
+                      >
+                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Enviar enlace de recuperación
+                      </Button>
+                    </>
+                  )}
                   <button
                     type="button"
                     className="w-full text-sm text-muted-foreground hover:text-primary underline"
-                    onClick={async () => {
-                      if (!email) {
-                        setError('Ingresa tu email primero');
-                        return;
-                      }
-                      setIsLoading(true);
-                      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                        redirectTo: `${window.location.origin}/reset-password`,
-                      });
-                      if (error) {
-                        setError(error.message);
-                      } else {
-                        setResetSent(true);
-                        setError('');
-                      }
-                      setIsLoading(false);
-                    }}
+                    onClick={() => { setForgotMode(false); setError(''); setResetSent(false); }}
+                  >
+                    Volver al inicio de sesión
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      placeholder="admin@ejemplo.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Contraseña</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Iniciar Sesión
+                  </Button>
+                  <button
+                    type="button"
+                    className="w-full text-sm text-muted-foreground hover:text-primary underline"
+                    onClick={() => { setForgotMode(true); setError(''); }}
                   >
                     ¿Olvidaste tu contraseña?
                   </button>
-                )}
-              </form>
+                </form>
+              )}
             </TabsContent>
             
             <TabsContent value="signup">
