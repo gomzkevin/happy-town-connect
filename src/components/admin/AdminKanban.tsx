@@ -177,7 +177,7 @@ function QuoteCard({ quote, onClick, stage }: { quote: Quote; onClick: () => voi
             {quote.source === 'onboarding' ? 'Wizard' : 'Servicios'}
           </Badge>
         </div>
-        {stage !== 'pending' && (
+        {!['pending', 'contacted'].includes(stage) && (
           <PaymentProgressMini quoteId={quote.id} totalEstimate={quote.total_estimate || 0} />
         )}
         <div className="flex items-center justify-end">
