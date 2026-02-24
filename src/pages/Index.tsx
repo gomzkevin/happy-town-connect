@@ -5,10 +5,10 @@ import Services from "@/components/Services";
 import Portfolio from "@/components/Portfolio";
 import Contact from "@/components/Contact";
 import Footer from "@/components/Footer";
-import { OnboardingProvider, useOnboardingContext } from "@/contexts/OnboardingContext";
+import { useOnboardingContext } from "@/contexts/OnboardingContext";
 import { RamiOnboarding } from "@/components/RamiOnboarding";
 
-const IndexContent = () => {
+const Index = () => {
   const { showOnboarding, closeOnboarding } = useOnboardingContext();
   
   return (
@@ -25,14 +25,6 @@ const IndexContent = () => {
         onClose={closeOnboarding} 
       />
     </div>
-  );
-};
-
-const Index = () => {
-  return (
-    <OnboardingProvider>
-      <IndexContent />
-    </OnboardingProvider>
   );
 };
 
