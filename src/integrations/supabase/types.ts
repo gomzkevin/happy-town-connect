@@ -44,6 +44,74 @@ export type Database = {
         }
         Relationships: []
       }
+      calendar_events: {
+        Row: {
+          created_at: string
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          deposit_amount: number | null
+          deposit_paid: boolean | null
+          end_time: string | null
+          event_date: string
+          event_time: string | null
+          event_type: string
+          id: string
+          location: string | null
+          notes: string | null
+          quote_id: string | null
+          status: string
+          total_amount: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          deposit_amount?: number | null
+          deposit_paid?: boolean | null
+          end_time?: string | null
+          event_date: string
+          event_time?: string | null
+          event_type?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          quote_id?: string | null
+          status?: string
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          deposit_amount?: number | null
+          deposit_paid?: boolean | null
+          end_time?: string | null
+          event_date?: string
+          event_time?: string | null
+          event_type?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          quote_id?: string | null
+          status?: string
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_settings: {
         Row: {
           address: string | null
@@ -85,6 +153,57 @@ export type Database = {
           whatsapp_number?: string | null
         }
         Relationships: []
+      }
+      customer_interactions: {
+        Row: {
+          channel: string
+          content: string | null
+          created_at: string
+          customer_id: string | null
+          direction: string
+          id: string
+          interaction_type: string
+          quote_id: string | null
+          subject: string | null
+        }
+        Insert: {
+          channel?: string
+          content?: string | null
+          created_at?: string
+          customer_id?: string | null
+          direction?: string
+          id?: string
+          interaction_type: string
+          quote_id?: string | null
+          subject?: string | null
+        }
+        Update: {
+          channel?: string
+          content?: string | null
+          created_at?: string
+          customer_id?: string | null
+          direction?: string
+          id?: string
+          interaction_type?: string
+          quote_id?: string | null
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_interactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_interactions_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       customers: {
         Row: {
@@ -262,6 +381,50 @@ export type Database = {
         }
         Relationships: []
       }
+      quote_follow_ups: {
+        Row: {
+          channel: string
+          created_at: string
+          follow_up_type: string
+          id: string
+          message: string | null
+          opened_at: string | null
+          quote_id: string
+          response: string | null
+          sent_at: string
+        }
+        Insert: {
+          channel?: string
+          created_at?: string
+          follow_up_type?: string
+          id?: string
+          message?: string | null
+          opened_at?: string | null
+          quote_id: string
+          response?: string | null
+          sent_at?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          follow_up_type?: string
+          id?: string
+          message?: string | null
+          opened_at?: string | null
+          quote_id?: string
+          response?: string | null
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_follow_ups_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quote_history: {
         Row: {
           action_type: string
@@ -336,6 +499,7 @@ export type Database = {
       quotes: {
         Row: {
           age_range: string | null
+          assigned_to: string | null
           child_name: string | null
           children_count: number | null
           created_at: string
@@ -343,18 +507,25 @@ export type Database = {
           customer_name: string
           email: string
           event_date: string | null
+          expires_at: string | null
+          followed_up_count: number
           id: string
           location: string | null
+          next_follow_up_at: string | null
           notes: string | null
+          pdf_url: string | null
           phone: string | null
           preferences: string[] | null
+          quote_type: string
           source: string | null
           status: string | null
           total_estimate: number | null
           updated_at: string
+          viewed_at: string | null
         }
         Insert: {
           age_range?: string | null
+          assigned_to?: string | null
           child_name?: string | null
           children_count?: number | null
           created_at?: string
@@ -362,18 +533,25 @@ export type Database = {
           customer_name: string
           email: string
           event_date?: string | null
+          expires_at?: string | null
+          followed_up_count?: number
           id?: string
           location?: string | null
+          next_follow_up_at?: string | null
           notes?: string | null
+          pdf_url?: string | null
           phone?: string | null
           preferences?: string[] | null
+          quote_type?: string
           source?: string | null
           status?: string | null
           total_estimate?: number | null
           updated_at?: string
+          viewed_at?: string | null
         }
         Update: {
           age_range?: string | null
+          assigned_to?: string | null
           child_name?: string | null
           children_count?: number | null
           created_at?: string
@@ -381,15 +559,21 @@ export type Database = {
           customer_name?: string
           email?: string
           event_date?: string | null
+          expires_at?: string | null
+          followed_up_count?: number
           id?: string
           location?: string | null
+          next_follow_up_at?: string | null
           notes?: string | null
+          pdf_url?: string | null
           phone?: string | null
           preferences?: string[] | null
+          quote_type?: string
           source?: string | null
           status?: string | null
           total_estimate?: number | null
           updated_at?: string
+          viewed_at?: string | null
         }
         Relationships: [
           {
@@ -442,6 +626,7 @@ export type Database = {
       services: {
         Row: {
           age_range: string | null
+          base_price: number
           category: string
           created_at: string
           description: string
@@ -449,14 +634,19 @@ export type Database = {
           features: string[] | null
           icon: string
           id: string
+          is_active: boolean
           max_participants: number | null
+          min_participants: number | null
           price: string
+          price_per_child: number | null
+          pricing_type: string
           space_requirements: string | null
           title: string
           updated_at: string
         }
         Insert: {
           age_range?: string | null
+          base_price?: number
           category: string
           created_at?: string
           description: string
@@ -464,14 +654,19 @@ export type Database = {
           features?: string[] | null
           icon: string
           id: string
+          is_active?: boolean
           max_participants?: number | null
+          min_participants?: number | null
           price: string
+          price_per_child?: number | null
+          pricing_type?: string
           space_requirements?: string | null
           title: string
           updated_at?: string
         }
         Update: {
           age_range?: string | null
+          base_price?: number
           category?: string
           created_at?: string
           description?: string
@@ -479,8 +674,12 @@ export type Database = {
           features?: string[] | null
           icon?: string
           id?: string
+          is_active?: boolean
           max_participants?: number | null
+          min_participants?: number | null
           price?: string
+          price_per_child?: number | null
+          pricing_type?: string
           space_requirements?: string | null
           title?: string
           updated_at?: string
