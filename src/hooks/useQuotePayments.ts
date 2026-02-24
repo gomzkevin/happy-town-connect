@@ -11,7 +11,7 @@ export interface QuotePayment {
   created_at: string;
 }
 
-export const useQuotePayments = (quoteId: string | undefined) => {
+export const useQuotePayments = (quoteId: string | undefined, refreshKey?: number) => {
   const [payments, setPayments] = useState<QuotePayment[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -28,7 +28,7 @@ export const useQuotePayments = (quoteId: string | undefined) => {
     setLoading(false);
   }, [quoteId]);
 
-  useEffect(() => { fetchPayments(); }, [fetchPayments]);
+  useEffect(() => { fetchPayments(); }, [fetchPayments, refreshKey]);
 
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
 

@@ -122,8 +122,8 @@ function KPIBar({ quotes }: { quotes: Quote[] }) {
 }
 
 // Quote Card
-function PaymentProgressMini({ quoteId, totalEstimate }: { quoteId: string; totalEstimate: number }) {
-  const { totalPaid } = useQuotePayments(quoteId);
+function PaymentProgressMini({ quoteId, totalEstimate, refreshKey }: { quoteId: string; totalEstimate: number; refreshKey?: number }) {
+  const { totalPaid } = useQuotePayments(quoteId, refreshKey);
   if (totalEstimate <= 0) return null;
   const pct = Math.min(100, Math.round((totalPaid / totalEstimate) * 100));
   return (
@@ -137,7 +137,7 @@ function PaymentProgressMini({ quoteId, totalEstimate }: { quoteId: string; tota
   );
 }
 
-function QuoteCard({ quote, onClick, stage }: { quote: Quote; onClick: () => void; stage: StageKey }) {
+function QuoteCard({ quote, onClick, stage, paymentVersion }: { quote: Quote; onClick: () => void; stage: StageKey; paymentVersion: number }) {
   return (
     <div
       draggable
@@ -178,7 +178,7 @@ function QuoteCard({ quote, onClick, stage }: { quote: Quote; onClick: () => voi
           </Badge>
         </div>
         {!['pending', 'contacted'].includes(stage) && (
-          <PaymentProgressMini quoteId={quote.id} totalEstimate={quote.total_estimate || 0} />
+          <PaymentProgressMini quoteId={quote.id} totalEstimate={quote.total_estimate || 0} refreshKey={paymentVersion} />
         )}
         <div className="flex items-center justify-end">
           <span className="text-[10px]">
@@ -192,7 +192,7 @@ function QuoteCard({ quote, onClick, stage }: { quote: Quote; onClick: () => voi
 }
 
 // Column
-function KanbanColumn({ stage, quotes, onCardClick, onDrop, dragOverStage, onDragOver, onDragLeave }: {
+function KanbanColumn({ stage, quotes, onCardClick, onDrop, dragOverStage, onDragOver, onDragLeave, paymentVersion }: {
   stage: Stage;
   quotes: Quote[];
   onCardClick: (q: Quote) => void;
@@ -200,6 +200,7 @@ function KanbanColumn({ stage, quotes, onCardClick, onDrop, dragOverStage, onDra
   dragOverStage: StageKey | null;
   onDragOver: (stageKey: StageKey) => void;
   onDragLeave: () => void;
+  paymentVersion: number;
 }) {
   const isDragging = _dragSourceStage !== null;
   const isValidTarget = _dragSourceStage ? STAGE_MAP[_dragSourceStage]?.allowedTransitions.includes(stage.key) : false;
@@ -234,7 +235,7 @@ function KanbanColumn({ stage, quotes, onCardClick, onDrop, dragOverStage, onDra
       </div>
       <div className="p-2 space-y-2 flex-1 overflow-y-auto max-h-[calc(100vh-320px)]">
         {quotes.map(q => (
-          <QuoteCard key={q.id} quote={q} stage={stage.key} onClick={() => onCardClick(q)} />
+          <QuoteCard key={q.id} quote={q} stage={stage.key} onClick={() => onCardClick(q)} paymentVersion={paymentVersion} />
         ))}
         {quotes.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-6">Sin cotizaciones</p>
@@ -245,9 +246,10 @@ function KanbanColumn({ stage, quotes, onCardClick, onDrop, dragOverStage, onDra
 }
 
 // Detail Dialog
-function QuoteDetailDialog({ quote, open, onClose, onStatusChange }: {
+function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChange }: {
   quote: Quote | null; open: boolean; onClose: () => void;
   onStatusChange: (id: string, s: StageKey) => void;
+  onPaymentChange?: () => void;
 }) {
   const [services, setServices] = useState<QuoteService[]>([]);
   const { payments, totalPaid, addPayment, deletePayment } = useQuotePayments(quote?.id);
@@ -282,7 +284,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange }: {
     if (!amount || amount <= 0) return;
     setAdding(true);
     const ok = await addPayment({ amount, payment_method: newMethod, notes: newNotes || undefined });
-    if (ok) { setNewAmount(''); setNewNotes(''); }
+    if (ok) { setNewAmount(''); setNewNotes(''); onPaymentChange?.(); }
     setAdding(false);
   };
 
@@ -401,7 +403,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange }: {
                           size="icon"
                           variant="ghost"
                           className="h-6 w-6 opacity-0 group-hover/pay:opacity-100 text-destructive"
-                          onClick={() => deletePayment(p.id)}
+                          onClick={async () => { const ok = await deletePayment(p.id); if (ok) onPaymentChange?.(); }}
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -480,6 +482,7 @@ const AdminKanban = () => {
   const [loading, setLoading] = useState(true);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [dragOverStage, setDragOverStage] = useState<StageKey | null>(null);
+  const [paymentVersion, setPaymentVersion] = useState(0);
 
   const fetchQuotes = useCallback(async () => {
     const { data, error } = await supabase.from('quotes').select('*').order('created_at', { ascending: false });
@@ -522,6 +525,7 @@ const AdminKanban = () => {
             stage={stage}
             quotes={grouped[stage.key]}
             onCardClick={(q) => setSelectedQuote(q)}
+            paymentVersion={paymentVersion}
             onDrop={(targetStage) => {
               if (_dragQuoteId && _dragSourceStage && STAGE_MAP[_dragSourceStage]?.allowedTransitions.includes(targetStage)) {
                 updateStatus(_dragQuoteId, targetStage);
@@ -541,6 +545,7 @@ const AdminKanban = () => {
         open={!!selectedQuote}
         onClose={() => setSelectedQuote(null)}
         onStatusChange={updateStatus}
+        onPaymentChange={() => setPaymentVersion(v => v + 1)}
       />
     </div>
   );
