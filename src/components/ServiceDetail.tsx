@@ -315,12 +315,10 @@ const ServiceDetail = () => {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Booking Card */}
-            <Card className="sticky top-6">
+             <Card className="sticky top-6">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl">{service.price}</CardTitle>
-                  <span className="text-sm text-muted-foreground">MXN por fiesta</span>
-                </div>
+                <CardTitle className="text-xl">Solicitar Cotización</CardTitle>
+                <p className="text-sm text-muted-foreground">El precio varía según el número de niños</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <Button 
