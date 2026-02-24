@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Upload, Image, Calendar, Settings, Plus, Edit, Trash2, Home } from 'lucide-react';
+import { LogOut, Upload, Image, Calendar, Settings, Plus, Edit, Trash2, Home, LayoutDashboard, Users, CalendarDays } from 'lucide-react';
 import { useServices } from '@/hooks/useServices';
 import { useEvents } from '@/hooks/useEvents';
 import { useServiceMutations } from '@/hooks/useServiceMutations';
@@ -16,6 +16,11 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { CompanySettingsForm } from './CompanySettingsForm';
 import { NotificationSettingsForm } from './NotificationSettingsForm';
 import { QuoteHistoryView } from './QuoteHistoryView';
+import { lazy, Suspense } from 'react';
+
+const AdminOverview = lazy(() => import('./AdminOverview'));
+const AdminCRM = lazy(() => import('./AdminCRM'));
+const AdminCalendar = lazy(() => import('./AdminCalendar'));
 
 const AdminDashboard = () => {
   const { user, signOut, isAdmin } = useAuth();
@@ -244,14 +249,35 @@ const AdminDashboard = () => {
           </Card>
         </div>
 
-        <Tabs defaultValue="services" className="space-y-4">
-          <TabsList>
+        <Tabs defaultValue="overview" className="space-y-4">
+          <TabsList className="flex-wrap h-auto">
+            <TabsTrigger value="overview" className="gap-1"><LayoutDashboard className="h-3.5 w-3.5" />Dashboard</TabsTrigger>
+            <TabsTrigger value="crm" className="gap-1"><Users className="h-3.5 w-3.5" />CRM</TabsTrigger>
+            <TabsTrigger value="calendar" className="gap-1"><CalendarDays className="h-3.5 w-3.5" />Calendario</TabsTrigger>
             <TabsTrigger value="services">Servicios</TabsTrigger>
             <TabsTrigger value="events">Eventos</TabsTrigger>
-            <TabsTrigger value="settings">Configuración</TabsTrigger>
+            <TabsTrigger value="settings">Config</TabsTrigger>
             <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="history">Historial</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="overview">
+            <Suspense fallback={<div className="text-center py-8 text-muted-foreground">Cargando...</div>}>
+              <AdminOverview />
+            </Suspense>
+          </TabsContent>
+
+          <TabsContent value="crm">
+            <Suspense fallback={<div className="text-center py-8 text-muted-foreground">Cargando...</div>}>
+              <AdminCRM />
+            </Suspense>
+          </TabsContent>
+
+          <TabsContent value="calendar">
+            <Suspense fallback={<div className="text-center py-8 text-muted-foreground">Cargando...</div>}>
+              <AdminCalendar />
+            </Suspense>
+          </TabsContent>
           
           <TabsContent value="services" className="space-y-6">
             <div className="flex justify-between items-center">
