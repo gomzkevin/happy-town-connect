@@ -105,23 +105,30 @@ function getEffectiveStage(quote: Quote): StageKey {
 }
 
 // KPI Bar
-function KPIBar({ quotes }: { quotes: Quote[] }) {
+function KPIBar({ quotes, paymentTotals }: { quotes: Quote[]; paymentTotals: Record<string, number> }) {
   const active = quotes.filter(q => !['cancelled', 'completed'].includes(getEffectiveStage(q)));
   const confirmed = quotes.filter(q => ['confirmed', 'upcoming'].includes(getEffectiveStage(q)));
   const completed = quotes.filter(q => getEffectiveStage(q) === 'completed');
   const nonCancelled = quotes.filter(q => getEffectiveStage(q) !== 'cancelled');
   const conversionRate = nonCancelled.length > 0 ? Math.round(((confirmed.length + completed.length) / nonCancelled.length) * 100) : 0;
-  const confirmedRevenue = confirmed.reduce((s, q) => s + (q.total_estimate || 0), 0);
-  const completedRevenue = completed.reduce((s, q) => s + (q.total_paid || 0), 0);
-  const confirmedPaid = confirmed.reduce((s, q) => s + (q.total_paid || 0), 0);
-  const pendingCollection = confirmedRevenue - confirmedPaid;
+
+  // Confirmados: total cobrado de eventos confirmados/próximos (aún no ocurridos)
+  const confirmedPaid = confirmed.reduce((s, q) => s + (paymentTotals[q.id] || 0), 0);
+  // Realizados: total cobrado de eventos ya realizados
+  const completedPaid = completed.reduce((s, q) => s + (paymentTotals[q.id] || 0), 0);
+  // Por Cobrar: pendiente de cobro de TODAS las etapas no canceladas
+  const pendingCollection = nonCancelled.reduce((s, q) => {
+    const estimate = q.total_estimate || 0;
+    const paid = paymentTotals[q.id] || 0;
+    return s + Math.max(0, estimate - paid);
+  }, 0);
 
   const kpis = [
     { label: 'Activas', value: String(active.length), icon: TrendingUp },
-    { label: 'Confirmados', value: `$${confirmedRevenue.toLocaleString()}`, icon: DollarSign },
-    { label: 'Realizados', value: `$${completedRevenue.toLocaleString()}`, icon: DollarSign },
+    { label: 'Confirmados', value: `$${confirmedPaid.toLocaleString()}`, icon: DollarSign },
+    { label: 'Realizados', value: `$${completedPaid.toLocaleString()}`, icon: DollarSign },
     { label: 'Conversión', value: `${conversionRate}%`, icon: TrendingUp },
-    { label: 'Por Cobrar', value: `$${Math.max(0, pendingCollection).toLocaleString()}`, icon: DollarSign },
+    { label: 'Por Cobrar', value: `$${pendingCollection.toLocaleString()}`, icon: DollarSign },
   ];
 
   return (
@@ -925,6 +932,7 @@ const AdminKanban = () => {
   const [dragOverStage, setDragOverStage] = useState<StageKey | null>(null);
   const [paymentVersion, setPaymentVersion] = useState(0);
   const [showNewQuote, setShowNewQuote] = useState(false);
+  const [paymentTotals, setPaymentTotals] = useState<Record<string, number>>({});
 
   const fetchQuotes = useCallback(async () => {
     const { data, error } = await supabase.from('quotes').select('*').order('created_at', { ascending: false });
@@ -933,7 +941,17 @@ const AdminKanban = () => {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchQuotes(); }, [fetchQuotes]);
+  const fetchPaymentTotals = useCallback(async () => {
+    const { data, error } = await supabase.from('quote_payments').select('quote_id, amount');
+    if (error) { console.error('Error fetching payment totals:', error); return; }
+    const totals: Record<string, number> = {};
+    (data || []).forEach((p: { quote_id: string; amount: number }) => {
+      totals[p.quote_id] = (totals[p.quote_id] || 0) + p.amount;
+    });
+    setPaymentTotals(totals);
+  }, []);
+
+  useEffect(() => { fetchQuotes(); fetchPaymentTotals(); }, [fetchQuotes, fetchPaymentTotals]);
 
   useEffect(() => {
     const handler = () => setDragOverStage(null);
@@ -964,7 +982,7 @@ const AdminKanban = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <KPIBar quotes={quotes} />
+        <KPIBar quotes={quotes} paymentTotals={paymentTotals} />
         <Button onClick={() => setShowNewQuote(true)} className="gap-1 shrink-0">
           <Plus className="h-4 w-4" /> Nueva Cotización
         </Button>
@@ -997,7 +1015,7 @@ const AdminKanban = () => {
         open={!!selectedQuote}
         onClose={() => setSelectedQuote(null)}
         onStatusChange={updateStatus}
-        onPaymentChange={() => setPaymentVersion(v => v + 1)}
+        onPaymentChange={() => { setPaymentVersion(v => v + 1); fetchPaymentTotals(); }}
         onQuoteUpdate={handleQuoteUpdate}
       />
       <NewQuoteDialog
