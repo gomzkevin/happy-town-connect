@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { useServices as useServicesContext } from "@/contexts/ServicesContext";
 import { useServices } from "@/hooks/useServices";
-import { useServiceImages } from "@/hooks/useServiceImages";
+
 import { useOnboarding } from "@/hooks/useOnboarding";
 import * as LucideIcons from "lucide-react";
 
@@ -13,29 +13,19 @@ const ServiceCard = ({ service, onAddToCart, onViewDetails }: {
   onAddToCart: (service: any) => void; 
   onViewDetails: (serviceId: string) => void; 
 }) => {
-  const { images } = useServiceImages(service.id);
+  
   const IconComponent = (LucideIcons as any)[service.icon] || LucideIcons.Star;
   
-  const primaryImage = images.find(img => img.is_primary) || images[0];
+  
 
   return (
     <Card 
       className="group hover:shadow-hover transition-all duration-300 cursor-pointer transform hover:-translate-y-1 overflow-hidden border-0 bg-card rounded-2xl"
       onClick={() => onViewDetails(service.id)}
     >
-      {/* Image Section */}
-      <div className="relative h-48 overflow-hidden">
-        {primaryImage ? (
-          <img 
-            src={primaryImage.image_url} 
-            alt={primaryImage.alt_text || service.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-        ) : (
-          <div className="w-full h-full bg-accent flex items-center justify-center">
-            <IconComponent className="w-14 h-14 text-muted-foreground/40" />
-          </div>
-        )}
+      {/* Icon Section */}
+      <div className="relative h-48 overflow-hidden bg-accent/50 flex items-center justify-center">
+        <IconComponent className="w-20 h-20 text-foreground/60 group-hover:scale-110 transition-transform duration-300" />
         <div className="absolute top-3 left-3">
           <Badge 
             variant="secondary" 
@@ -56,22 +46,17 @@ const ServiceCard = ({ service, onAddToCart, onViewDetails }: {
           {service.description}
         </CardDescription>
         
-        <div className="space-y-3">
-          <div className="text-xl font-bold font-display text-foreground">
-            {service.price}
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full hover:bg-foreground hover:text-background transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddToCart(service);
-            }}
-          >
-            Agregar a Cotización
-          </Button>
-        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="w-full hover:bg-foreground hover:text-background transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddToCart(service);
+          }}
+        >
+          Agregar a Cotización
+        </Button>
       </CardContent>
     </Card>
   );

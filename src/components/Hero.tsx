@@ -35,16 +35,16 @@ const Hero = () => {
 
           {/* Tagline */}
           <p className="text-lg sm:text-xl lg:text-2xl text-muted-foreground max-w-2xl mx-auto font-medium leading-relaxed">
-            Experiencias únicas donde los niños viven la aventura de ser{" "}
-            <span className="text-foreground font-bold">adultos por un día</span>.
-            Chef, constructor, artista... ¡Que elijan su profesión favorita!
+            Estaciones temáticas donde viven la aventura de ser{" "}
+            <span className="text-foreground font-bold">adultos por un día</span>,
+            y talleres creativos donde pintan, moldean y crean con sus manos.
           </p>
 
           {/* Stats */}
           <div className="flex flex-wrap gap-10 justify-center pt-4">
             <div className="text-center">
-              <div className="text-3xl font-bold font-display text-foreground">200+</div>
-              <div className="text-sm text-muted-foreground font-medium">Fiestas Realizadas</div>
+              <div className="text-3xl font-bold font-display text-foreground">✨</div>
+              <div className="text-sm text-muted-foreground font-medium">Eventos Únicos</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold font-display text-foreground">15+</div>
