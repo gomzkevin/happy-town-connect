@@ -8,7 +8,7 @@ export interface QuoteData {
   email: string;
   phone?: string;
   eventDate?: string;
-  childrenCount?: number;
+  childrenCount: number;
   ageRange?: string;
   childName?: string;
   preferences?: string[];

@@ -63,7 +63,7 @@ const ServiceCart = () => {
     }
   };
 
-  const canSubmitQuote = formData.customerName && formData.email;
+  const canSubmitQuote = formData.customerName && formData.email && formData.childrenCount >= 1;
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -226,7 +226,7 @@ const ServiceCart = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="childrenCount">Número de niños</Label>
+                    <Label htmlFor="childrenCount">Número de niños *</Label>
                     <Input
                       id="childrenCount"
                       type="number"

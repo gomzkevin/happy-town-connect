@@ -288,7 +288,7 @@ function PdfSection({ quote, onPdfGenerated }: { quote: Quote; onPdfGenerated: (
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-quote-pdf', {
+      const { data, error } = await supabase.functions.invoke('generate-quote', {
         body: { quoteId: quote.id },
       });
       if (error) throw error;
@@ -413,8 +413,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
   };
 
   const handleSave = async () => {
-    if (!form.customer_name.trim() || !form.email.trim()) {
-      toast({ title: 'Campos requeridos', description: 'Nombre y email son obligatorios.', variant: 'destructive' });
+    if (!form.customer_name.trim() || !form.email.trim() || !form.children_count) {
+      toast({ title: 'Campos requeridos', description: 'Nombre, email y número de niños son obligatorios.', variant: 'destructive' });
       return;
     }
     setSaving(true);
@@ -541,7 +541,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
                 <Input value={form.child_name} onChange={e => setForm(f => ({ ...f, child_name: e.target.value }))} placeholder="Nombre (opcional)" className="h-9" />
               </div>
               <div>
-                <Label className="text-xs">Número de niños</Label>
+                <Label className="text-xs">Número de niños *</Label>
                 <Input type="number" min={1} value={form.children_count} onChange={e => setForm(f => ({ ...f, children_count: e.target.value }))} className="h-9" />
               </div>
               <div>
