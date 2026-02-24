@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Shield } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const AuthPage = () => {
   const { signIn, signUp, user, loading } = useAuth();
@@ -18,6 +19,7 @@ const AuthPage = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('signin');
+  const [resetSent, setResetSent] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -128,6 +130,35 @@ const AuthPage = () => {
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Iniciar Sesión
                 </Button>
+                {resetSent ? (
+                  <p className="text-sm text-center text-muted-foreground">
+                    ✓ Revisa tu email para restablecer tu contraseña
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-full text-sm text-muted-foreground hover:text-primary underline"
+                    onClick={async () => {
+                      if (!email) {
+                        setError('Ingresa tu email primero');
+                        return;
+                      }
+                      setIsLoading(true);
+                      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                        redirectTo: `${window.location.origin}/reset-password`,
+                      });
+                      if (error) {
+                        setError(error.message);
+                      } else {
+                        setResetSent(true);
+                        setError('');
+                      }
+                      setIsLoading(false);
+                    }}
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                )}
               </form>
             </TabsContent>
             
