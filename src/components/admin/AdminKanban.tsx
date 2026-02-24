@@ -826,7 +826,22 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
       setServices(freshServices || []);
 
       setIsEditing(false);
-      toast({ title: 'Cotización actualizada', description: 'Los cambios se guardaron correctamente.' });
+      toast({ title: 'Cotización actualizada', description: 'Los cambios se guardaron. Regenerando PDF...' });
+
+      // Auto-regenerate PDF with updated services
+      try {
+        const { data: pdfData, error: pdfError } = await supabase.functions.invoke('generate-quote', {
+          body: { quoteId: quote.id },
+        });
+        if (pdfError) throw pdfError;
+        if (pdfData?.pdf_url) {
+          onQuoteUpdate?.(quote.id, { pdf_url: pdfData.pdf_url });
+          toast({ title: 'PDF regenerado', description: 'El PDF se actualizó con los nuevos servicios.' });
+        }
+      } catch (pdfErr) {
+        console.error('Error regenerating PDF:', pdfErr);
+        toast({ title: 'Aviso', description: 'Los cambios se guardaron pero el PDF no se pudo regenerar. Usa el botón "Regenerar PDF".', variant: 'destructive' });
+      }
     } catch (err) {
       console.error('Error saving edit:', err);
       toast({ title: 'Error', description: 'No se pudieron guardar los cambios.', variant: 'destructive' });

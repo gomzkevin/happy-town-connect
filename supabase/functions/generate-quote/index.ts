@@ -830,19 +830,25 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     .from("quotes").select("*").eq("id", quoteId).single();
   if (qErr || !quote) throw new Error("Quote not found: " + (qErr?.message || quoteId));
 
-  const { data: qServices } = await supabase
+  const { data: qServices, error: qsErr } = await supabase
     .from("quote_services").select("service_id, quantity").eq("quote_id", quoteId);
+  console.log("[mapQuoteToConfig] quoteId:", quoteId);
+  console.log("[mapQuoteToConfig] qServices query error:", qsErr);
+  console.log("[mapQuoteToConfig] qServices returned:", JSON.stringify(qServices));
 
   const estaciones: string[] = [];
   const fijos: string[] = [];
   const talleres: string[] = [];
+  const unclassified: string[] = [];
 
   for (const qs of qServices || []) {
     const sid = qs.service_id;
     if (ESTACION_IDS.includes(sid)) estaciones.push(sid);
     else if (FIJO_IDS.includes(sid)) fijos.push(sid);
     else if (TALLER_IDS.includes(sid)) talleres.push(sid);
+    else unclassified.push(sid);
   }
+  console.log("[mapQuoteToConfig] estaciones:", estaciones, "fijos:", fijos, "talleres:", talleres, "unclassified:", unclassified);
 
   let fecha = "";
   if (quote.event_date) {
@@ -854,7 +860,7 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     } catch { fecha = quote.event_date; }
   }
 
-  return {
+  const config: QuoteRequest = {
     cliente: quote.customer_name,
     n_ninos: quote.children_count || 15,
     horas: 3,
@@ -863,6 +869,8 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     fijos,
     talleres,
   };
+  console.log("[mapQuoteToConfig] final config:", JSON.stringify(config));
+  return config;
 }
 
 // ─── Entry Point ────────────────────────────────────────────────
