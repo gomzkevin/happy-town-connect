@@ -4,14 +4,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
-import { Calendar, Users, Mail, Phone, MapPin, DollarSign, TrendingUp, Clock, GripVertical, ChevronRight, XCircle } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Calendar, Mail, Phone, MapPin, DollarSign, TrendingUp, Clock, GripVertical, ChevronRight, XCircle, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, differenceInDays, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
+import { useQuotePayments } from '@/hooks/useQuotePayments';
 
 // Types
 interface Quote {
@@ -120,6 +122,21 @@ function KPIBar({ quotes }: { quotes: Quote[] }) {
 }
 
 // Quote Card
+function PaymentProgressMini({ quoteId, totalEstimate }: { quoteId: string; totalEstimate: number }) {
+  const { totalPaid } = useQuotePayments(quoteId);
+  if (totalEstimate <= 0) return null;
+  const pct = Math.min(100, Math.round((totalPaid / totalEstimate) * 100));
+  return (
+    <div className="mt-1.5">
+      <div className="flex items-center justify-between text-[9px] text-muted-foreground mb-0.5">
+        <span>{pct}% pagado</span>
+        <span>${totalPaid.toLocaleString()}</span>
+      </div>
+      <Progress value={pct} className="h-1.5" />
+    </div>
+  );
+}
+
 function QuoteCard({ quote, onClick, stage }: { quote: Quote; onClick: () => void; stage: StageKey }) {
   return (
     <div
@@ -133,7 +150,6 @@ function QuoteCard({ quote, onClick, stage }: { quote: Quote; onClick: () => voi
       onDragEnd={() => {
         _dragQuoteId = null;
         _dragSourceStage = null;
-        // Dispatch custom event to reset dragOverStage in parent
         window.dispatchEvent(new CustomEvent('kanban-drag-end'));
       }}
       onClick={onClick}
@@ -157,14 +173,14 @@ function QuoteCard({ quote, onClick, stage }: { quote: Quote; onClick: () => voi
         )}
         <div className="flex items-center justify-between">
           <span className="font-medium text-foreground">${(quote.total_estimate || 0).toLocaleString()}</span>
-          {quote.deposit_paid && (
-            <Badge variant="outline" className="text-[9px] border-japitown-green-tag/40 text-japitown-green-tag">Anticipo ✓</Badge>
-          )}
-        </div>
-        <div className="flex items-center justify-between">
           <Badge variant="outline" className="text-[9px]">
             {quote.source === 'onboarding' ? 'Wizard' : 'Servicios'}
           </Badge>
+        </div>
+        {stage !== 'pending' && (
+          <PaymentProgressMini quoteId={quote.id} totalEstimate={quote.total_estimate || 0} />
+        )}
+        <div className="flex items-center justify-end">
           <span className="text-[10px]">
             <Clock className="h-2.5 w-2.5 inline mr-0.5" />
             {formatDistanceToNow(new Date(quote.updated_at), { locale: es, addSuffix: false })}
@@ -229,21 +245,19 @@ function KanbanColumn({ stage, quotes, onCardClick, onDrop, dragOverStage, onDra
 }
 
 // Detail Dialog
-function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentUpdate }: {
+function QuoteDetailDialog({ quote, open, onClose, onStatusChange }: {
   quote: Quote | null; open: boolean; onClose: () => void;
   onStatusChange: (id: string, s: StageKey) => void;
-  onPaymentUpdate: (id: string, d: { deposit_amount?: number; deposit_paid?: boolean; total_paid?: number }) => void;
 }) {
   const [services, setServices] = useState<QuoteService[]>([]);
-  const [depositAmount, setDepositAmount] = useState(0);
-  const [depositPaid, setDepositPaid] = useState(false);
-  const [totalPaid, setTotalPaid] = useState(0);
+  const { payments, totalPaid, addPayment, deletePayment } = useQuotePayments(quote?.id);
+  const [newAmount, setNewAmount] = useState('');
+  const [newMethod, setNewMethod] = useState('transferencia');
+  const [newNotes, setNewNotes] = useState('');
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     if (!quote) return;
-    setDepositAmount(quote.deposit_amount || 0);
-    setDepositPaid(quote.deposit_paid || false);
-    setTotalPaid(quote.total_paid || 0);
     supabase.from('quote_services').select('id, service_name, service_price, quantity').eq('quote_id', quote.id).then(({ data }) => setServices(data || []));
   }, [quote]);
 
@@ -252,7 +266,25 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentUpda
   const effectiveStage = getEffectiveStage(quote);
   const stageInfo = STAGE_MAP[effectiveStage];
   const allowedNext = stageInfo.allowedTransitions;
-  const pendingBalance = (quote.total_estimate || 0) - totalPaid;
+  const totalEstimate = quote.total_estimate || 0;
+  const pendingBalance = totalEstimate - totalPaid;
+  const paymentPct = totalEstimate > 0 ? Math.min(100, Math.round((totalPaid / totalEstimate) * 100)) : 0;
+
+  const PAYMENT_METHODS = [
+    { value: 'transferencia', label: 'Transferencia' },
+    { value: 'efectivo', label: 'Efectivo' },
+    { value: 'tarjeta', label: 'Tarjeta' },
+    { value: 'otro', label: 'Otro' },
+  ];
+
+  const handleAddPayment = async () => {
+    const amount = Number(newAmount);
+    if (!amount || amount <= 0) return;
+    setAdding(true);
+    const ok = await addPayment({ amount, payment_method: newMethod, notes: newNotes || undefined });
+    if (ok) { setNewAmount(''); setNewNotes(''); }
+    setAdding(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -306,7 +338,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentUpda
                 ))}
                 <div className="flex justify-between text-sm font-bold px-3 pt-1">
                   <span>Total estimado</span>
-                  <span>${(quote.total_estimate || 0).toLocaleString()}</span>
+                  <span>${totalEstimate.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -321,35 +353,94 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentUpda
             </div>
           )}
 
-          {/* Only show payments section from Contactado onwards */}
+          {/* Payment section - visible from Contactado onwards */}
           {effectiveStage !== 'pending' && (
             <>
               <Separator />
               <div>
-                <Label className="text-sm font-bold font-display">Pagos</Label>
-                <div className="mt-2 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1">
-                      <Label className="text-xs text-muted-foreground">Monto anticipo</Label>
-                      <Input type="number" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} className="h-8 mt-1" min={0} />
-                    </div>
-                    <div className="flex flex-col items-center gap-1 pt-4">
-                      <Switch checked={depositPaid} onCheckedChange={setDepositPaid} />
-                      <span className="text-[10px] text-muted-foreground">Pagado</span>
-                    </div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-sm font-bold font-display">Pagos</Label>
+                  <Badge variant="outline" className={`text-xs ${paymentPct >= 100 ? 'border-japitown-green-tag/40 text-japitown-green-tag' : ''}`}>
+                    {paymentPct}%
+                  </Badge>
+                </div>
+
+                {/* Progress bar */}
+                <Progress value={paymentPct} className="h-2.5 mb-3" />
+
+                <div className="flex justify-between items-center bg-accent/50 rounded-lg p-3 mb-3">
+                  <div className="text-center flex-1">
+                    <p className="text-[10px] text-muted-foreground">Pagado</p>
+                    <p className="font-bold text-sm text-japitown-green-tag">${totalPaid.toLocaleString()}</p>
                   </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Total pagado</Label>
-                    <Input type="number" value={totalPaid} onChange={(e) => setTotalPaid(Number(e.target.value))} className="h-8 mt-1" min={0} />
+                  <Separator orientation="vertical" className="h-8 mx-2" />
+                  <div className="text-center flex-1">
+                    <p className="text-[10px] text-muted-foreground">Pendiente</p>
+                    <p className={`font-bold text-sm ${pendingBalance > 0 ? 'text-japitown-orange' : 'text-japitown-green-tag'}`}>
+                      ${Math.max(0, pendingBalance).toLocaleString()}
+                    </p>
                   </div>
-                  <div className="flex justify-between items-center bg-accent/50 rounded-lg p-3">
-                    <span className="text-sm text-muted-foreground">Saldo pendiente</span>
-                    <span className={`font-bold text-sm ${pendingBalance > 0 ? 'text-japitown-orange' : 'text-japitown-green-tag'}`}>
-                      ${pendingBalance.toLocaleString()}
-                    </span>
+                </div>
+
+                {/* Payment list */}
+                {payments.length > 0 && (
+                  <div className="space-y-1 mb-3 max-h-32 overflow-y-auto">
+                    {payments.map(p => (
+                      <div key={p.id} className="flex items-center justify-between text-xs bg-accent/30 rounded-md px-3 py-2 group/pay">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">${p.amount.toLocaleString()}</span>
+                            <Badge variant="outline" className="text-[9px] capitalize">{p.payment_method}</Badge>
+                          </div>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <span>{format(new Date(p.created_at), 'dd MMM yyyy', { locale: es })}</span>
+                            {p.notes && <span className="truncate">· {p.notes}</span>}
+                          </div>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 opacity-0 group-hover/pay:opacity-100 text-destructive"
+                          onClick={() => deletePayment(p.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => onPaymentUpdate(quote.id, { deposit_amount: depositAmount, deposit_paid: depositPaid, total_paid: totalPaid })} className="w-full">
-                    Guardar pagos
+                )}
+
+                {/* Add payment form */}
+                <div className="space-y-2 border rounded-lg p-3 bg-background">
+                  <Label className="text-xs text-muted-foreground">Registrar pago</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Monto"
+                      value={newAmount}
+                      onChange={(e) => setNewAmount(e.target.value)}
+                      className="h-8 flex-1"
+                      min={1}
+                    />
+                    <Select value={newMethod} onValueChange={setNewMethod}>
+                      <SelectTrigger className="h-8 w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYMENT_METHODS.map(m => (
+                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Input
+                    placeholder="Notas (opcional)"
+                    value={newNotes}
+                    onChange={(e) => setNewNotes(e.target.value)}
+                    className="h-8"
+                  />
+                  <Button size="sm" className="w-full gap-1" onClick={handleAddPayment} disabled={adding || !newAmount}>
+                    <Plus className="h-3 w-3" /> Registrar pago
                   </Button>
                 </div>
               </div>
@@ -419,14 +510,6 @@ const AdminKanban = () => {
     toast({ title: 'Etapa actualizada', description: `Movido a "${STAGE_MAP[newStatus].label}"` });
   };
 
-  const updatePayment = async (quoteId: string, data: { deposit_amount?: number; deposit_paid?: boolean; total_paid?: number }) => {
-    const { error } = await supabase.from('quotes').update({ ...data, updated_at: new Date().toISOString() }).eq('id', quoteId);
-    if (error) { toast({ title: 'Error', description: 'No se pudo guardar', variant: 'destructive' }); return; }
-    setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, ...data, updated_at: new Date().toISOString() } : q));
-    setSelectedQuote(prev => prev && prev.id === quoteId ? { ...prev, ...data } : prev);
-    toast({ title: 'Pagos actualizados' });
-  };
-
   if (loading) return <div className="text-center py-12 text-muted-foreground">Cargando pipeline...</div>;
 
   return (
@@ -458,7 +541,6 @@ const AdminKanban = () => {
         open={!!selectedQuote}
         onClose={() => setSelectedQuote(null)}
         onStatusChange={updateStatus}
-        onPaymentUpdate={updatePayment}
       />
     </div>
   );
