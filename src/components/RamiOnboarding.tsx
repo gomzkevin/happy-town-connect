@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Check, X, Gamepad2, Palette, Heart, Utensils, Crown, Sparkles, Star, PartyPopper } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, X, Gamepad2, Palette, Heart, Utensils, Crown, Sparkles, Star, PartyPopper, Eye } from "lucide-react";
 import { useServices } from "@/hooks/useServices";
 import { useQuotes } from "@/hooks/useQuotes";
 import { Service, useServices as useServicesContext } from "@/contexts/ServicesContext";
@@ -90,6 +90,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
   });
 
   const [recommendations, setRecommendations] = useState<Service[]>([]);
+  const [showAllServices, setShowAllServices] = useState(false);
 
   const handleNext = () => {
     if (currentStep < TOTAL_STEPS) {
@@ -301,6 +302,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                 </p>
               </div>
 
+              {/* Recommended services */}
               <div className="space-y-2">
                 {recommendations.map((service) => {
                   const isSelected = selectedServices.some(item => item.service.id === service.id);
@@ -337,6 +339,64 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                   );
                 })}
               </div>
+
+              {/* Show all services toggle */}
+              {(() => {
+                const otherServices = services.filter(
+                  s => !recommendations.some(r => r.id === s.id)
+                );
+                if (otherServices.length === 0) return null;
+                return (
+                  <>
+                    <button
+                      onClick={() => setShowAllServices(!showAllServices)}
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 border-dashed border-japitown-yellow/60 bg-japitown-yellow/10 hover:bg-japitown-yellow/20 transition-all text-sm font-medium text-foreground"
+                    >
+                      <Eye className="w-4 h-4 text-japitown-yellow" />
+                      {showAllServices ? 'Ocultar servicios extra' : `Ver ${otherServices.length} servicios más`}
+                    </button>
+
+                    {showAllServices && (
+                      <div className="space-y-2">
+                        {otherServices.map((service) => {
+                          const isSelected = selectedServices.some(item => item.service.id === service.id);
+                          const iconSrc = serviceIconMap[service.id];
+                          return (
+                            <button
+                              key={service.id}
+                              className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                                isSelected
+                                  ? 'border-japitown-yellow bg-japitown-yellow/10'
+                                  : 'border-border hover:border-japitown-yellow/40 bg-card'
+                              }`}
+                              onClick={() => {
+                                if (isSelected) {
+                                  removeService(service.id);
+                                } else {
+                                  addService(service);
+                                }
+                              }}
+                            >
+                              <div className="w-10 h-10 rounded-xl bg-japitown-yellow/15 flex items-center justify-center flex-shrink-0">
+                                <img src={iconSrc} alt={service.title} className="w-7 h-7 object-contain" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm text-foreground">{service.title}</p>
+                                <p className="text-xs text-muted-foreground truncate">{service.description}</p>
+                              </div>
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+                                isSelected ? 'bg-japitown-yellow' : 'border-2 border-border'
+                              }`}>
+                                {isSelected && <Check className="w-3.5 h-3.5 text-foreground" />}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {selectedServices.length < 2 && (
                 <p className="text-xs text-center text-japitown-orange font-medium">
