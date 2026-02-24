@@ -43,8 +43,8 @@ const ServiceCard = ({ service, onAddToCart, onViewDetails }: {
 
   const isCreativeWorkshop = service.category === "Talleres Creativos";
   const badgeClasses = isCreativeWorkshop
-    ? "bg-secondary/20 text-secondary-foreground border-secondary/30 backdrop-blur-sm rounded-full"
-    : "bg-japitown-orange/20 text-foreground border-japitown-orange/30 backdrop-blur-sm rounded-full";
+    ? "bg-japitown-green-tag/20 text-foreground border-japitown-green-tag/40 backdrop-blur-sm rounded-full"
+    : "bg-japitown-blue/20 text-foreground border-japitown-blue/40 backdrop-blur-sm rounded-full";
 
   return (
     <Card 

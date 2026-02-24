@@ -41,7 +41,7 @@ export default {
 					'yellow': 'hsl(var(--japitown-yellow))',
 					'orange': 'hsl(var(--japitown-orange))',
 					'blue': 'hsl(var(--japitown-blue))',
-					'pink': 'hsl(var(--japitown-pink))',
+					'green-tag': 'hsl(var(--japitown-green-tag))',
 					'green': 'hsl(var(--japitown-green))',
 					'cream': 'hsl(var(--japitown-cream))',
 				},
