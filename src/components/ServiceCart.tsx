@@ -6,11 +6,13 @@ import { Label } from "@/components/ui/label";
 import { ShoppingCart, Trash2, X } from "lucide-react";
 import { useServices } from "@/contexts/ServicesContext";
 import { useQuotes } from "@/hooks/useQuotes";
+import { useOnboarding } from "@/hooks/useOnboarding";
 import * as LucideIcons from "lucide-react";
 
 const ServiceCart = () => {
   const { selectedServices, removeService, clearSelection, hasMinimumServices, getRemainingToMinimum } = useServices();
   const { submitQuote, isSubmitting } = useQuotes();
+  const { showOnboarding } = useOnboarding();
   const [isOpen, setIsOpen] = useState(false);
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -25,8 +27,8 @@ const ServiceCart = () => {
     location: "",
   });
 
-  // Always show cart when there are services or to show minimum requirement
-  if (selectedServices.length === 0) {
+  // Hide cart when wizard is open or no services selected
+  if (selectedServices.length === 0 || showOnboarding) {
     return null;
   }
 
