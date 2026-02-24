@@ -158,7 +158,7 @@ function PaymentProgressMini({ quoteId, totalEstimate, refreshKey }: { quoteId: 
   );
 }
 
-function QuoteCard({ quote, onClick, stage, paymentVersion }: { quote: Quote; onClick: () => void; stage: StageKey; paymentVersion: number }) {
+function QuoteCard({ quote, onClick, stage, paymentVersion, dateConflictCount }: { quote: Quote; onClick: () => void; stage: StageKey; paymentVersion: number; dateConflictCount: number }) {
   const sourceInfo = SOURCE_LABELS[quote.source || ''] || { label: quote.source || 'Web', className: '' };
 
   return (
@@ -192,6 +192,12 @@ function QuoteCard({ quote, onClick, stage, paymentVersion }: { quote: Quote; on
           <div className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
             {format(new Date(quote.event_date), 'dd MMM yyyy', { locale: es })}
+            {dateConflictCount > 0 && (
+              <span className="inline-flex items-center gap-0.5 text-japitown-orange ml-1" title={`${dateConflictCount} evento(s) más en esta fecha`}>
+                <AlertTriangle className="h-3 w-3" />
+                <span className="text-[10px] font-medium">+{dateConflictCount}</span>
+              </span>
+            )}
           </div>
         )}
         <div className="flex items-center justify-between">
@@ -215,9 +221,10 @@ function QuoteCard({ quote, onClick, stage, paymentVersion }: { quote: Quote; on
 }
 
 // Column
-function KanbanColumn({ stage, quotes, onCardClick, onDrop, dragOverStage, onDragOver, onDragLeave, paymentVersion }: {
+function KanbanColumn({ stage, quotes, allQuotes, onCardClick, onDrop, dragOverStage, onDragOver, onDragLeave, paymentVersion }: {
   stage: Stage;
   quotes: Quote[];
+  allQuotes: Quote[];
   onCardClick: (q: Quote) => void;
   onDrop: (stageKey: StageKey) => void;
   dragOverStage: StageKey | null;
@@ -229,6 +236,11 @@ function KanbanColumn({ stage, quotes, onCardClick, onDrop, dragOverStage, onDra
   const isValidTarget = _dragSourceStage ? STAGE_MAP[_dragSourceStage]?.allowedTransitions.includes(stage.key) : false;
   const isOver = dragOverStage === stage.key;
   const columnTotal = quotes.reduce((s, q) => s + (q.total_estimate || 0), 0);
+
+  const getDateConflictCount = (quote: Quote) => {
+    if (!quote.event_date) return 0;
+    return allQuotes.filter(q => q.id !== quote.id && q.event_date === quote.event_date && !['cancelled', 'completed'].includes(q.status || '')).length;
+  };
 
   return (
     <div
@@ -258,7 +270,7 @@ function KanbanColumn({ stage, quotes, onCardClick, onDrop, dragOverStage, onDra
       </div>
       <div className="p-2 space-y-2 flex-1 overflow-y-auto max-h-[calc(100vh-320px)]">
         {quotes.map(q => (
-          <QuoteCard key={q.id} quote={q} stage={stage.key} onClick={() => onCardClick(q)} paymentVersion={paymentVersion} />
+          <QuoteCard key={q.id} quote={q} stage={stage.key} onClick={() => onCardClick(q)} paymentVersion={paymentVersion} dateConflictCount={getDateConflictCount(q)} />
         ))}
         {quotes.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-6">Sin cotizaciones</p>
@@ -642,11 +654,24 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   const [newMethod, setNewMethod] = useState('transferencia');
   const [newNotes, setNewNotes] = useState('');
   const [adding, setAdding] = useState(false);
+  const [dateConflicts, setDateConflicts] = useState<{ customer_name: string; status: string }[]>([]);
 
   useEffect(() => {
     if (!quote) return;
     supabase.from('quote_services').select('id, service_name, service_price, quantity').eq('quote_id', quote.id).then(({ data }) => setServices(data || []));
   }, [quote]);
+
+  // Check date conflicts for this quote
+  useEffect(() => {
+    if (!quote?.event_date) { setDateConflicts([]); return; }
+    supabase
+      .from('quotes')
+      .select('customer_name, status')
+      .eq('event_date', quote.event_date)
+      .neq('id', quote.id)
+      .in('status', ['pending', 'contacted', 'confirmed'])
+      .then(({ data }) => setDateConflicts(data || []));
+  }, [quote?.id, quote?.event_date]);
 
   if (!quote) return null;
 
@@ -715,6 +740,22 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
               <p className="font-medium text-sm">{quote.age_range || '-'}</p>
             </div>
           </div>
+
+          {dateConflicts.length > 0 && (
+            <div className="flex items-start gap-2 rounded-lg border-2 border-japitown-orange/40 bg-japitown-orange/10 p-2.5">
+              <AlertTriangle className="h-4 w-4 text-japitown-orange shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <p className="font-bold text-foreground">
+                  {dateConflicts.length} {dateConflicts.length === 1 ? 'evento' : 'eventos'} más en esta fecha
+                </p>
+                <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                  {dateConflicts.map((c, i) => (
+                    <li key={i}>• {c.customer_name} <span className="text-[10px]">({c.status})</span></li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
 
           {services.length > 0 && (
             <div>
@@ -933,6 +974,7 @@ const AdminKanban = () => {
             key={stage.key}
             stage={stage}
             quotes={grouped[stage.key]}
+            allQuotes={quotes}
             onCardClick={(q) => setSelectedQuote(q)}
             paymentVersion={paymentVersion}
             onDrop={(targetStage) => {
