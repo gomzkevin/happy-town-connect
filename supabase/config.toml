@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.generate-quote]
 verify_jwt = false
+
+[functions.send-team-invitation]
+verify_jwt = false

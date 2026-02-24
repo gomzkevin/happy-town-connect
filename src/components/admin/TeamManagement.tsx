@@ -69,17 +69,30 @@ const TeamManagement = () => {
         return;
       }
 
+      const trimmedEmail = email.trim().toLowerCase();
       const { error } = await supabase.from('team_invitations').insert({
-        email: email.trim().toLowerCase(),
+        email: trimmedEmail,
         role,
         invited_by: user.id,
       });
 
       if (error) throw error;
 
-      toast.success(`Invitación enviada a ${email}`, {
-        description: `Rol: ${role === 'admin' ? 'Administrador' : 'Operador'}. La persona debe registrarse con este email.`,
+      // Send invitation email
+      const { error: emailError } = await supabase.functions.invoke('send-team-invitation', {
+        body: { email: trimmedEmail, role, inviterEmail: user.email },
       });
+
+      if (emailError) {
+        console.error('Email send error:', emailError);
+        toast.success(`Invitación creada para ${trimmedEmail}`, {
+          description: `Rol: ${role === 'admin' ? 'Administrador' : 'Operador'}. No se pudo enviar el email, comparte el link manualmente.`,
+        });
+      } else {
+        toast.success(`Invitación enviada a ${trimmedEmail}`, {
+          description: `Se envió un email con instrucciones para registrarse como ${role === 'admin' ? 'Administrador' : 'Operador'}.`,
+        });
+      }
       setEmail('');
       setRole('operador');
       fetchTeamData();
