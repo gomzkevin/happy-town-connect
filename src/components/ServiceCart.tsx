@@ -106,9 +106,7 @@ const ServiceCart = () => {
                           <div className="flex-1 min-w-0">
                             <h4 className="font-medium text-sm">{item.service.title}</h4>
                             <p className="text-xs text-muted-foreground truncate">{item.service.description}</p>
-                            <div className="flex items-center justify-between mt-2">
-                              <span className="font-semibold text-primary">{item.service.price}</span>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center justify-end mt-2">
                                 <Button
                                   variant="outline"
                                   size="icon"
@@ -133,12 +131,11 @@ const ServiceCart = () => {
                                   className="h-6 w-6 text-destructive hover:text-destructive"
                                   onClick={() => removeService(item.service.id)}
                                   disabled={!canRemoveService(item.service.id)}
-                                  title={!canRemoveService(item.service.id) ? "Mínimo 3 servicios requeridos" : ""}
+                                  title={!canRemoveService(item.service.id) ? "Mínimo 2 servicios requeridos" : ""}
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
                               </div>
-                            </div>
                           </div>
                         </div>
                       </CardContent>
@@ -153,20 +150,16 @@ const ServiceCart = () => {
                   <p className="text-sm text-orange-800 font-medium">
                     ⚠️ Selecciona {getRemainingToMinimum()} servicio{getRemainingToMinimum() > 1 ? 's' : ''} más para continuar
                   </p>
-                  <p className="text-xs text-orange-600 mt-1">
-                    Mínimo requerido: 3 servicios
+                   <p className="text-xs text-orange-600 mt-1">
+                     Mínimo requerido: 2 servicios
                   </p>
                 </div>
               )}
 
-              {/* Total */}
+              {/* Info */}
               <div className="border-t pt-4">
-                <div className="flex justify-between items-center text-lg font-semibold">
-                  <span>Total Estimado:</span>
-                  <span className="text-primary">${getTotalPrice().toLocaleString()}</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  *Precio estimado. El costo final puede variar según los detalles específicos de tu evento.
+                <p className="text-sm text-muted-foreground">
+                  {selectedServices.length} servicio{selectedServices.length !== 1 ? 's' : ''} seleccionado{selectedServices.length !== 1 ? 's' : ''}. Solicita tu cotización y te enviaremos un presupuesto personalizado.
                 </p>
               </div>
 
