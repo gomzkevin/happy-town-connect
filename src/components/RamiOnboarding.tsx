@@ -147,7 +147,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
     switch (currentStep) {
       case 1: return !!data.childName;
       case 2: return !!data.ageRange && !!data.childrenCount && data.preferences.length > 0;
-      case 3: return selectedServices.length >= 3;
+      case 3: return selectedServices.length >= 2;
       case 4: return !!data.eventDate && !!data.location;
       case 5: return !!data.customerName && !!data.email && !!data.phone;
       default: return false;
@@ -297,7 +297,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                   Recomendaciones para {data.childName} ⭐
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  Selecciona mínimo 3 servicios · {selectedServices.length} seleccionado{selectedServices.length !== 1 ? 's' : ''}
+                  Selecciona mínimo 2 servicios · {selectedServices.length} seleccionado{selectedServices.length !== 1 ? 's' : ''}
                 </p>
               </div>
 
@@ -338,9 +338,9 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                 })}
               </div>
 
-              {selectedServices.length < 3 && (
+              {selectedServices.length < 2 && (
                 <p className="text-xs text-center text-japitown-orange font-medium">
-                  Faltan {3 - selectedServices.length} servicio{3 - selectedServices.length > 1 ? 's' : ''} más
+                  Faltan {2 - selectedServices.length} servicio{2 - selectedServices.length > 1 ? 's' : ''} más
                 </p>
               )}
             </div>
