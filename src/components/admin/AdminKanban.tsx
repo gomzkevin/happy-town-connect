@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import { Calendar, Mail, Phone, MapPin, DollarSign, TrendingUp, Clock, GripVertical, ChevronRight, XCircle, Plus, Trash2, FileText, Download, Loader2 } from 'lucide-react';
+import { Calendar, Mail, Phone, MapPin, DollarSign, TrendingUp, Clock, GripVertical, ChevronRight, XCircle, Plus, Trash2, FileText, Download, Loader2, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, differenceInDays, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -341,6 +341,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
     source_channel: 'whatsapp' as 'whatsapp' | 'facebook' | 'instagram' | 'otro',
   });
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
+  const [dateConflicts, setDateConflicts] = useState<{ customer_name: string; status: string }[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -348,6 +349,17 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
       setAvailableServices((data || []) as ServiceOption[]);
     });
   }, [open]);
+
+  // Check for date conflicts
+  useEffect(() => {
+    if (!form.event_date) { setDateConflicts([]); return; }
+    supabase
+      .from('quotes')
+      .select('customer_name, status')
+      .eq('event_date', form.event_date)
+      .in('status', ['pending', 'contacted', 'confirmed'])
+      .then(({ data }) => setDateConflicts(data || []));
+  }, [form.event_date]);
 
   const toggleService = (id: string) => {
     setSelectedServices(prev => {
@@ -525,6 +537,21 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
                 <Input value={form.age_range} onChange={e => setForm(f => ({ ...f, age_range: e.target.value }))} placeholder="4-8 años" className="h-9" />
               </div>
             </div>
+            {dateConflicts.length > 0 && (
+              <div className="col-span-2 mt-1 flex items-start gap-2 rounded-lg border-2 border-japitown-orange/40 bg-japitown-orange/10 p-2.5">
+                <AlertTriangle className="h-4 w-4 text-japitown-orange shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-bold text-foreground">
+                    ⚠️ {dateConflicts.length} {dateConflicts.length === 1 ? 'evento' : 'eventos'} en esta fecha
+                  </p>
+                  <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                    {dateConflicts.map((c, i) => (
+                      <li key={i}>• {c.customer_name} <span className="text-[10px]">({c.status})</span></li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
           </div>
 
           <Separator />
