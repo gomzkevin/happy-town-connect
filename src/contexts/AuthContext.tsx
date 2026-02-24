@@ -41,9 +41,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Check admin status when user changes
         if (session?.user) {
-          setTimeout(() => {
-            checkAdminStatus(session.user.id, session.user.email || '');
-          }, 0);
+          // Use setTimeout to avoid potential deadlock with auth state
+          // but ensure session is fully set before checking admin
+          setTimeout(async () => {
+            await checkAdminStatus(session.user.id, session.user.email || '');
+          }, 100);
         } else {
           setIsAdmin(false);
           setAdminRole(null);
@@ -91,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .single();
 
         if (invitation) {
+          console.log('Found pending invitation, attempting auto-link for:', userEmail);
           // Auto-link: create admin_users entry and mark invitation as accepted
           const { error: insertError } = await supabase
             .from('admin_users')
@@ -101,7 +104,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               is_active: true,
             });
 
-          if (!insertError) {
+          if (insertError) {
+            console.error('Failed to auto-link invitation:', insertError);
+          } else {
+            console.log('Auto-link successful, updating invitation status');
             // Update invitation status
             await supabase
               .from('team_invitations')
