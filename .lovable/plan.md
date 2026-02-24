@@ -1,109 +1,128 @@
 
 
-# Plan: QA Visual del PDF — generate-quote/index.ts
+# Plan: Subir iconos a Supabase Storage e integrarlos en el PDF
 
 ## Resumen
 
-Implementar todos los ajustes de QA visual identificados en el documento de revision, excluyendo los puntos 1.1 y 1.2 (ya atendidos). Los cambios se aplican al archivo unico `supabase/functions/generate-quote/index.ts`.
+Subir los 20 iconos y logos al bucket `japitown-assets` de Supabase Storage, y luego modificar `generate-quote/index.ts` para que embeba los iconos PNG en las tarjetas del PDF usando `pdfDoc.embedPng()`.
 
 ---
 
-## Cambios a implementar
+## Paso 1: Subir los assets al bucket
 
-### 1. Logica: estaciones minimo 2 (punto 1.3)
+Los archivos estan en `src/assets/` pero son archivos binarios del repo que no se pueden subir programaticamente desde una edge function de forma directa. La solucion es crear una **edge function utilitaria temporal** (`upload-assets`) que:
 
-Tres lineas a corregir:
-- Linea 165: `if (n < 1)` cambia a `if (n < 2)`
-- Linea 182: `if (nEst >= 1)` cambia a `if (nEst >= 2)`
-- Linea 215: `if (est.length >= 1)` cambia a `if (est.length >= 2)`
+1. Descargue cada icono desde la URL publica del sitio publicado (`https://happy-town-connect.lovable.app/src/assets/Iconos-XX.png` -- aunque esto no funciona directamente con Vite, los assets se empaquetan con hash).
 
-### 2. Validacion de keys invalidos (punto 1.4)
+**Alternativa mas robusta**: Crear la edge function que reciba los archivos como base64 en el body, y desde el frontend hacer un script unico que lea los imports y los envie. Pero esto es complejo.
 
-Agregar en `validate()` (linea 369) verificacion de que cada key de estaciones, fijos y talleres exista en su catalogo respectivo.
+**Solucion mas practica**: El usuario sube manualmente los 20 PNGs al bucket `japitown-assets` desde el dashboard de Supabase Storage, organizados asi:
 
-### 3. Precio dentro de la banda de color (punto 2.4)
+```text
+japitown-assets/
+  icons/Iconos-01.png
+  icons/Iconos-02.png
+  ...
+  icons/Iconos-20.png
+  logos/Logo-24.png
+  fonts/Poppins-Bold.ttf   (ya existente)
+  fonts/Poppins-Medium.ttf (ya existente)
+  ...
+```
 
-Modificar `drawCard()` (linea 474-506): mover el precio de debajo de la banda a dentro de la banda, alineado a la derecha. Titulo a la izquierda, precio a la derecha, ambos centrados verticalmente en la banda.
-
-### 4. Esquinas redondeadas (punto 2.2)
-
-Implementar helper `drawRoundedRect()` usando la tecnica de 4 rectangulos + 4 circulos. Aplicarlo en:
-- Cards (fondo blanco + banda de color)
-- Bloque de estaciones (fondo offwhite + banda brown)
-- Event callout
-- Payment info box
-- Extra hour note box
-
-Radio: r=6 para cards, r=4 para boxes pequenos.
-
-### 5. Espaciado vertical adaptativo (punto 2.3)
-
-Despues de calcular todos los bloques, medir la altura total del contenido y distribuir gaps proporcionalmente para que el contenido no flote arriba con un hueco enorme. Anclar condiciones y pago cerca del footer.
-
-### 6. Divider stripe (punto 2.5)
-
-Ya existe en `drawFooter()` (linea 590), pero verificare que se dibuje correctamente. Si no aparece en el PDF generado, ajustare la posicion.
-
-### 7. Textos del catalogo (punto 3)
-
-Corregir en `CATALOGO_ESTACIONES` y sus entradas:
-- `veterinaria.items[2]`: "Radiografias de juguete" a "Certificados de salud"
-- `veterinaria.items[3]`: "Uniforme veterinario" a "Batas y estetoscopios"
-- `cafeteria.subtitulo`: "Prepara bebidas y snacks" a "Barista por un dia"
-- `cafeteria.items[0]`: "Cafetera de juguete" a "Maquina de cafe de juguete"
-- `cafeteria.items[2]`: "Ingredientes de felpa" a "Postres de juguete"
-- `cafeteria.items[3]`: "Uniforme de barista" a "Mandiles y gorros"
-- `peluqueria.subtitulo`: "Estilismo y peinados divertidos" a "Estilista por un dia"
-
-### 8. Gramatica singular/plural (punto 4.1)
-
-La funcion `generarSubtitulo()` (linea 308) ya maneja correctamente singular con `estacion${nEst > 1 ? "es" : ""}`. Sin embargo, `generarResumen()` (linea 320) dice siempre "estaciones". Corregir para usar singular cuando corresponda.
+**Solucion automatizada elegante**: Crear una pagina temporal en el admin (`/admin/upload-assets`) que lea los iconos importados y los suba al bucket via el SDK de Supabase Storage. Esto es un one-time upload tool.
 
 ---
 
-## Detalle tecnico
+## Paso 2: Crear componente temporal de subida de assets
 
-### Helper drawRoundedRect
+Crear un componente React simple en el admin que:
+- Importe todos los iconos de `src/assets/`
+- Convierta cada imagen a `Blob` usando `fetch()`
+- Suba cada uno al bucket `japitown-assets/icons/` via `supabase.storage.from('japitown-assets').upload()`
+- Muestre progreso y resultado
 
-```text
-function drawRoundedRect(page, x, y, w, h, r, options):
-  // 4 rectangulos internos (horizontal, vertical, y 2 centrales)
-  // 4 circulos en las esquinas
-  // Soporta color de fondo y/o borde
-```
-
-### Reorganizacion del drawCard
-
-```text
-// Banda de color con esquinas redondeadas superiores
-drawRoundedRect(page, x, y-bandH, w, bandH, r, {color: bandColor})
-// Clip inferior para que solo las esquinas superiores sean redondeadas:
-// dibujar rectangulo recto en la mitad inferior de la banda
-
-// Titulo (izquierda, centrado vertical en banda)
-// Precio (derecha, centrado vertical en banda)
-
-// Resto del card (subtitulo, items) sin precio separado
-```
-
-### Espaciado vertical
-
-```text
-En generateQuotePDF():
-1. Calcular altura de todos los bloques sin dibujarlos
-2. Calcular espacio disponible = H - headerH - footerH - alturaTotal
-3. Distribuir gapExtra = max(0, espacioDisponible / (numComponentes + 2))
-4. Aplicar gapExtra entre cada componente al dibujar
-```
+Este componente se usara una sola vez y luego se puede eliminar.
 
 ---
 
-## Archivo modificado
+## Paso 3: Integrar iconos en el PDF
 
-- `supabase/functions/generate-quote/index.ts` (unico archivo)
+Modificar `generate-quote/index.ts`:
 
-## Post-implementacion
+### 3a. Mapeo de iconos por servicio
 
-- Redesplegar la edge function
-- Generar un PDF de prueba para validar los cambios visuales
+Agregar un mapa de servicio a icono:
+
+```text
+ICON_MAP = {
+  guarderia: "icons/Iconos-12.png",
+  construccion: "icons/Iconos-04.png",
+  hamburgueseria: "icons/Iconos-03.png",
+  supermercado: "icons/Iconos-05.png",
+  veterinaria: "icons/Iconos-07.png",
+  cafeteria: "icons/Iconos-06.png",
+  correo: "icons/Iconos-08.png",
+  peluqueria: "icons/Iconos-09.png",
+  "decora-cupcake": "icons/Iconos-10.png",
+  spa: "icons/Iconos-02.png",
+  pesca: "icons/Iconos-01.png",
+  area_bebes: "icons/Iconos-11.png",
+  inflable_bebes: "icons/Iconos-11.png",
+  caballetes: "icons/Iconos-16.png",
+  yesitos: "icons/Iconos-16.png",
+  "haz-pulsera": "icons/Iconos-16.png",
+  foamy: "icons/Iconos-16.png",
+  diamante: "icons/Iconos-16.png",
+}
+```
+
+(Los numeros exactos de mapeo se ajustaran segun la correspondencia real de cada icono -- el usuario puede confirmar.)
+
+### 3b. Carga de iconos
+
+Funcion `loadIcons()` que descarga y embebe todos los PNGs necesarios:
+
+```text
+async function loadIcons(pdfDoc, serviceKeys):
+  cache de iconos embebidos
+  para cada key unico en serviceKeys:
+    fetch PNG desde japitown-assets/icons/...
+    pdfDoc.embedPng(bytes)
+    guardar en cache
+  return cache
+```
+
+### 3c. Render de iconos en las tarjetas
+
+- En `drawCard()`: dibujar el icono (aprox 24x24px) a la izquierda del titulo en la banda de color
+- En `drawEstacionResumen()`: dibujar un icono pequeno (16x16px) al lado de cada nombre de estacion en la lista
+- Opcionalmente: agregar el logo en el header/footer
+
+---
+
+## Paso 4: Iconos decorativos en el PDF
+
+Los iconos 13-20 (flower, cloud, star, spiral, sun, wave) se pueden usar como elementos decorativos sutiles:
+- Opacidad reducida en las esquinas de la pagina
+- O como separadores entre secciones
+
+Nota: `pdf-lib` no soporta opacidad directa en imagenes. Se puede simular reduciendo el tamano o usarlos a escala muy pequena como adornos.
+
+---
+
+## Archivos a crear/modificar
+
+1. **Nuevo**: `src/components/admin/AssetUploader.tsx` -- componente temporal de subida
+2. **Modificar**: `src/components/admin/AdminDashboard.tsx` -- agregar ruta temporal al uploader
+3. **Modificar**: `supabase/functions/generate-quote/index.ts` -- integrar iconos en el PDF
+
+## Secuencia de ejecucion
+
+1. Crear el componente AssetUploader
+2. El usuario ejecuta la subida desde el admin
+3. Verificar que los iconos estan en el bucket
+4. Modificar la edge function para usar los iconos
+5. Redesplegar y probar
+6. Eliminar el componente temporal
 
