@@ -41,6 +41,11 @@ const ServiceCard = ({ service, onAddToCart, onViewDetails }: {
 }) => {
   const iconSrc = serviceIconMap[service.id];
 
+  const isCreativeWorkshop = service.category === "Talleres Creativos";
+  const badgeClasses = isCreativeWorkshop
+    ? "bg-secondary/20 text-secondary-foreground border-secondary/30 backdrop-blur-sm rounded-full"
+    : "bg-japitown-orange/20 text-foreground border-japitown-orange/30 backdrop-blur-sm rounded-full";
+
   return (
     <Card 
       className="group hover:shadow-hover transition-all duration-300 cursor-pointer transform hover:-translate-y-1 overflow-hidden border-0 bg-card rounded-2xl"
@@ -55,8 +60,8 @@ const ServiceCard = ({ service, onAddToCart, onViewDetails }: {
         />
         <div className="absolute top-3 left-3">
           <Badge 
-            variant="secondary" 
-            className="bg-background/90 text-foreground text-xs font-medium backdrop-blur-sm rounded-full"
+            variant="outline" 
+            className={badgeClasses}
           >
             {service.category}
           </Badge>
