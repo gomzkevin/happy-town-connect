@@ -1,47 +1,45 @@
 import { Button } from "@/components/ui/button";
-import { Heart, Phone, Mail, MapPin, Facebook, Instagram, MessageCircle } from "lucide-react";
+import { Heart, Phone, Mail, MapPin, Instagram, MessageCircle } from "lucide-react";
+import logo22 from "@/assets/Logo-22.png";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
 
   return (
     <footer className="bg-foreground text-background">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-10">
           {/* Brand Section */}
           <div className="space-y-4">
-            <h3 className="text-2xl font-bold text-gradient">japitown</h3>
-            <p className="text-background/80">
-              Convirtiendo fiestas infantiles en ciudades de diversión donde los niños 
+            <img src={logo22} alt="Japitown" className="h-10 w-auto brightness-200" />
+            <p className="text-background/60 text-sm leading-relaxed">
+              Fiestas infantiles temáticas donde los niños 
               viven la experiencia única de ser adultos por un día.
             </p>
-            <div className="flex space-x-4">
-              <Button variant="ghost" size="icon" className="text-background hover:text-primary">
-                <Facebook className="h-5 w-5" />
+            <div className="flex space-x-3">
+              <Button variant="ghost" size="icon" className="text-background/60 hover:text-background h-8 w-8">
+                <Instagram className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="text-background hover:text-primary">
-                <Instagram className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="text-background hover:text-secondary">
-                <MessageCircle className="h-5 w-5" />
+              <Button variant="ghost" size="icon" className="text-background/60 hover:text-background h-8 w-8">
+                <MessageCircle className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
           {/* Quick Links */}
           <div className="space-y-4">
-            <h4 className="text-lg font-semibold">Enlaces Rápidos</h4>
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-background/40">Enlaces</h4>
             <nav className="flex flex-col space-y-2">
-              <a href="#inicio" className="text-background/80 hover:text-primary transition-smooth">
+              <a href="#inicio" className="text-background/60 hover:text-background transition-smooth text-sm">
                 Inicio
               </a>
-              <a href="#servicios" className="text-background/80 hover:text-primary transition-smooth">
+              <a href="#servicios" className="text-background/60 hover:text-background transition-smooth text-sm">
                 Servicios
               </a>
-              <a href="#fiestas" className="text-background/80 hover:text-primary transition-smooth">
+              <a href="#fiestas" className="text-background/60 hover:text-background transition-smooth text-sm">
                 Nuestras Fiestas
               </a>
-              <a href="#contacto" className="text-background/80 hover:text-primary transition-smooth">
+              <a href="#contacto" className="text-background/60 hover:text-background transition-smooth text-sm">
                 Contacto
               </a>
             </nav>
@@ -49,53 +47,50 @@ const Footer = () => {
 
           {/* Services */}
           <div className="space-y-4">
-            <h4 className="text-lg font-semibold">Servicios Populares</h4>
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-background/40">Servicios</h4>
             <nav className="flex flex-col space-y-2">
-              <span className="text-background/80">Estación Chef</span>
-              <span className="text-background/80">Taller de Construcción</span>
-              <span className="text-background/80">Estudio de Arte</span>
-              <span className="text-background/80">Salón de Belleza</span>
-              <span className="text-background/80">Hospital Veterinario</span>
+              <span className="text-background/60 text-sm">Estación Chef</span>
+              <span className="text-background/60 text-sm">Taller de Construcción</span>
+              <span className="text-background/60 text-sm">Estudio de Arte</span>
+              <span className="text-background/60 text-sm">Salón de Belleza</span>
+              <span className="text-background/60 text-sm">Hospital Veterinario</span>
             </nav>
           </div>
 
           {/* Contact Info */}
           <div className="space-y-4">
-            <h4 className="text-lg font-semibold">Contacto</h4>
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-background/40">Contacto</h4>
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <Phone className="h-4 w-4 text-primary" />
-                <span className="text-background/80">+52 951 123 4567</span>
+                <Phone className="h-4 w-4 text-background/40" />
+                <span className="text-background/60 text-sm">+52 951 123 4567</span>
               </div>
               <div className="flex items-center gap-3">
-                <Mail className="h-4 w-4 text-primary" />
-                <span className="text-background/80">hola@japitown.com</span>
+                <Mail className="h-4 w-4 text-background/40" />
+                <span className="text-background/60 text-sm">hola@japitown.com</span>
               </div>
               <div className="flex items-center gap-3">
-                <MapPin className="h-4 w-4 text-primary" />
-                <span className="text-background/80">Oaxaca de Juárez, Oaxaca</span>
+                <MapPin className="h-4 w-4 text-background/40" />
+                <span className="text-background/60 text-sm">Oaxaca de Juárez, Oaxaca</span>
               </div>
             </div>
-            <Button variant="hero" size="sm" className="mt-4">
-              Cotizar Ahora
-            </Button>
           </div>
         </div>
 
         {/* Bottom Section */}
-        <div className="border-t border-background/20 mt-12 pt-8">
+        <div className="border-t border-background/10 mt-12 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            <div className="flex items-center gap-2 text-background/80">
-              <span>© {currentYear} japitown. Hecho con</span>
-              <Heart className="h-4 w-4 text-primary fill-current" />
-              <span>en Oaxaca, México.</span>
+            <div className="flex items-center gap-1.5 text-background/40 text-sm">
+              <span>© {currentYear} Japitown. Hecho con</span>
+              <Heart className="h-3 w-3 fill-current" />
+              <span>en Oaxaca.</span>
             </div>
-            <div className="flex space-x-6 text-sm text-background/80">
-              <a href="#" className="hover:text-primary transition-smooth">
-                Términos de Servicio
+            <div className="flex space-x-6 text-xs text-background/40">
+              <a href="#" className="hover:text-background/60 transition-smooth">
+                Términos
               </a>
-              <a href="#" className="hover:text-primary transition-smooth">
-                Política de Privacidad
+              <a href="#" className="hover:text-background/60 transition-smooth">
+                Privacidad
               </a>
             </div>
           </div>

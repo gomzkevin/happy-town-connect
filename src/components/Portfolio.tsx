@@ -21,43 +21,29 @@ const Portfolio = () => {
     });
   };
 
-  const getServiceColor = (service: string) => {
-    const colors: { [key: string]: string } = {
-      "Chef": "bg-orange-100 text-orange-800",
-      "Arte": "bg-purple-100 text-purple-800",
-      "Belleza": "bg-pink-100 text-pink-800",
-      "Construcción": "bg-yellow-100 text-yellow-800",
-      "Música": "bg-blue-100 text-blue-800",
-      "Fotografía": "bg-green-100 text-green-800",
-      "Veterinario": "bg-emerald-100 text-emerald-800",
-      "Supermercado": "bg-indigo-100 text-indigo-800"
-    };
-    return colors[service] || "bg-gray-100 text-gray-800";
-  };
-
   return (
-    <section id="fiestas" className="py-20">
+    <section id="fiestas" className="py-24 bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            Nuestras <span className="text-gradient">Fiestas</span>
+          <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4 text-foreground">
+            Nuestras Fiestas
           </h2>
-          <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Descubre la magia que hemos creado en cada celebración. Cada fiesta es única 
-            y diseñada especialmente para hacer realidad los sueños de cada niño.
+            y diseñada especialmente para cada niño.
           </p>
         </div>
 
         {/* Portfolio Grid */}
         {loading ? (
-          <div className="text-center py-8">Cargando eventos...</div>
+          <div className="text-center py-8 text-muted-foreground">Cargando eventos...</div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
             {events.map((event) => (
               <Card 
                 key={event.id} 
-                className="group hover:shadow-hover transition-smooth cursor-pointer overflow-hidden bg-gradient-card border-0"
+                className="group hover:shadow-hover transition-smooth cursor-pointer overflow-hidden border-0 bg-card rounded-2xl"
                 onClick={() => navigate(`/evento/${event.id}`)}
               >
                 <div className="relative overflow-hidden">
@@ -67,7 +53,7 @@ const Portfolio = () => {
                     className="w-full h-48 object-cover group-hover:scale-105 transition-spring"
                   />
                   <div className="absolute top-4 right-4">
-                    <Badge variant="secondary" className="bg-background/90 text-foreground">
+                    <Badge variant="secondary" className="bg-background/90 text-foreground backdrop-blur-sm rounded-full">
                       <Users className="h-3 w-3 mr-1" />
                       {event.guest_count || 0} niños
                     </Badge>
@@ -76,10 +62,10 @@ const Portfolio = () => {
                 
                 <CardContent className="p-6 space-y-4">
                   <div>
-                    <h3 className="font-bold text-lg mb-2 group-hover:text-primary transition-smooth">
+                    <h3 className="font-display font-bold text-lg mb-2 group-hover:text-secondary transition-smooth">
                       {event.title}
                     </h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
+                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
                       {event.description}
                     </p>
                   </div>
@@ -100,7 +86,7 @@ const Portfolio = () => {
                       <Badge 
                         key={index} 
                         variant="outline" 
-                        className={`text-xs ${getServiceColor(service)}`}
+                        className="text-xs rounded-full"
                       >
                         {service}
                       </Badge>
@@ -114,16 +100,13 @@ const Portfolio = () => {
 
         {/* CTA Section */}
         <div className="text-center">
-          <div className="bg-gradient-card p-8 rounded-2xl shadow-soft max-w-2xl mx-auto">
-            <h3 className="text-2xl font-bold mb-4">¿Quieres ver más fiestas increíbles?</h3>
+          <div className="bg-card p-8 sm:p-10 rounded-3xl shadow-soft max-w-2xl mx-auto">
+            <h3 className="text-2xl font-display font-bold mb-3 text-foreground">¿Quieres ver más?</h3>
             <p className="text-muted-foreground mb-6">
               Tenemos muchas más celebraciones que mostrar. Cada una con su propia magia y momentos especiales.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button variant="hero">
-                Ver Todas las Fiestas
-              </Button>
-              <Button variant="outline" onClick={openOnboarding}>
+              <Button variant="hero" onClick={openOnboarding}>
                 Planear Mi Fiesta
               </Button>
             </div>
