@@ -126,7 +126,7 @@ const Services = () => {
               </div>
             )}
             <p className="text-sm text-muted-foreground">
-              <strong>Mínimo: 3 servicios</strong> para solicitar cotización
+              <strong>Mínimo: 2 servicios</strong> para solicitar cotización
             </p>
           </div>
         </div>
