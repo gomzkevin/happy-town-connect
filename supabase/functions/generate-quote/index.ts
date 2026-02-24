@@ -124,10 +124,10 @@ const CATALOGO_ESTACIONES: Record<string, { nombre: string; color: string; subti
   construccion: { nombre: "Construcción", color: "yellow", subtitulo: "Construye, imagina y crea", items: ["Bloques de construcción", "Herramientas de juguete", "Cascos y chalecos", "Material reutilizable"] },
   hamburgueseria: { nombre: "Pizzería", color: "red", subtitulo: "Pizza artesanal de juguete", items: ["Horno de juguete", "Ingredientes de felpa", "Cajas de pizza", "Uniformes de chef"] },
   supermercado: { nombre: "Supermercado", color: "green", subtitulo: "Compra, paga y diviértete", items: ["Carritos de compra", "Productos de juguete", "Cajas registradoras", "Bolsas de compra"] },
-  veterinaria: { nombre: "Veterinaria", color: "green", subtitulo: "Cuida a los animalitos", items: ["Peluches de animales", "Kit veterinario", "Radiografías de juguete", "Uniforme veterinario"] },
-  cafeteria: { nombre: "Cafetería", color: "pink", subtitulo: "Prepara bebidas y snacks", items: ["Cafetera de juguete", "Tazas y platos", "Ingredientes de felpa", "Uniforme de barista"] },
+  veterinaria: { nombre: "Veterinaria", color: "green", subtitulo: "Cuida a los animalitos", items: ["Peluches de animales", "Kit veterinario", "Certificados de salud", "Batas y estetoscopios"] },
+  cafeteria: { nombre: "Cafetería", color: "pink", subtitulo: "Barista por un día", items: ["Máquina de café de juguete", "Tazas y platos", "Postres de juguete", "Mandiles y gorros"] },
   correo: { nombre: "Correo", color: "blue", subtitulo: "Envía cartas y paquetes", items: ["Buzón de correo", "Sobres y estampillas", "Paquetes de juguete", "Uniforme postal"] },
-  peluqueria: { nombre: "Peluquería", color: "purple", subtitulo: "Estilismo y peinados divertidos", items: ["Secadoras de juguete", "Peines y cepillos", "Accesorios para el pelo", "Espejo y silla"] },
+  peluqueria: { nombre: "Peluquería", color: "purple", subtitulo: "Estilista por un día", items: ["Secadoras de juguete", "Peines y cepillos", "Accesorios para el pelo", "Espejo y silla"] },
   "decora-cupcake": { nombre: "Decora tu Cupcake", color: "pink", subtitulo: "Decora y disfruta", items: ["Cupcakes", "Betún de colores", "Decoraciones", "Sprinkles"] },
 };
 
@@ -162,7 +162,7 @@ function getMultiplicador(nNinos: number): number {
 }
 
 function precioEstaciones(n: number): number {
-  if (n < 1) return 0;
+  if (n < 2) return 0;
   return Math.floor(n / 2) * 3000 + (n % 2) * 1800;
 }
 
@@ -177,9 +177,9 @@ function calcularTotal(
   let total = 0;
   const desglose: Record<string, number> = {};
 
-  // Estaciones (group pricing)
+  // Estaciones (group pricing, minimum 2)
   const nEst = config.estaciones?.length ?? 0;
-  if (nEst >= 1) {
+  if (nEst >= 2) {
     const p = precioEstaciones(nEst);
     total += p;
     desglose.estaciones = p;
@@ -212,7 +212,7 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
   const fij = config.fijos || [];
   const tal = config.talleres || [];
 
-  if (est.length >= 1) {
+  if (est.length >= 2) {
     bloques.push({ tipo: "estacion_resumen", estaciones: est, precio: precioEstaciones(est.length) });
   }
 
@@ -317,7 +317,8 @@ function generarSubtitulo(config: QuoteRequest): string {
 
 function generarResumen(config: QuoteRequest): string {
   const parts: string[] = [];
-  if ((config.estaciones?.length ?? 0) >= 1) parts.push(`${config.estaciones!.length} estaciones`);
+  const nEst = config.estaciones?.length ?? 0;
+  if (nEst >= 1) parts.push(`${nEst} estación${nEst > 1 ? "es" : ""}`);
   for (const key of config.fijos ?? []) parts.push(CATALOGO_FIJOS[key]?.nombre || key);
   for (const key of config.talleres ?? []) parts.push(CATALOGO_TALLERES[key]?.nombre || key);
   return parts.join(" · ");
@@ -340,7 +341,7 @@ function generarCondiciones(config: QuoteRequest): string[] {
 
 function generarNotaHoraExtra(config: QuoteRequest, dbServices: Map<string, DBService>): string {
   const parts: string[] = [];
-  if ((config.estaciones?.length ?? 0) >= 1) parts.push("$500/estación");
+  if ((config.estaciones?.length ?? 0) >= 2) parts.push("$500/estación");
   const extras: Record<number, string[]> = {};
   for (const key of config.fijos ?? []) {
     const p = dbServices.get(key)?.hora_extra ?? 500;
@@ -366,6 +367,18 @@ function validate(req: QuoteRequest): string[] {
   if ((req.estaciones?.length ?? 0) === 1) errors.push("Mínimo 2 estaciones");
   const total = (req.estaciones?.length || 0) + (req.fijos?.length || 0) + (req.talleres?.length || 0);
   if (total === 0) errors.push("Debe incluir al menos 1 servicio");
+
+  // Validate service keys exist in catalog
+  req.estaciones?.forEach(k => {
+    if (!ESTACION_IDS.includes(k)) errors.push(`Estación inválida: ${k}`);
+  });
+  req.fijos?.forEach(k => {
+    if (!FIJO_IDS.includes(k)) errors.push(`Servicio fijo inválido: ${k}`);
+  });
+  req.talleres?.forEach(k => {
+    if (!TALLER_IDS.includes(k)) errors.push(`Taller inválido: ${k}`);
+  });
+
   return errors;
 }
 
@@ -405,6 +418,66 @@ async function fetchAsset(baseUrl: string, path: string): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer());
 }
 
+// ─── Rounded Rectangle Helper ───────────────────────────────────
+function drawRoundedRect(
+  page: PDFPage,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+  options: { color?: ReturnType<typeof rgb>; borderColor?: ReturnType<typeof rgb>; borderWidth?: number }
+) {
+  const { color, borderColor, borderWidth } = options;
+  r = Math.min(r, w / 2, h / 2);
+
+  if (color) {
+    // Horizontal rect (full width, reduced height)
+    page.drawRectangle({ x: x, y: y + r, width: w, height: h - 2 * r, color });
+    // Vertical rect (full height, reduced width)
+    page.drawRectangle({ x: x + r, y: y, width: w - 2 * r, height: h, color });
+    // 4 corner circles
+    page.drawCircle({ x: x + r, y: y + r, size: r, color });           // bottom-left
+    page.drawCircle({ x: x + w - r, y: y + r, size: r, color });       // bottom-right
+    page.drawCircle({ x: x + r, y: y + h - r, size: r, color });       // top-left
+    page.drawCircle({ x: x + w - r, y: y + h - r, size: r, color });   // top-right
+  }
+
+  if (borderColor && borderWidth) {
+    // Draw border as 4 lines approximation using thin rectangles
+    const bw = borderWidth;
+    // Bottom
+    page.drawRectangle({ x: x + r, y: y, width: w - 2 * r, height: bw, color: borderColor });
+    // Top
+    page.drawRectangle({ x: x + r, y: y + h - bw, width: w - 2 * r, height: bw, color: borderColor });
+    // Left
+    page.drawRectangle({ x: x, y: y + r, width: bw, height: h - 2 * r, color: borderColor });
+    // Right
+    page.drawRectangle({ x: x + w - bw, y: y + r, width: bw, height: h - 2 * r, color: borderColor });
+  }
+}
+
+/** Draw rounded rect with only top corners rounded */
+function drawRoundedRectTop(
+  page: PDFPage,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+  color: ReturnType<typeof rgb>
+) {
+  r = Math.min(r, w / 2, h / 2);
+  // Main body (full width, from bottom to h - r)
+  page.drawRectangle({ x, y, width: w, height: h - r, color });
+  // Top strip (reduced width)
+  page.drawRectangle({ x: x + r, y: y + h - r, width: w - 2 * r, height: r, color });
+  // Top-left corner
+  page.drawCircle({ x: x + r, y: y + h - r, size: r, color });
+  // Top-right corner
+  page.drawCircle({ x: x + w - r, y: y + h - r, size: r, color });
+}
+
 // ─── Rendering Functions ────────────────────────────────────────
 
 function drawBackground(page: PDFPage) {
@@ -426,7 +499,7 @@ function drawHeader(page: PDFPage, fonts: FontSet, y: number, fechaEmision: stri
 
 function drawTitleStrip(page: PDFPage, fonts: FontSet, y: number, titulo: string, subtitulo: string): number {
   const stripH = 40;
-  page.drawRectangle({ x: ML, y: y - stripH, width: CW, height: stripH, color: C.offwhite });
+  drawRoundedRect(page, ML, y - stripH, CW, stripH, 4, { color: C.offwhite });
   page.drawText(titulo, { x: ML + 14, y: y - 18, font: fonts.bold, size: 13, color: C.dark });
   page.drawText(subtitulo, { x: ML + 14, y: y - 32, font: fonts.regular, size: 7.5, color: C.dlt });
   return y - stripH;
@@ -434,8 +507,8 @@ function drawTitleStrip(page: PDFPage, fonts: FontSet, y: number, titulo: string
 
 function drawEventCallout(page: PDFPage, fonts: FontSet, y: number, config: QuoteRequest): number {
   const callH = 38;
-  page.drawRectangle({ x: ML, y: y - callH, width: CW, height: callH, color: C.lcream });
-  page.drawRectangle({ x: ML, y: y - callH, width: CW, height: callH, borderColor: C.brown_lt, borderWidth: 1 });
+  drawRoundedRect(page, ML, y - callH, CW, callH, 4, { color: C.lcream });
+  drawRoundedRect(page, ML, y - callH, CW, callH, 4, { borderColor: C.brown_lt, borderWidth: 1 });
   const mainText = `Evento para ${config.n_ninos} niños · ${config.horas} horas de diversión`;
   page.drawText(mainText, { x: ML + 14, y: y - 16, font: fonts.medium, size: 8, color: C.dark });
   let subText = config.fecha;
@@ -449,10 +522,10 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
   const listH = estaciones.length * 14;
   const totalH = headerH + 12 + listH + 10;
 
-  // Background
-  page.drawRectangle({ x: ML, y: y - totalH, width: CW, height: totalH, color: C.offwhite });
-  // Header band
-  page.drawRectangle({ x: ML, y: y - headerH, width: CW, height: headerH, color: C.brown });
+  // Background with rounded corners
+  drawRoundedRect(page, ML, y - totalH, CW, totalH, 6, { color: C.offwhite });
+  // Header band with rounded top corners
+  drawRoundedRectTop(page, ML, y - headerH, CW, headerH, 6, C.brown);
 
   page.drawText("Estaciones — Mini Ciudad", { x: ML + 14, y: y - 22, font: fonts.bold, size: 12, color: C.white });
   const priceText = formatPrice(precio);
@@ -473,24 +546,30 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
 
 function drawCard(page: PDFPage, fonts: FontSet, x: number, y: number, data: CardData, sizes: CardSizes): number {
   const itemCount = Math.min(data.items.length, 4);
-  const totalH = sizes.bandH + 12 + 14 + 6 + (itemCount * sizes.itemSpacing) + 10;
+  // Price is now inside band, so card body only has subtitle + incluye + items
+  const totalH = sizes.bandH + 8 + 14 + (itemCount * sizes.itemSpacing) + 10;
   const bandColor = COLOR_MAP[data.color] || C.blue;
+  const r = 6;
 
-  // White card background
-  page.drawRectangle({ x, y: y - totalH, width: sizes.width, height: totalH, color: C.white });
-  // Colored top band
-  page.drawRectangle({ x, y: y - sizes.bandH, width: sizes.width, height: sizes.bandH, color: bandColor });
-  // Title in band
-  page.drawText(data.nombre, { x: x + sizes.padX, y: y - sizes.bandH + 12, font: fonts.bold, size: sizes.titleSz, color: C.white });
+  // White card background with rounded corners
+  drawRoundedRect(page, x, y - totalH, sizes.width, totalH, r, { color: C.white });
+  // Colored top band with rounded top corners
+  drawRoundedRectTop(page, x, y - sizes.bandH, sizes.width, sizes.bandH, r, bandColor);
 
-  let cy = y - sizes.bandH - 10;
+  // Title (left) and Price (right) both vertically centered in band
+  const bandBottom = y - sizes.bandH;
+  const titleCenterY = bandBottom + sizes.bandH / 2 - sizes.titleSz / 2;
+  page.drawText(data.nombre, { x: x + sizes.padX, y: titleCenterY, font: fonts.bold, size: sizes.titleSz, color: C.white });
+
+  const priceStr = formatPrice(data.precio);
+  const priceW = fonts.bold.widthOfTextAtSize(priceStr, sizes.priceSz);
+  const priceCenterY = bandBottom + sizes.bandH / 2 - sizes.priceSz / 2;
+  page.drawText(priceStr, { x: x + sizes.width - sizes.padX - priceW, y: priceCenterY, font: fonts.bold, size: sizes.priceSz, color: C.white });
+
+  let cy = y - sizes.bandH - 8;
   // Subtitle
   page.drawText(data.subtitulo, { x: x + sizes.padX, y: cy, font: fonts.light, size: sizes.subSz, color: C.dlt });
-  cy -= 14;
-
-  // Price
-  page.drawText(formatPrice(data.precio), { x: x + sizes.padX, y: cy, font: fonts.bold, size: sizes.priceSz, color: C.dark });
-  cy -= 6;
+  cy -= 12;
 
   // "Incluye:" label
   page.drawText("Incluye:", { x: x + sizes.padX, y: cy, font: fonts.medium, size: sizes.itemSz, color: C.dlt });
@@ -552,8 +631,8 @@ function drawTotalBar(page: PDFPage, fonts: FontSet, y: number, total: number, r
 function drawExtraHourNote(page: PDFPage, fonts: FontSet, y: number, noteText: string): number {
   if (!noteText) return y;
   const noteH = 18;
-  page.drawRectangle({ x: ML, y: y - noteH, width: CW, height: noteH, color: C.offwhite });
-  page.drawRectangle({ x: ML, y: y - noteH, width: CW, height: noteH, borderColor: C.brown_lt, borderWidth: 0.5 });
+  drawRoundedRect(page, ML, y - noteH, CW, noteH, 4, { color: C.offwhite });
+  drawRoundedRect(page, ML, y - noteH, CW, noteH, 4, { borderColor: C.brown_lt, borderWidth: 0.5 });
   const label = "Hora adicional disponible:  ";
   page.drawText(label, { x: ML + 14, y: y - 12, font: fonts.medium, size: 6.5, color: C.dark });
   const labelW = fonts.medium.widthOfTextAtSize(label, 6.5);
@@ -574,8 +653,8 @@ function drawConditions(page: PDFPage, fonts: FontSet, y: number, condiciones: s
 
 function drawPaymentInfo(page: PDFPage, fonts: FontSet, y: number): number {
   const infoH = 28;
-  page.drawRectangle({ x: ML, y: y - infoH, width: CW, height: infoH, color: C.lcream });
-  page.drawRectangle({ x: ML, y: y - infoH, width: CW, height: infoH, borderColor: C.brown_lt, borderWidth: 0.5 });
+  drawRoundedRect(page, ML, y - infoH, CW, infoH, 4, { color: C.lcream });
+  drawRoundedRect(page, ML, y - infoH, CW, infoH, 4, { borderColor: C.brown_lt, borderWidth: 0.5 });
   page.drawText("Datos para depósito:", { x: ML + 14, y: y - 10, font: fonts.bold, size: 7, color: C.dark });
   page.drawText("BBVA · Frida Velásquez Hdez. · CLABE: 012 610 015493815314", {
     x: ML + 14, y: y - 22, font: fonts.regular, size: 6.5, color: C.dlt,
@@ -586,7 +665,7 @@ function drawPaymentInfo(page: PDFPage, fonts: FontSet, y: number): number {
 function drawFooter(page: PDFPage, fonts: FontSet): void {
   const footerH = 55;
   const stripeH = 3.5;
-  // Stripe
+  // Stripe above footer
   page.drawRectangle({ x: 0, y: footerH, width: W, height: stripeH, color: C.brown });
   // Footer background
   page.drawRectangle({ x: 0, y: 0, width: W, height: footerH, color: C.brown });
@@ -597,6 +676,20 @@ function drawFooter(page: PDFPage, fonts: FontSet): void {
   const email = "cotizaciones@japitown.com";
   const emailW = fonts.regular.widthOfTextAtSize(email, 7);
   page.drawText(email, { x: W - MR - 10 - emailW, y: 28, font: fonts.regular, size: 7, color: C.cream });
+}
+
+// ─── Height Estimation (for adaptive spacing) ───────────────────
+function estimateBlockHeight(bloque: LayoutBlock, sizes?: CardSizes): number {
+  if (bloque.tipo === "estacion_resumen") {
+    const headerH = 34;
+    const listH = bloque.estaciones.length * 14;
+    return headerH + 12 + listH + 10;
+  } else {
+    const n = bloque.cardsPerRow as 1 | 2 | 3;
+    const s = CARD_SIZES[n] || CARD_SIZES[3];
+    const itemCount = 4; // max items
+    return s.bandH + 8 + 14 + (itemCount * s.itemSpacing) + 10;
+  }
 }
 
 // ─── Main Pipeline ──────────────────────────────────────────────
@@ -612,14 +705,46 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   // Background
   drawBackground(page);
 
-  // Fixed header elements
+  // ─── Calculate adaptive spacing ───
+  const headerH = 55;
+  const titleStripH = 40;
+  const calloutH = 38;
+  const totalBarH = 42;
+  const footerH = 55 + 3.5; // footer + stripe
+
+  // Estimate conditions height
+  const condiciones = generarCondiciones(resolved);
+  const conditionsH = condiciones.length * 8 + 4;
+
+  // Extra hour note
+  const horaExtraText = generarNotaHoraExtra(resolved, dbServices);
+  const extraHourH = horaExtraText ? 18 : 0;
+
+  // Payment info
+  const paymentH = 28;
+
+  // Dynamic blocks height
+  let dynamicH = 0;
+  for (const b of bloques) {
+    dynamicH += estimateBlockHeight(b);
+  }
+
+  // Fixed gaps
+  const fixedGaps = 5 + 10 + 16; // after header, after title, after callout
+  const numGaps = bloques.length + 3; // gaps between dynamic blocks + total + extra + conditions
+
+  const totalContentH = headerH + titleStripH + calloutH + dynamicH + totalBarH + extraHourH + conditionsH + paymentH + footerH + fixedGaps;
+  const availableSpace = H - totalContentH;
+  const gapExtra = Math.max(0, Math.min(availableSpace / numGaps, 20)); // cap at 20pt max
+
+  // ─── Draw everything ───
   let y = H;
   y = drawHeader(page, fonts, y, resolved.fecha_emision!);
-  y -= 5;
+  y -= 5 + gapExtra * 0.3;
   y = drawTitleStrip(page, fonts, y, resolved.titulo!, resolved.subtitulo!);
-  y -= 10;
+  y -= 10 + gapExtra * 0.5;
   y = drawEventCallout(page, fonts, y, resolved);
-  y -= 16;
+  y -= 16 + gapExtra;
 
   // Dynamic content blocks
   for (const bloque of bloques) {
@@ -628,25 +753,23 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
     } else if (bloque.tipo === "fila_cards") {
       y = drawCardRow(page, fonts, y, bloque.cards);
     }
-    y -= 12;
+    y -= 12 + gapExtra;
   }
 
   // Total bar
   const resumen = generarResumen(resolved);
   y = drawTotalBar(page, fonts, y, total, resumen);
-  y -= 10;
+  y -= 10 + gapExtra * 0.5;
 
   // Extra hour note
-  const horaExtraText = generarNotaHoraExtra(resolved, dbServices);
   if (horaExtraText) {
     y = drawExtraHourNote(page, fonts, y, horaExtraText);
-    y -= 10;
+    y -= 10 + gapExtra * 0.3;
   }
 
   // Conditions
-  const condiciones = generarCondiciones(resolved);
   y = drawConditions(page, fonts, y, condiciones);
-  y -= 4;
+  y -= 4 + gapExtra * 0.3;
 
   // Payment info
   drawPaymentInfo(page, fonts, y);
