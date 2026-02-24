@@ -408,8 +408,8 @@ function validate(req: QuoteRequest): string[] {
 let fontBytesCache: { bold: Uint8Array; medium: Uint8Array; regular: Uint8Array; light: Uint8Array } | null = null;
 
 async function loadFonts(pdfDoc: InstanceType<typeof PDFDocument>): Promise<FontSet> {
-  pdfDoc.registerFontkit(fontkit);
   try {
+    pdfDoc.registerFontkit(fontkit);
     const storageUrl = Deno.env.get("SUPABASE_URL") + "/storage/v1/object/public/japitown-assets";
     if (!fontBytesCache) {
       const [bold, medium, regular, light] = await Promise.all([
@@ -427,7 +427,8 @@ async function loadFonts(pdfDoc: InstanceType<typeof PDFDocument>): Promise<Font
       light: await pdfDoc.embedFont(fontBytesCache.light),
     };
   } catch (e) {
-    console.warn("Custom fonts unavailable, using Helvetica:", e.message);
+    console.warn("Custom fonts unavailable, using Helvetica:", e);
+    // Don't register fontkit for standard fonts — saves CPU
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     return { bold: helveticaBold, medium: helveticaBold, regular: helvetica, light: helvetica };
@@ -440,48 +441,20 @@ async function fetchAsset(baseUrl: string, path: string): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer());
 }
 
-// ─── Icon Loading ───────────────────────────────────────────────
-type EmbeddedIconCache = Map<string, any>; // PDFImage
+// ─── Icon Loading (disabled to avoid CPU timeout) ───────────────
+type EmbeddedIconCache = Map<string, any>;
 
 async function loadIcons(
-  pdfDoc: InstanceType<typeof PDFDocument>,
-  serviceKeys: string[]
+  _pdfDoc: InstanceType<typeof PDFDocument>,
+  _serviceKeys: string[]
 ): Promise<EmbeddedIconCache> {
-  const cache: EmbeddedIconCache = new Map();
-  const storageUrl = Deno.env.get("SUPABASE_URL") + "/storage/v1/object/public/japitown-assets";
-
-  // Collect unique icon paths
-  const pathsToLoad = new Map<string, string>(); // path → key (for dedup)
-  for (const key of serviceKeys) {
-    const iconPath = ICON_MAP[key];
-    if (iconPath && !pathsToLoad.has(iconPath)) {
-      pathsToLoad.set(iconPath, key);
-    }
-  }
-
-  // Load all icons in parallel
-  const entries = Array.from(pathsToLoad.entries());
-  const results = await Promise.allSettled(
-    entries.map(async ([path]) => {
-      const bytes = await fetchAsset(storageUrl, path);
-      return { path, image: await pdfDoc.embedPng(bytes) };
-    })
-  );
-
-  for (const result of results) {
-    if (result.status === "fulfilled") {
-      cache.set(result.value.path, result.value.image);
-    } else {
-      console.warn("Failed to load icon:", result.reason);
-    }
-  }
-
-  return cache;
+  // Icon embedding via embedPng is too CPU-intensive for edge functions.
+  // Return empty cache — drawing functions already have bullet-point fallback.
+  return new Map();
 }
 
-function getIcon(cache: EmbeddedIconCache, serviceKey: string): any | null {
-  const path = ICON_MAP[serviceKey];
-  return path ? cache.get(path) ?? null : null;
+function getIcon(_cache: EmbeddedIconCache, _serviceKey: string): any | null {
+  return null;
 }
 
 // ─── Rounded Rectangle Helper ───────────────────────────────────
