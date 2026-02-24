@@ -109,18 +109,19 @@ function KPIBar({ quotes }: { quotes: Quote[] }) {
   const active = quotes.filter(q => !['cancelled', 'completed'].includes(getEffectiveStage(q)));
   const confirmed = quotes.filter(q => ['confirmed', 'upcoming'].includes(getEffectiveStage(q)));
   const completed = quotes.filter(q => getEffectiveStage(q) === 'completed');
-  const total = quotes.length;
-  const conversionRate = total > 0 ? Math.round(((confirmed.length + completed.length) / total) * 100) : 0;
+  const nonCancelled = quotes.filter(q => getEffectiveStage(q) !== 'cancelled');
+  const conversionRate = nonCancelled.length > 0 ? Math.round(((confirmed.length + completed.length) / nonCancelled.length) * 100) : 0;
   const confirmedRevenue = confirmed.reduce((s, q) => s + (q.total_estimate || 0), 0);
-  const completedRevenue = completed.reduce((s, q) => s + (q.total_estimate || 0), 0);
-  const depositsCollected = quotes.filter(q => q.deposit_paid).reduce((s, q) => s + (q.deposit_amount || 0), 0);
+  const completedRevenue = completed.reduce((s, q) => s + (q.total_paid || 0), 0);
+  const confirmedPaid = confirmed.reduce((s, q) => s + (q.total_paid || 0), 0);
+  const pendingCollection = confirmedRevenue - confirmedPaid;
 
   const kpis = [
     { label: 'Activas', value: String(active.length), icon: TrendingUp },
     { label: 'Confirmados', value: `$${confirmedRevenue.toLocaleString()}`, icon: DollarSign },
     { label: 'Realizados', value: `$${completedRevenue.toLocaleString()}`, icon: DollarSign },
     { label: 'Conversión', value: `${conversionRate}%`, icon: TrendingUp },
-    { label: 'Anticipos', value: `$${depositsCollected.toLocaleString()}`, icon: DollarSign },
+    { label: 'Por Cobrar', value: `$${Math.max(0, pendingCollection).toLocaleString()}`, icon: DollarSign },
   ];
 
   return (
