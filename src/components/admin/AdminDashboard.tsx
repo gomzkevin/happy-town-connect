@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Upload, Image, Calendar, Settings, Plus, Edit, Trash2, Home, LayoutDashboard, CalendarDays } from 'lucide-react';
+import { LogOut, Upload, Image, Calendar, Settings, Plus, Edit, Trash2, Home, LayoutDashboard, CalendarDays, Users } from 'lucide-react';
 import { useServices } from '@/hooks/useServices';
 import { useEvents } from '@/hooks/useEvents';
 import { useServiceMutations } from '@/hooks/useServiceMutations';
@@ -21,9 +21,10 @@ import { lazy, Suspense } from 'react';
 const AdminKanban = lazy(() => import('./AdminKanban'));
 const AdminCalendar = lazy(() => import('./AdminCalendar'));
 const AssetUploader = lazy(() => import('./AssetUploader'));
+const TeamManagement = lazy(() => import('./TeamManagement'));
 
 const AdminDashboard = () => {
-  const { user, signOut, isAdmin } = useAuth();
+  const { user, signOut, isAdmin, adminRole } = useAuth();
   const navigate = useNavigate();
   const { services, refetch: refetchServices } = useServices();
   const { events, refetch: refetchEvents } = useEvents();
@@ -201,10 +202,15 @@ const AdminDashboard = () => {
             <TabsTrigger value="calendar" className="gap-1"><CalendarDays className="h-3.5 w-3.5" />Calendario</TabsTrigger>
             <TabsTrigger value="services">Servicios</TabsTrigger>
             <TabsTrigger value="events">Eventos</TabsTrigger>
-            <TabsTrigger value="settings">Config</TabsTrigger>
-            <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
-            <TabsTrigger value="history">Historial</TabsTrigger>
-            <TabsTrigger value="assets" className="gap-1"><Upload className="h-3.5 w-3.5" />Assets</TabsTrigger>
+            {adminRole === 'admin' && (
+              <>
+                <TabsTrigger value="settings">Config</TabsTrigger>
+                <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
+                <TabsTrigger value="history">Historial</TabsTrigger>
+                <TabsTrigger value="assets" className="gap-1"><Upload className="h-3.5 w-3.5" />Assets</TabsTrigger>
+                <TabsTrigger value="team" className="gap-1"><Users className="h-3.5 w-3.5" />Equipo</TabsTrigger>
+              </>
+            )}
           </TabsList>
 
           <TabsContent value="pipeline">
@@ -333,23 +339,33 @@ const AdminDashboard = () => {
             </div>
           </TabsContent>
           
-          <TabsContent value="settings" className="space-y-6">
-            <CompanySettingsForm />
-          </TabsContent>
-          
-          <TabsContent value="notifications" className="space-y-6">
-            <NotificationSettingsForm />
-          </TabsContent>
-          
-          <TabsContent value="history" className="space-y-6">
-            <QuoteHistoryView />
-          </TabsContent>
+          {adminRole === 'admin' && (
+            <>
+              <TabsContent value="settings" className="space-y-6">
+                <CompanySettingsForm />
+              </TabsContent>
+              
+              <TabsContent value="notifications" className="space-y-6">
+                <NotificationSettingsForm />
+              </TabsContent>
+              
+              <TabsContent value="history" className="space-y-6">
+                <QuoteHistoryView />
+              </TabsContent>
 
-          <TabsContent value="assets" className="space-y-6">
-            <Suspense fallback={<div className="text-center py-8 text-muted-foreground">Cargando...</div>}>
-              <AssetUploader />
-            </Suspense>
-          </TabsContent>
+              <TabsContent value="assets" className="space-y-6">
+                <Suspense fallback={<div className="text-center py-8 text-muted-foreground">Cargando...</div>}>
+                  <AssetUploader />
+                </Suspense>
+              </TabsContent>
+
+              <TabsContent value="team" className="space-y-6">
+                <Suspense fallback={<div className="text-center py-8 text-muted-foreground">Cargando...</div>}>
+                  <TeamManagement />
+                </Suspense>
+              </TabsContent>
+            </>
+          )}
         </Tabs>
         
         <ConfirmDialog

@@ -2,10 +2,13 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+type AdminRole = 'admin' | 'operador' | null;
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
+  adminRole: AdminRole;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
@@ -26,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminRole, setAdminRole] = useState<AdminRole>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,10 +42,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Check admin status when user changes
         if (session?.user) {
           setTimeout(() => {
-            checkAdminStatus(session.user.id);
+            checkAdminStatus(session.user.id, session.user.email || '');
           }, 0);
         } else {
           setIsAdmin(false);
+          setAdminRole(null);
         }
         setLoading(false);
       }
@@ -52,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        checkAdminStatus(session.user.id);
+        checkAdminStatus(session.user.id, session.user.email || '');
       }
       setLoading(false);
     });
@@ -60,19 +65,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkAdminStatus = async (userId: string) => {
+  const checkAdminStatus = async (userId: string, userEmail: string) => {
     try {
+      // Check if user is already in admin_users
       const { data, error } = await supabase
         .from('admin_users')
-        .select('is_active')
+        .select('is_active, role')
         .eq('user_id', userId)
         .eq('is_active', true)
         .single();
 
-      setIsAdmin(!!data && !error);
+      if (data && !error) {
+        setIsAdmin(true);
+        setAdminRole(data.role as AdminRole);
+        return;
+      }
+
+      // Check if there's a pending invitation for this email
+      if (userEmail) {
+        const { data: invitation } = await supabase
+          .from('team_invitations')
+          .select('*')
+          .eq('email', userEmail.toLowerCase())
+          .eq('status', 'pending')
+          .single();
+
+        if (invitation) {
+          // Auto-link: create admin_users entry and mark invitation as accepted
+          const { error: insertError } = await supabase
+            .from('admin_users')
+            .insert({
+              user_id: userId,
+              email: userEmail.toLowerCase(),
+              role: invitation.role,
+              is_active: true,
+            });
+
+          if (!insertError) {
+            // Update invitation status
+            await supabase
+              .from('team_invitations')
+              .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+              .eq('id', invitation.id);
+
+            setIsAdmin(true);
+            setAdminRole(invitation.role as AdminRole);
+            return;
+          }
+        }
+      }
+
+      setIsAdmin(false);
+      setAdminRole(null);
     } catch (error) {
       console.error('Error checking admin status:', error);
       setIsAdmin(false);
+      setAdminRole(null);
     }
   };
 
@@ -100,12 +148,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     await supabase.auth.signOut();
     setIsAdmin(false);
+    setAdminRole(null);
   };
 
   const value = {
     user,
     session,
     isAdmin,
+    adminRole,
     loading,
     signIn,
     signUp,
