@@ -194,60 +194,6 @@ const AdminDashboard = () => {
 
       {/* Main Content */}
       <main className="container py-6">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Servicios</CardTitle>
-              <Upload className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{services.length}</div>
-              <p className="text-xs text-muted-foreground">
-                servicios disponibles
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Eventos</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{events.length}</div>
-              <p className="text-xs text-muted-foreground">
-                eventos en portfolio
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Imágenes</CardTitle>
-              <Image className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">-</div>
-              <p className="text-xs text-muted-foreground">
-                gestión de medios
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Estado</CardTitle>
-              <div className="h-2 w-2 bg-green-500 rounded-full" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">Activo</div>
-              <p className="text-xs text-muted-foreground">
-                sistema operativo
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
         <Tabs defaultValue="pipeline" className="space-y-4">
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="pipeline" className="gap-1"><LayoutDashboard className="h-3.5 w-3.5" />Pipeline</TabsTrigger>
