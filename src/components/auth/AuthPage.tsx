@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 type Mode = 'signin' | 'signup' | 'forgot';
 
 const AuthPage = () => {
-  const { signIn, signUp, user, loading } = useAuth();
+  const { signIn, signUp, user, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,10 +25,10 @@ const AuthPage = () => {
   const [checkingInvitation, setCheckingInvitation] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (user && isAdmin) {
       navigate('/admin');
     }
-  }, [user, navigate]);
+  }, [user, isAdmin, navigate]);
 
   const checkInvitation = async () => {
     if (!email.trim()) {

@@ -43,11 +43,9 @@ const Navigation = () => {
               Cotizar Fiesta
             </Button>
             {user ? (
-              isAdmin ? (
-                <Link to="/admin">
-                  <Button variant="ghost" size="sm"><Shield className="h-4 w-4" /></Button>
-                </Link>
-              ) : null
+              <Link to="/admin">
+                <Button variant="ghost" size="sm"><Shield className="h-4 w-4" /></Button>
+              </Link>
             ) : (
               <Link to="/auth">
                 <Button variant="ghost" size="sm"><Shield className="h-4 w-4" /></Button>
@@ -94,13 +92,11 @@ const Navigation = () => {
                     Cotizar Fiesta
                   </Button>
                   {user ? (
-                    isAdmin ? (
-                      <Link to="/admin">
-                        <Button variant="outline" size="sm" className="w-full">
-                          <Shield className="h-4 w-4 mr-2" />Admin
-                        </Button>
-                      </Link>
-                    ) : null
+                    <Link to="/admin">
+                      <Button variant="outline" size="sm" className="w-full">
+                        <Shield className="h-4 w-4 mr-2" />Panel
+                      </Button>
+                    </Link>
                   ) : (
                     <Link to="/auth">
                       <Button variant="outline" size="sm" className="w-full">
