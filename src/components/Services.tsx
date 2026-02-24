@@ -36,10 +36,11 @@ const serviceIconMap: Record<string, string> = {
   guarderia: icono12,
 };
 
-const ServiceCard = ({ service, onAddToCart, onViewDetails }: { 
+const ServiceCard = ({ service, onAddToCart, onViewDetails, isInCart }: { 
   service: any; 
   onAddToCart: (service: any) => void; 
-  onViewDetails: (serviceId: string) => void; 
+  onViewDetails: (serviceId: string) => void;
+  isInCart: boolean;
 }) => {
   const iconSrc = serviceIconMap[service.id];
 
@@ -49,46 +50,69 @@ const ServiceCard = ({ service, onAddToCart, onViewDetails }: {
     : "bg-japitown-blue/20 text-foreground border-japitown-blue/40 backdrop-blur-sm rounded-full";
 
   return (
-    <Card 
-      className="group hover:shadow-hover transition-all duration-300 cursor-pointer transform hover:-translate-y-1 overflow-hidden border-0 bg-card rounded-2xl"
-      onClick={() => onViewDetails(service.id)}
+    <motion.div
+      whileHover={{ y: -6, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
     >
-      <div className="relative h-40 sm:h-48 overflow-hidden bg-accent/50 flex items-center justify-center">
-        <img 
-          src={iconSrc} 
-          alt={service.title} 
-          className="w-20 h-20 sm:w-24 sm:h-24 object-contain group-hover:scale-110 transition-transform duration-300"
-          loading="lazy"
-        />
-        <div className="absolute top-3 left-3">
-          <Badge variant="outline" className={badgeClasses}>
-            {service.category}
-          </Badge>
+      <Card 
+        className="group cursor-pointer overflow-hidden border-0 bg-card rounded-2xl hover:shadow-hover transition-shadow duration-300 h-full"
+        onClick={() => onViewDetails(service.id)}
+      >
+        <div className="relative h-40 sm:h-48 overflow-hidden bg-accent/50 flex items-center justify-center">
+          <motion.img 
+            src={iconSrc} 
+            alt={service.title} 
+            className="w-20 h-20 sm:w-24 sm:h-24 object-contain"
+            loading="lazy"
+            whileHover={{ scale: 1.15, rotate: 3 }}
+            transition={{ type: "spring", stiffness: 200, damping: 12 }}
+          />
+          <div className="absolute top-3 left-3">
+            <Badge variant="outline" className={badgeClasses}>
+              {service.category}
+            </Badge>
+          </div>
+          {isInCart && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="absolute top-3 right-3 w-7 h-7 rounded-full bg-secondary flex items-center justify-center"
+            >
+              <svg className="w-4 h-4 text-secondary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </motion.div>
+          )}
         </div>
-      </div>
 
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base sm:text-lg leading-tight font-display">{service.title}</CardTitle>
-      </CardHeader>
-      
-      <CardContent className="pt-0">
-        <CardDescription className="mb-4 text-sm leading-relaxed line-clamp-2 sm:line-clamp-3">
-          {service.description}
-        </CardDescription>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base sm:text-lg leading-tight font-display">{service.title}</CardTitle>
+        </CardHeader>
         
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="w-full hover:bg-foreground hover:text-background transition-colors"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddToCart(service);
-          }}
-        >
-          Agregar a Cotización
-        </Button>
-      </CardContent>
-    </Card>
+        <CardContent className="pt-0">
+          <CardDescription className="mb-4 text-sm leading-relaxed line-clamp-2 sm:line-clamp-3">
+            {service.description}
+          </CardDescription>
+          
+          <Button 
+            variant={isInCart ? "secondary" : "outline"}
+            size="sm" 
+            className={`w-full transition-all duration-300 ${
+              isInCart 
+                ? '' 
+                : 'hover:bg-foreground hover:text-background'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddToCart(service);
+            }}
+          >
+            {isInCart ? '✓ Agregado' : 'Agregar a Cotización'}
+          </Button>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 };
 
@@ -138,7 +162,12 @@ const Services = () => {
           <StaggerContainer className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 mb-12" stagger={0.08}>
             {services.map((service) => (
               <StaggerItem key={service.id}>
-                <ServiceCard service={service} onAddToCart={addService} onViewDetails={handleServiceClick} />
+                <ServiceCard 
+                  service={service} 
+                  onAddToCart={addService} 
+                  onViewDetails={handleServiceClick}
+                  isInCart={selectedServices.some(s => s.service.id === service.id)}
+                />
               </StaggerItem>
             ))}
           </StaggerContainer>

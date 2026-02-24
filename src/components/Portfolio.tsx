@@ -6,6 +6,7 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 import { useEvents } from "@/hooks/useEvents";
 import { useNavigate } from "react-router-dom";
 import { ScrollReveal, StaggerContainer, StaggerItem } from "@/components/ui/scroll-reveal";
+import { motion } from "framer-motion";
 
 const Portfolio = () => {
   const { openOnboarding } = useOnboarding();
@@ -41,8 +42,9 @@ const Portfolio = () => {
           <StaggerContainer className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mb-12" stagger={0.12}>
             {events.map((event) => (
               <StaggerItem key={event.id}>
+                <motion.div whileHover={{ y: -6 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
                 <Card 
-                  className="group hover:shadow-hover transition-smooth cursor-pointer overflow-hidden border-0 bg-card rounded-2xl h-full"
+                  className="group cursor-pointer overflow-hidden border-0 bg-card rounded-2xl h-full hover:shadow-hover transition-shadow duration-300"
                   onClick={() => navigate(`/evento/${event.id}`)}
                 >
                   <div className="relative overflow-hidden">
@@ -99,6 +101,7 @@ const Portfolio = () => {
                     </div>
                   </CardContent>
                 </Card>
+                </motion.div>
               </StaggerItem>
             ))}
           </StaggerContainer>
