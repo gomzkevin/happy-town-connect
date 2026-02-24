@@ -67,7 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkAdminStatus = async (userId: string, userEmail: string) => {
+  const checkAdminStatus = async (userId: string, userEmail: string, retryCount = 0) => {
     try {
       // Check if user is already in admin_users
       const { data, error } = await supabase
@@ -106,6 +106,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (insertError) {
             console.error('Failed to auto-link invitation:', insertError);
+            // Retry once after a delay (session may not be fully ready)
+            if (retryCount < 2) {
+              console.log(`Retrying auto-link (attempt ${retryCount + 2})...`);
+              setTimeout(() => checkAdminStatus(userId, userEmail, retryCount + 1), 1000);
+              return;
+            }
           } else {
             console.log('Auto-link successful, updating invitation status');
             // Update invitation status
