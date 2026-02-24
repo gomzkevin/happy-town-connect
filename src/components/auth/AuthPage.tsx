@@ -133,8 +133,9 @@ const AuthPage = () => {
                   <Button className="w-full" disabled={isLoading} onClick={async () => {
                     if (!email) { setError('Ingresa tu email'); return; }
                     setIsLoading(true); setError('');
-                    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
-                    if (error) setError(error.message); else setSuccess('Revisa tu email para restablecer tu contraseña');
+                    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
+                    if (resetError) setError(resetError.message); else setSuccess('Revisa tu email para restablecer tu contraseña');
+                    
                     setIsLoading(false);
                   }}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -163,15 +164,13 @@ const AuthPage = () => {
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Iniciar Sesión
               </Button>
-              <div className="flex justify-between text-sm">
-                <button type="button" className="text-muted-foreground hover:text-primary underline" onClick={() => switchMode('forgot')}>
-                  ¿Olvidaste tu contraseña?
-                </button>
-                <button type="button" className="text-muted-foreground hover:text-primary underline flex items-center gap-1" onClick={checkInvitation} disabled={checkingInvitation}>
-                  {checkingInvitation ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
-                  Tengo una invitación
-                </button>
-              </div>
+              <Button type="button" variant="outline" className="w-full" onClick={checkInvitation} disabled={checkingInvitation}>
+                {checkingInvitation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                Registrarme con invitación
+              </Button>
+              <button type="button" className="w-full text-sm text-muted-foreground hover:text-primary underline" onClick={() => switchMode('forgot')}>
+                ¿Olvidaste tu contraseña?
+              </button>
             </form>
           )}
 
