@@ -4,19 +4,42 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { useServices as useServicesContext } from "@/contexts/ServicesContext";
 import { useServices } from "@/hooks/useServices";
-
 import { useOnboarding } from "@/hooks/useOnboarding";
-import * as LucideIcons from "lucide-react";
+
+import icono01 from "@/assets/Iconos-01.png";
+import icono02 from "@/assets/Iconos-02.png";
+import icono03 from "@/assets/Iconos-03.png";
+import icono04 from "@/assets/Iconos-04.png";
+import icono05 from "@/assets/Iconos-05.png";
+import icono06 from "@/assets/Iconos-06.png";
+import icono07 from "@/assets/Iconos-07.png";
+import icono08 from "@/assets/Iconos-08.png";
+import icono09 from "@/assets/Iconos-09.png";
+import icono10 from "@/assets/Iconos-10.png";
+import icono11 from "@/assets/Iconos-11.png";
+import icono12 from "@/assets/Iconos-12.png";
+
+const serviceIconMap: Record<string, string> = {
+  pesca: icono01,
+  caballetes: icono02,
+  hamburgueseria: icono03,
+  boliche: icono04,
+  supermercado: icono05,
+  spa: icono06,
+  veterinaria: icono07,
+  "decora-cupcake": icono08,
+  "haz-pulsera": icono09,
+  yesitos: icono10,
+  construccion: icono11,
+  guarderia: icono12,
+};
 
 const ServiceCard = ({ service, onAddToCart, onViewDetails }: { 
   service: any; 
   onAddToCart: (service: any) => void; 
   onViewDetails: (serviceId: string) => void; 
 }) => {
-  
-  const IconComponent = (LucideIcons as any)[service.icon] || LucideIcons.Star;
-  
-  
+  const iconSrc = serviceIconMap[service.id];
 
   return (
     <Card 
@@ -25,7 +48,11 @@ const ServiceCard = ({ service, onAddToCart, onViewDetails }: {
     >
       {/* Icon Section */}
       <div className="relative h-48 overflow-hidden bg-accent/50 flex items-center justify-center">
-        <IconComponent className="w-20 h-20 text-foreground/60 group-hover:scale-110 transition-transform duration-300" />
+        <img 
+          src={iconSrc} 
+          alt={service.title} 
+          className="w-24 h-24 object-contain group-hover:scale-110 transition-transform duration-300" 
+        />
         <div className="absolute top-3 left-3">
           <Badge 
             variant="secondary" 
