@@ -1,0 +1,2 @@
+ALTER TABLE public.quotes DROP CONSTRAINT quotes_source_check;
+ALTER TABLE public.quotes ADD CONSTRAINT quotes_source_check CHECK (source = ANY (ARRAY['website'::text, 'onboarding'::text, 'services'::text, 'manual'::text, 'manual-whatsapp'::text, 'manual-telefono'::text, 'manual-instagram'::text, 'manual-facebook'::text, 'manual-referido'::text, 'manual-otro'::text]));
