@@ -1,43 +1,53 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, MapPin, Clock, DollarSign, User } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isToday, getDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
 
-interface CalendarEvent {
+// Unified event type for calendar display
+interface CalendarItem {
   id: string;
-  customer_name: string;
-  customer_email: string | null;
-  customer_phone: string | null;
-  event_date: string;
-  event_time: string | null;
-  end_time: string | null;
+  title: string;
+  date: string;
+  time: string | null;
+  endTime: string | null;
   location: string | null;
-  event_type: string;
+  type: string;
   status: string;
-  total_amount: number | null;
-  deposit_amount: number | null;
-  deposit_paid: boolean | null;
+  amount: number | null;
+  source: 'calendar' | 'quote';
+  email: string | null;
+  phone: string | null;
   notes: string | null;
+  childName?: string | null;
 }
 
-const statusColors: Record<string, string> = {
-  confirmed: 'bg-japitown-green-tag',
-  tentative: 'bg-japitown-yellow',
-  cancelled: 'bg-destructive',
+const STATUS_STYLES: Record<string, { dot: string; label: string }> = {
+  confirmed: { dot: 'bg-japitown-green-tag', label: 'Confirmado' },
+  tentative: { dot: 'bg-japitown-yellow', label: 'Tentativo' },
+  cancelled: { dot: 'bg-destructive', label: 'Cancelado' },
+  pending: { dot: 'bg-japitown-yellow', label: 'Pendiente' },
+  contacted: { dot: 'bg-japitown-blue', label: 'Contactado' },
+  upcoming: { dot: 'bg-secondary', label: 'Próximo' },
+  completed: { dot: 'bg-japitown-green', label: 'Realizado' },
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  calendar: 'Manual',
+  quote: 'Cotización',
 };
 
 const AdminCalendar = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [items, setItems] = useState<CalendarItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -55,30 +65,70 @@ const AdminCalendar = () => {
     notes: '',
   });
 
-  useEffect(() => {
-    fetchEvents();
-  }, [currentMonth]);
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    const start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
+    const end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
 
-  const fetchEvents = async () => {
-    try {
-      const start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-      const end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
-
-      const { data, error } = await supabase
+    const [calRes, quoteRes] = await Promise.all([
+      supabase
         .from('calendar_events')
         .select('*')
         .gte('event_date', start)
         .lte('event_date', end)
-        .order('event_date', { ascending: true });
+        .order('event_date', { ascending: true }),
+      supabase
+        .from('quotes')
+        .select('*')
+        .not('event_date', 'is', null)
+        .gte('event_date', start)
+        .lte('event_date', end)
+        .neq('status', 'cancelled')
+        .order('event_date', { ascending: true }),
+    ]);
 
-      if (error) throw error;
-      setEvents(data || []);
-    } catch (error) {
-      console.error('Error fetching events:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const calItems: CalendarItem[] = (calRes.data || []).map((e: any) => ({
+      id: e.id,
+      title: e.customer_name,
+      date: e.event_date,
+      time: e.event_time,
+      endTime: e.end_time,
+      location: e.location,
+      type: e.event_type,
+      status: e.status,
+      amount: e.total_amount,
+      source: 'calendar' as const,
+      email: e.customer_email,
+      phone: e.customer_phone,
+      notes: e.notes,
+    }));
+
+    const quoteItems: CalendarItem[] = (quoteRes.data || []).map((q: any) => ({
+      id: q.id,
+      title: q.customer_name,
+      date: q.event_date,
+      time: null,
+      endTime: null,
+      location: q.location,
+      type: q.quote_type === 'onboarding' ? 'fiesta' : 'fiesta',
+      status: q.status || 'pending',
+      amount: q.total_estimate,
+      source: 'quote' as const,
+      email: q.email,
+      phone: q.phone,
+      notes: q.notes,
+      childName: q.child_name,
+    }));
+
+    // Deduplicate: if a calendar_event has a quote_id, skip that quote
+    const calQuoteIds = new Set((calRes.data || []).filter((e: any) => e.quote_id).map((e: any) => e.quote_id));
+    const uniqueQuoteItems = quoteItems.filter(q => !calQuoteIds.has(q.id));
+
+    setItems([...calItems, ...uniqueQuoteItems]);
+    setLoading(false);
+  }, [currentMonth]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const handleCreateEvent = async () => {
     try {
@@ -104,7 +154,7 @@ const AdminCalendar = () => {
         event_date: '', event_time: '', end_time: '', location: '',
         event_type: 'fiesta', status: 'confirmed', total_amount: '', notes: '',
       });
-      fetchEvents();
+      fetchAll();
     } catch (error) {
       console.error('Error creating event:', error);
       toast({ title: 'Error', description: 'No se pudo crear el evento', variant: 'destructive' });
@@ -114,16 +164,11 @@ const AdminCalendar = () => {
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const startDow = getDay(monthStart);
+  const paddedDays: (Date | null)[] = [...Array(startDow).fill(null), ...days];
 
-  // Pad beginning of month
-  const startDow = getDay(monthStart); // 0=Sunday
-  const paddedDays: (Date | null)[] = [
-    ...Array(startDow).fill(null),
-    ...days,
-  ];
-
-  const getEventsForDay = (day: Date) => events.filter(e => isSameDay(new Date(e.event_date), day));
-  const dayEvents = selectedDay ? getEventsForDay(selectedDay) : [];
+  const getItemsForDay = (day: Date) => items.filter(e => isSameDay(new Date(e.date + 'T12:00:00'), day));
+  const dayItems = selectedDay ? getItemsForDay(selectedDay) : [];
 
   return (
     <div className="space-y-6">
@@ -163,8 +208,8 @@ const AdminCalendar = () => {
           {/* Calendar grid */}
           <div className="grid grid-cols-7 gap-1">
             {paddedDays.map((day, i) => {
-              if (!day) return <div key={`pad-${i}`} className="h-16" />;
-              const dayEvts = getEventsForDay(day);
+              if (!day) return <div key={`pad-${i}`} className="h-20" />;
+              const dayEvts = getItemsForDay(day);
               const today = isToday(day);
               const selected = selectedDay && isSameDay(day, selectedDay);
 
@@ -172,23 +217,25 @@ const AdminCalendar = () => {
                 <button
                   key={day.toISOString()}
                   onClick={() => setSelectedDay(day)}
-                  className={`h-16 p-1 rounded-lg text-left transition-colors relative ${
-                    today ? 'bg-secondary/10 font-bold' : ''
+                  className={`h-20 p-1.5 rounded-lg text-left transition-colors relative flex flex-col ${
+                    today ? 'bg-secondary/10' : ''
                   } ${selected ? 'ring-2 ring-secondary' : ''} hover:bg-accent/50`}
                 >
-                  <span className={`text-xs ${today ? 'text-secondary' : 'text-foreground'}`}>
+                  <span className={`text-xs font-medium ${today ? 'text-secondary font-bold' : 'text-foreground'}`}>
                     {format(day, 'd')}
                   </span>
                   {dayEvts.length > 0 && (
-                    <div className="flex gap-0.5 mt-1 flex-wrap">
+                    <div className="flex flex-col gap-0.5 mt-1 overflow-hidden flex-1">
                       {dayEvts.slice(0, 2).map((e) => (
-                        <div
-                          key={e.id}
-                          className={`w-full h-1.5 rounded-full ${statusColors[e.status] || 'bg-primary'}`}
-                        />
+                        <div key={e.id} className="flex items-center gap-1 min-w-0">
+                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_STYLES[e.status]?.dot || 'bg-primary'}`} />
+                          <span className="text-[9px] truncate text-muted-foreground leading-tight">
+                            {e.title}
+                          </span>
+                        </div>
                       ))}
                       {dayEvts.length > 2 && (
-                        <span className="text-[8px] text-muted-foreground">+{dayEvts.length - 2}</span>
+                        <span className="text-[8px] text-muted-foreground pl-2.5">+{dayEvts.length - 2} más</span>
                       )}
                     </div>
                   )}
@@ -204,7 +251,7 @@ const AdminCalendar = () => {
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-display">
+              <CardTitle className="text-sm font-display capitalize">
                 {format(selectedDay, "EEEE dd 'de' MMMM", { locale: es })}
               </CardTitle>
               <Button size="sm" variant="outline" onClick={() => {
@@ -217,23 +264,53 @@ const AdminCalendar = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {dayEvents.length === 0 ? (
+            {dayItems.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Sin eventos este día</p>
             ) : (
               <div className="space-y-2">
-                {dayEvents.map((event) => (
-                  <div key={event.id} className="flex items-center gap-3 p-3 rounded-xl border bg-card">
-                    <div className={`w-2 h-10 rounded-full ${statusColors[event.status] || 'bg-primary'}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{event.customer_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {event.event_time ? event.event_time.slice(0, 5) : 'Sin hora'}
-                        {event.location ? ` · ${event.location}` : ''}
-                      </p>
+                {dayItems.map((item) => {
+                  const style = STATUS_STYLES[item.status] || STATUS_STYLES.confirmed;
+                  return (
+                    <div key={item.id} className="flex items-start gap-3 p-3 rounded-xl border bg-card">
+                      <div className={`w-1.5 h-full min-h-[40px] rounded-full shrink-0 ${style.dot}`} />
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm truncate">{item.title}</p>
+                          {item.childName && (
+                            <span className="text-xs text-muted-foreground">🎂 {item.childName}</span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                          {item.time && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {item.time.slice(0, 5)}{item.endTime ? ` - ${item.endTime.slice(0, 5)}` : ''}
+                            </span>
+                          )}
+                          {item.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {item.location}
+                            </span>
+                          )}
+                          {item.amount && item.amount > 0 && (
+                            <span className="flex items-center gap-1">
+                              <DollarSign className="h-3 w-3" />
+                              ${item.amount.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        {item.notes && (
+                          <p className="text-[11px] text-muted-foreground/70 truncate">{item.notes}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <Badge variant="outline" className="text-[9px]">{style.label}</Badge>
+                        <Badge variant="secondary" className="text-[9px]">{SOURCE_LABELS[item.source]}</Badge>
+                      </div>
                     </div>
-                    <Badge variant="outline" className="text-[10px] capitalize">{event.event_type}</Badge>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
