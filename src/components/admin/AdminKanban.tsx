@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
@@ -55,6 +55,7 @@ interface ServiceOption {
   price: string;
   base_price: number;
   is_active: boolean;
+  category: string;
 }
 
 type StageKey = 'pending' | 'contacted' | 'confirmed' | 'upcoming' | 'completed' | 'cancelled';
@@ -80,6 +81,9 @@ const STAGE_MAP = Object.fromEntries(STAGES.map(s => [s.key, s])) as Record<Stag
 
 const SOURCE_LABELS: Record<string, { label: string; className: string }> = {
   manual: { label: 'Manual', className: 'border-japitown-orange/40 text-japitown-orange' },
+  'manual-whatsapp': { label: 'WhatsApp', className: 'border-japitown-green/40 text-japitown-green' },
+  'manual-facebook': { label: 'Facebook', className: 'border-japitown-blue/40 text-japitown-blue' },
+  'manual-instagram': { label: 'Instagram', className: 'border-japitown-pink/40 text-japitown-pink' },
   onboarding: { label: 'Wizard', className: '' },
   services: { label: 'Servicios', className: '' },
 };
@@ -334,35 +338,55 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
     children_count: '',
     age_range: '',
     notes: '',
+    source_channel: 'whatsapp' as 'whatsapp' | 'facebook' | 'instagram' | 'otro',
   });
-  const [selectedServices, setSelectedServices] = useState<Record<string, number>>({});
+  const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!open) return;
-    supabase.from('services').select('id, title, price, base_price, is_active').eq('is_active', true).then(({ data }) => {
+    supabase.from('services').select('id, title, price, base_price, is_active, category').eq('is_active', true).order('category').then(({ data }) => {
       setAvailableServices((data || []) as ServiceOption[]);
     });
   }, [open]);
 
-  const toggleService = (id: string, checked: boolean) => {
+  const toggleService = (id: string) => {
     setSelectedServices(prev => {
-      if (checked) return { ...prev, [id]: 1 };
-      const next = { ...prev };
-      delete next[id];
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
 
-  const updateQuantity = (id: string, qty: number) => {
-    if (qty < 1) return;
-    setSelectedServices(prev => ({ ...prev, [id]: qty }));
+  const totalEstimate = Array.from(selectedServices).reduce((total, id) => {
+    const svc = availableServices.find(s => s.id === id);
+    return total + (svc?.base_price || 0);
+  }, 0);
+
+  // Group services by category
+  const servicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
+    const cat = svc.category || 'Otros';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(svc);
+    return acc;
+  }, {});
+
+  const CATEGORY_STYLES: Record<string, { bg: string; border: string; selectedBg: string; label: string }> = {
+    'Talleres Creativos': { bg: 'bg-japitown-green-tag/5', border: 'border-japitown-green-tag/30', selectedBg: 'bg-japitown-green-tag/20 border-japitown-green-tag/60', label: '🎨 Talleres Creativos' },
+    'Estaciones de Juego': { bg: 'bg-japitown-blue/5', border: 'border-japitown-blue/30', selectedBg: 'bg-japitown-blue/20 border-japitown-blue/60', label: '🎮 Estaciones de Juego' },
   };
 
-  const totalEstimate = Object.entries(selectedServices).reduce((total, [id, qty]) => {
-    const svc = availableServices.find(s => s.id === id);
-    if (!svc) return total;
-    return total + svc.base_price * qty;
-  }, 0);
+  const SOURCE_CHANNELS = [
+    { value: 'whatsapp', label: '💬 WhatsApp' },
+    { value: 'facebook', label: '📘 Facebook' },
+    { value: 'instagram', label: '📸 Instagram' },
+    { value: 'otro', label: '📋 Otro' },
+  ];
+
+  const getSourceValue = () => {
+    if (form.source_channel === 'otro') return 'manual';
+    return `manual-${form.source_channel}`;
+  };
 
   const handleSave = async () => {
     if (!form.customer_name.trim() || !form.email.trim()) {
@@ -384,7 +408,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
           age_range: form.age_range.trim() || null,
           notes: form.notes.trim() || null,
           total_estimate: totalEstimate,
-          source: 'manual',
+          source: getSourceValue(),
           quote_type: 'manual',
           status: 'pending',
         })
@@ -394,16 +418,16 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
       if (quoteError) throw quoteError;
 
       // Insert selected services
-      const serviceEntries = Object.entries(selectedServices);
-      if (serviceEntries.length > 0 && quote) {
-        const quoteServices = serviceEntries.map(([serviceId, quantity]) => {
+      const serviceIds = Array.from(selectedServices);
+      if (serviceIds.length > 0 && quote) {
+        const quoteServices = serviceIds.map(serviceId => {
           const svc = availableServices.find(s => s.id === serviceId)!;
           return {
             quote_id: quote.id,
             service_id: serviceId,
             service_name: svc.title,
             service_price: svc.base_price,
-            quantity,
+            quantity: 1,
           };
         });
         const { error: svcError } = await supabase.from('quote_services').insert(quoteServices);
@@ -411,9 +435,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
       }
 
       toast({ title: 'Cotización creada', description: `Se creó la cotización para ${form.customer_name}.` });
-      // Reset form
-      setForm({ customer_name: '', email: '', phone: '', location: '', event_date: '', child_name: '', children_count: '', age_range: '', notes: '' });
-      setSelectedServices({});
+      setForm({ customer_name: '', email: '', phone: '', location: '', event_date: '', child_name: '', children_count: '', age_range: '', notes: '', source_channel: 'whatsapp' });
+      setSelectedServices(new Set());
       onCreated();
       onClose();
     } catch (err) {
@@ -429,10 +452,33 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display">Nueva Cotización Manual</DialogTitle>
-          <DialogDescription>Crea una cotización para un lead que llegó por WhatsApp, Facebook u otro canal.</DialogDescription>
+          <DialogDescription>Crea una cotización para un lead externo.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Source channel */}
+          <div>
+            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Canal de origen</Label>
+            <div className="flex gap-2 mt-2">
+              {SOURCE_CHANNELS.map(ch => (
+                <button
+                  key={ch.value}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, source_channel: ch.value as any }))}
+                  className={`flex-1 text-xs py-2 px-3 rounded-lg border-2 transition-all font-medium ${
+                    form.source_channel === ch.value
+                      ? 'border-primary bg-primary/10 text-foreground'
+                      : 'border-border bg-background text-muted-foreground hover:border-primary/30'
+                  }`}
+                >
+                  {ch.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Client data */}
           <div>
             <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Datos del cliente</Label>
@@ -468,7 +514,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
               </div>
               <div>
                 <Label className="text-xs">Festejado(a)</Label>
-                <Input value={form.child_name} onChange={e => setForm(f => ({ ...f, child_name: e.target.value }))} placeholder="Nombre" className="h-9" />
+                <Input value={form.child_name} onChange={e => setForm(f => ({ ...f, child_name: e.target.value }))} placeholder="Nombre (opcional)" className="h-9" />
               </div>
               <div>
                 <Label className="text-xs">Número de niños</Label>
@@ -483,31 +529,38 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
 
           <Separator />
 
-          {/* Services selector */}
+          {/* Services selector grouped by category */}
           <div>
-            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Servicios</Label>
-            <div className="mt-2 space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
-              {availableServices.map(svc => {
-                const isSelected = svc.id in selectedServices;
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Servicios</Label>
+              {selectedServices.size > 0 && (
+                <span className="text-xs text-muted-foreground">{selectedServices.size} seleccionados</span>
+              )}
+            </div>
+            <div className="mt-2 space-y-3 max-h-56 overflow-y-auto border rounded-lg p-3">
+              {Object.entries(servicesByCategory).map(([category, svcs]) => {
+                const catStyle = CATEGORY_STYLES[category] || { bg: 'bg-accent/30', border: 'border-border/40', selectedBg: 'bg-accent border-primary/40', label: category };
                 return (
-                  <div key={svc.id} className="flex items-center gap-3">
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={(checked) => toggleService(svc.id, !!checked)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm truncate">{svc.title}</p>
-                      <p className="text-xs text-muted-foreground">${svc.base_price.toLocaleString()}</p>
+                  <div key={category}>
+                    <p className="text-xs font-bold text-muted-foreground mb-1.5">{catStyle.label}</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {svcs.map(svc => {
+                        const isSelected = selectedServices.has(svc.id);
+                        return (
+                          <button
+                            key={svc.id}
+                            type="button"
+                            onClick={() => toggleService(svc.id)}
+                            className={`text-left rounded-lg border-2 p-2 transition-all text-xs ${
+                              isSelected ? catStyle.selectedBg + ' shadow-sm' : catStyle.bg + ' ' + catStyle.border + ' hover:shadow-sm'
+                            }`}
+                          >
+                            <p className="font-medium truncate">{svc.title}</p>
+                            <p className="text-muted-foreground mt-0.5">${svc.base_price.toLocaleString()}</p>
+                          </button>
+                        );
+                      })}
                     </div>
-                    {isSelected && (
-                      <Input
-                        type="number"
-                        min={1}
-                        value={selectedServices[svc.id]}
-                        onChange={e => updateQuantity(svc.id, parseInt(e.target.value) || 1)}
-                        className="h-7 w-16 text-center"
-                      />
-                    )}
                   </div>
                 );
               })}

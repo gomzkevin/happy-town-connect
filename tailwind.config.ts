@@ -44,6 +44,7 @@ export default {
 					'green-tag': 'hsl(var(--japitown-green-tag))',
 					'green': 'hsl(var(--japitown-green))',
 					'cream': 'hsl(var(--japitown-cream))',
+					'pink': 'hsl(var(--japitown-pink))',
 				},
 				destructive: {
 					DEFAULT: 'hsl(var(--destructive))',
