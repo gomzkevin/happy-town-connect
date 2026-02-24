@@ -17,6 +17,7 @@ const EventDetail = lazy(() => import("@/components/EventDetail"));
 const AuthPage = lazy(() => import("@/components/auth/AuthPage"));
 const AdminDashboard = lazy(() => import("@/components/admin/AdminDashboard"));
 const ProtectedRoute = lazy(() => import("@/components/admin/ProtectedRoute"));
+const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,7 @@ const App = () => (
                 <Routes>
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<AuthPage />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/admin" element={
                     <ProtectedRoute requireAdmin>
                       <AdminDashboard />
