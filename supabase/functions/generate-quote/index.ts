@@ -877,7 +877,7 @@ serve(async (req: Request) => {
     const output = url.searchParams.get("output") ?? (quoteId ? "storage" : "binary");
 
     if (output === "storage") {
-      const safeName = config.cliente.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s0-9]/g, "").trim();
+      const safeName = config.cliente.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "").trim().replace(/\s+/g, "-");
       const fileName = `cotizacion-${safeName}-${Date.now()}.pdf`;
 
       const { error: uploadError } = await supabase.storage
