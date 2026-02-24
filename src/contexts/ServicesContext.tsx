@@ -33,7 +33,7 @@ interface ServicesContextType {
 
 const ServicesContext = createContext<ServicesContextType | undefined>(undefined);
 
-export const useServices = () => {
+export const useServices = (): ServicesContextType => {
   const context = useContext(ServicesContext);
   if (!context) {
     throw new Error('useServices must be used within a ServicesProvider');
