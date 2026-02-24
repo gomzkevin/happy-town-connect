@@ -505,6 +505,8 @@ export type Database = {
           created_at: string
           customer_id: string | null
           customer_name: string
+          deposit_amount: number | null
+          deposit_paid: boolean | null
           email: string
           event_date: string | null
           expires_at: string | null
@@ -520,6 +522,7 @@ export type Database = {
           source: string | null
           status: string | null
           total_estimate: number | null
+          total_paid: number | null
           updated_at: string
           viewed_at: string | null
         }
@@ -531,6 +534,8 @@ export type Database = {
           created_at?: string
           customer_id?: string | null
           customer_name: string
+          deposit_amount?: number | null
+          deposit_paid?: boolean | null
           email: string
           event_date?: string | null
           expires_at?: string | null
@@ -546,6 +551,7 @@ export type Database = {
           source?: string | null
           status?: string | null
           total_estimate?: number | null
+          total_paid?: number | null
           updated_at?: string
           viewed_at?: string | null
         }
@@ -557,6 +563,8 @@ export type Database = {
           created_at?: string
           customer_id?: string | null
           customer_name?: string
+          deposit_amount?: number | null
+          deposit_paid?: boolean | null
           email?: string
           event_date?: string | null
           expires_at?: string | null
@@ -572,6 +580,7 @@ export type Database = {
           source?: string | null
           status?: string | null
           total_estimate?: number | null
+          total_paid?: number | null
           updated_at?: string
           viewed_at?: string | null
         }
