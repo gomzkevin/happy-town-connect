@@ -6,7 +6,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { PDFDocument, PDFPage, PDFFont, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
-import fontkit from "https://esm.sh/@pdf-lib/fontkit@1.1.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -404,35 +403,13 @@ function validate(req: QuoteRequest): string[] {
   return errors;
 }
 
-// ─── Font Loading ───────────────────────────────────────────────
-let fontBytesCache: { bold: Uint8Array; medium: Uint8Array; regular: Uint8Array; light: Uint8Array } | null = null;
+// ─── Font Loading (Helvetica only — custom fonts disabled to stay within CPU limits) ─
+let fontCache: FontSet | null = null;
 
 async function loadFonts(pdfDoc: InstanceType<typeof PDFDocument>): Promise<FontSet> {
-  try {
-    pdfDoc.registerFontkit(fontkit);
-    const storageUrl = Deno.env.get("SUPABASE_URL") + "/storage/v1/object/public/japitown-assets";
-    if (!fontBytesCache) {
-      const [bold, medium, regular, light] = await Promise.all([
-        fetchAsset(storageUrl, "fonts/Poppins-Bold.ttf"),
-        fetchAsset(storageUrl, "fonts/Poppins-Medium.ttf"),
-        fetchAsset(storageUrl, "fonts/Poppins-Regular.ttf"),
-        fetchAsset(storageUrl, "fonts/Poppins-Light.ttf"),
-      ]);
-      fontBytesCache = { bold, medium, regular, light };
-    }
-    return {
-      bold: await pdfDoc.embedFont(fontBytesCache.bold),
-      medium: await pdfDoc.embedFont(fontBytesCache.medium),
-      regular: await pdfDoc.embedFont(fontBytesCache.regular),
-      light: await pdfDoc.embedFont(fontBytesCache.light),
-    };
-  } catch (e) {
-    console.warn("Custom fonts unavailable, using Helvetica:", e);
-    // Don't register fontkit for standard fonts — saves CPU
-    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    return { bold: helveticaBold, medium: helveticaBold, regular: helvetica, light: helvetica };
-  }
+  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  return { bold: helveticaBold, medium: helveticaBold, regular: helvetica, light: helvetica };
 }
 
 async function fetchAsset(baseUrl: string, path: string): Promise<Uint8Array> {
