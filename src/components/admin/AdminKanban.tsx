@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import { Calendar, Mail, Phone, MapPin, DollarSign, TrendingUp, Clock, GripVertical, ChevronRight, XCircle, Plus, Trash2, FileText, Download, Loader2, AlertTriangle } from 'lucide-react';
+import { Calendar, Mail, Phone, MapPin, DollarSign, TrendingUp, Clock, GripVertical, ChevronRight, XCircle, Plus, Trash2, FileText, Download, Loader2, AlertTriangle, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, differenceInDays, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -44,6 +44,7 @@ interface Quote {
 
 interface QuoteService {
   id: string;
+  service_id: string;
   service_name: string;
   service_price: number;
   quantity: number;
@@ -677,9 +678,26 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   const [adding, setAdding] = useState(false);
   const [dateConflicts, setDateConflicts] = useState<{ customer_name: string; status: string }[]>([]);
 
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [availableServices, setAvailableServices] = useState<ServiceOption[]>([]);
+  const [editForm, setEditForm] = useState({
+    customer_name: '',
+    child_name: '',
+    email: '',
+    phone: '',
+    location: '',
+    event_date: '',
+    children_count: '',
+    age_range: '',
+    notes: '',
+  });
+  const [editSelectedServices, setEditSelectedServices] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     if (!quote) return;
-    supabase.from('quote_services').select('id, service_name, service_price, quantity').eq('quote_id', quote.id).then(({ data }) => setServices(data || []));
+    supabase.from('quote_services').select('id, service_name, service_price, quantity, service_id').eq('quote_id', quote.id).then(({ data }) => setServices(data || []));
   }, [quote]);
 
   // Check date conflicts for this quote
@@ -693,6 +711,129 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
       .in('status', ['pending', 'contacted', 'confirmed'])
       .then(({ data }) => setDateConflicts(data || []));
   }, [quote?.id, quote?.event_date]);
+
+  // Load available services when entering edit mode
+  useEffect(() => {
+    if (!isEditing) return;
+    supabase.from('services').select('id, title, price, base_price, is_active, category').eq('is_active', true).order('category').then(({ data }) => {
+      setAvailableServices((data || []) as ServiceOption[]);
+    });
+  }, [isEditing]);
+
+  const enterEditMode = () => {
+    if (!quote) return;
+    setEditForm({
+      customer_name: quote.customer_name || '',
+      child_name: quote.child_name || '',
+      email: quote.email || '',
+      phone: quote.phone || '',
+      location: quote.location || '',
+      event_date: quote.event_date || '',
+      children_count: quote.children_count ? String(quote.children_count) : '',
+      age_range: quote.age_range || '',
+      notes: quote.notes || '',
+    });
+    // Pre-select current services by service_id
+    const currentIds = new Set(services.map((s: any) => s.service_id).filter(Boolean));
+    setEditSelectedServices(currentIds);
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+  };
+
+  const toggleEditService = (id: string) => {
+    setEditSelectedServices(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const editTotalEstimate = Array.from(editSelectedServices).reduce((total, id) => {
+    const svc = availableServices.find(s => s.id === id);
+    return total + (svc?.base_price || 0);
+  }, 0);
+
+  const editServicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
+    const cat = svc.category || 'Otros';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(svc);
+    return acc;
+  }, {});
+
+  const CATEGORY_STYLES: Record<string, { bg: string; border: string; selectedBg: string; label: string }> = {
+    'Talleres Creativos': { bg: 'bg-japitown-green-tag/5', border: 'border-japitown-green-tag/30', selectedBg: 'bg-japitown-green-tag/20 border-japitown-green-tag/60', label: '🎨 Talleres Creativos' },
+    'Estaciones de Juego': { bg: 'bg-japitown-blue/5', border: 'border-japitown-blue/30', selectedBg: 'bg-japitown-blue/20 border-japitown-blue/60', label: '🎮 Estaciones de Juego' },
+  };
+
+  const handleSaveEdit = async () => {
+    if (!quote) return;
+    if (!editForm.customer_name.trim() || !editForm.email.trim()) {
+      toast({ title: 'Campos requeridos', description: 'Nombre y email son obligatorios.', variant: 'destructive' });
+      return;
+    }
+    if (editForm.children_count && parseInt(editForm.children_count) < 1) {
+      toast({ title: 'Campo inválido', description: 'El número de niños debe ser al menos 1.', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const updates = {
+        customer_name: editForm.customer_name.trim(),
+        email: editForm.email.trim(),
+        phone: editForm.phone.trim() || null,
+        location: editForm.location.trim() || null,
+        event_date: editForm.event_date || null,
+        child_name: editForm.child_name.trim() || null,
+        children_count: editForm.children_count ? parseInt(editForm.children_count) : null,
+        age_range: editForm.age_range.trim() || null,
+        notes: editForm.notes.trim() || null,
+        total_estimate: editTotalEstimate,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: updateError } = await supabase.from('quotes').update(updates).eq('id', quote.id);
+      if (updateError) throw updateError;
+
+      // Replace quote_services: delete existing, insert new
+      const { error: deleteError } = await supabase.from('quote_services').delete().eq('quote_id', quote.id);
+      if (deleteError) throw deleteError;
+
+      const serviceIds = Array.from(editSelectedServices);
+      if (serviceIds.length > 0) {
+        const quoteServices = serviceIds.map(serviceId => {
+          const svc = availableServices.find(s => s.id === serviceId)!;
+          return {
+            quote_id: quote.id,
+            service_id: serviceId,
+            service_name: svc.title,
+            service_price: svc.base_price,
+            quantity: 1,
+          };
+        });
+        const { error: insertError } = await supabase.from('quote_services').insert(quoteServices);
+        if (insertError) throw insertError;
+      }
+
+      // Sync local state
+      onQuoteUpdate?.(quote.id, updates);
+
+      // Refresh services list
+      const { data: freshServices } = await supabase.from('quote_services').select('id, service_name, service_price, quantity, service_id').eq('quote_id', quote.id);
+      setServices(freshServices || []);
+
+      setIsEditing(false);
+      toast({ title: 'Cotización actualizada', description: 'Los cambios se guardaron correctamente.' });
+    } catch (err) {
+      console.error('Error saving edit:', err);
+      toast({ title: 'Error', description: 'No se pudieron guardar los cambios.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (!quote) return null;
 
@@ -722,10 +863,17 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   const sourceInfo = SOURCE_LABELS[quote.source || ''] || { label: quote.source || 'Web', className: '' };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) { setIsEditing(false); onClose(); } }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">Detalle de Cotización</DialogTitle>
+          <div className="flex items-center justify-between pr-6">
+            <DialogTitle className="font-display">Detalle de Cotización</DialogTitle>
+            {!isEditing && (
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={enterEditMode} title="Editar cotización">
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
           <DialogDescription asChild>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={`${stageInfo.bgColor} ${stageInfo.borderColor}`}>{stageInfo.label}</Badge>
@@ -736,200 +884,327 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label className="text-xs text-muted-foreground">Cliente</Label><p className="font-medium text-sm">{quote.customer_name}</p></div>
-            <div><Label className="text-xs text-muted-foreground">Festejado</Label><p className="font-medium text-sm">{quote.child_name || '-'}</p></div>
-          </div>
-
-          <div className="space-y-1.5 text-sm">
-            <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /><a href={`mailto:${quote.email}`} className="text-secondary hover:underline">{quote.email}</a></div>
-            {quote.phone && <div className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" /><a href={`tel:${quote.phone}`} className="hover:underline">{quote.phone}</a></div>}
-            {quote.location && <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" /><span>{quote.location}</span></div>}
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            <div className="p-2.5 rounded-lg bg-accent/50 text-center">
-              <p className="text-[10px] text-muted-foreground">Fecha</p>
-              <p className="font-medium text-sm">{quote.event_date ? format(new Date(quote.event_date), 'dd MMM', { locale: es }) : '-'}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-accent/50 text-center">
-              <p className="text-[10px] text-muted-foreground">Niños</p>
-              <p className="font-medium text-sm">{quote.children_count || '-'}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-accent/50 text-center">
-              <p className="text-[10px] text-muted-foreground">Edades</p>
-              <p className="font-medium text-sm">{quote.age_range || '-'}</p>
-            </div>
-          </div>
-
-          {dateConflicts.length > 0 && (
-            <div className="flex items-start gap-2 rounded-lg border-2 border-japitown-orange/40 bg-japitown-orange/10 p-2.5">
-              <AlertTriangle className="h-4 w-4 text-japitown-orange shrink-0 mt-0.5" />
-              <div className="text-xs">
-                <p className="font-bold text-foreground">
-                  {dateConflicts.length} {dateConflicts.length === 1 ? 'evento' : 'eventos'} más en esta fecha
-                </p>
-                <ul className="mt-1 space-y-0.5 text-muted-foreground">
-                  {dateConflicts.map((c, i) => (
-                    <li key={i}>• {c.customer_name} <span className="text-[10px]">({c.status})</span></li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {services.length > 0 && (
-            <div>
-              <Label className="text-xs text-muted-foreground">Servicios</Label>
-              <div className="mt-1 space-y-1">
-                {services.map(s => (
-                  <div key={s.id} className="flex justify-between text-sm bg-accent/30 rounded-md px-3 py-1.5">
-                    <span>{s.service_name} {s.quantity > 1 ? `×${s.quantity}` : ''}</span>
-                    <span className="font-medium">${(s.service_price * s.quantity).toLocaleString()}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between text-sm font-bold px-3 pt-1">
-                  <span>Total estimado</span>
-                  <span>${totalEstimate.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {quote.notes && (
-            <div>
-              <Label className="text-xs text-muted-foreground">Notas</Label>
-              <p className="text-sm mt-1 bg-accent/30 rounded-md px-3 py-2">{quote.notes}</p>
-            </div>
-          )}
-
-          {quote.preferences && quote.preferences.length > 0 && (
-            <div>
-              <Label className="text-xs text-muted-foreground">Preferencias</Label>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {quote.preferences.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>)}
-              </div>
-            </div>
-          )}
-
-          {/* PDF Section */}
-          <Separator />
-          <PdfSection
-            quote={quote}
-            onPdfGenerated={(url) => onQuoteUpdate?.(quote.id, { pdf_url: url })}
-          />
-
-          {/* Payment section - visible from Contactado onwards */}
-          {effectiveStage !== 'pending' && (
+          {/* Client & event info - read or edit mode */}
+          {isEditing ? (
             <>
-              <Separator />
+              {/* Editable client data */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-sm font-bold font-display">Pagos</Label>
-                  <Badge variant="outline" className={`text-xs ${paymentPct >= 100 ? 'border-japitown-green-tag/40 text-japitown-green-tag' : ''}`}>
-                    {paymentPct}%
-                  </Badge>
-                </div>
-
-                <Progress value={paymentPct} className="h-2.5 mb-3" />
-
-                <div className="flex justify-between items-center bg-accent/50 rounded-lg p-3 mb-3">
-                  <div className="text-center flex-1">
-                    <p className="text-[10px] text-muted-foreground">Pagado</p>
-                    <p className="font-bold text-sm text-japitown-green-tag">${totalPaid.toLocaleString()}</p>
+                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Datos del cliente</Label>
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  <div className="col-span-2 sm:col-span-1">
+                    <Label className="text-xs">Nombre *</Label>
+                    <Input value={editForm.customer_name} onChange={e => setEditForm(f => ({ ...f, customer_name: e.target.value }))} className="h-9" />
                   </div>
-                  <Separator orientation="vertical" className="h-8 mx-2" />
-                  <div className="text-center flex-1">
-                    <p className="text-[10px] text-muted-foreground">Pendiente</p>
-                    <p className={`font-bold text-sm ${pendingBalance > 0 ? 'text-japitown-orange' : 'text-japitown-green-tag'}`}>
-                      ${Math.max(0, pendingBalance).toLocaleString()}
-                    </p>
+                  <div className="col-span-2 sm:col-span-1">
+                    <Label className="text-xs">Email *</Label>
+                    <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} className="h-9" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Teléfono</Label>
+                    <Input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} className="h-9" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Ubicación</Label>
+                    <Input value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} className="h-9" />
                   </div>
                 </div>
+              </div>
 
-                {payments.length > 0 && (
-                  <div className="space-y-1 mb-3 max-h-32 overflow-y-auto">
-                    {payments.map(p => (
-                      <div key={p.id} className="flex items-center justify-between text-xs bg-accent/30 rounded-md px-3 py-2 group/pay">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">${p.amount.toLocaleString()}</span>
-                            <Badge variant="outline" className="text-[9px] capitalize">{p.payment_method}</Badge>
-                          </div>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <span>{format(new Date(p.created_at), 'dd MMM yyyy', { locale: es })}</span>
-                            {p.notes && <span className="truncate">· {p.notes}</span>}
-                          </div>
+              <Separator />
+
+              {/* Editable event data */}
+              <div>
+                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Datos del evento</Label>
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  <div>
+                    <Label className="text-xs">Fecha del evento</Label>
+                    <Input type="date" value={editForm.event_date} onChange={e => setEditForm(f => ({ ...f, event_date: e.target.value }))} className="h-9" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Festejado(a)</Label>
+                    <Input value={editForm.child_name} onChange={e => setEditForm(f => ({ ...f, child_name: e.target.value }))} className="h-9" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Número de niños</Label>
+                    <Input type="number" min={1} value={editForm.children_count} onChange={e => setEditForm(f => ({ ...f, children_count: e.target.value }))} className="h-9" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Rango de edad</Label>
+                    <Input value={editForm.age_range} onChange={e => setEditForm(f => ({ ...f, age_range: e.target.value }))} className="h-9" />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Editable services selector */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Servicios</Label>
+                  {editSelectedServices.size > 0 && (
+                    <span className="text-xs text-muted-foreground">{editSelectedServices.size} seleccionados</span>
+                  )}
+                </div>
+                <div className="mt-2 space-y-3 max-h-56 overflow-y-auto border rounded-lg p-3">
+                  {Object.entries(editServicesByCategory).map(([category, svcs]) => {
+                    const catStyle = CATEGORY_STYLES[category] || { bg: 'bg-accent/30', border: 'border-border/40', selectedBg: 'bg-accent border-primary/40', label: category };
+                    return (
+                      <div key={category}>
+                        <p className="text-xs font-bold text-muted-foreground mb-1.5">{catStyle.label}</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {svcs.map(svc => {
+                            const isSelected = editSelectedServices.has(svc.id);
+                            return (
+                              <button
+                                key={svc.id}
+                                type="button"
+                                onClick={() => toggleEditService(svc.id)}
+                                className={`text-left rounded-lg border-2 p-2 transition-all text-xs ${
+                                  isSelected ? catStyle.selectedBg + ' shadow-sm' : catStyle.bg + ' ' + catStyle.border + ' hover:shadow-sm'
+                                }`}
+                              >
+                                <p className="font-medium truncate">{svc.title}</p>
+                                <p className="text-muted-foreground mt-0.5">${svc.base_price.toLocaleString()}</p>
+                              </button>
+                            );
+                          })}
                         </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-6 w-6 opacity-0 group-hover/pay:opacity-100 text-destructive"
-                          onClick={async () => { const ok = await deletePayment(p.id); if (ok) onPaymentChange?.(); }}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
                       </div>
-                    ))}
+                    );
+                  })}
+                  {availableServices.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-2">Cargando servicios...</p>
+                  )}
+                </div>
+                {editTotalEstimate > 0 && (
+                  <div className="flex justify-between items-center mt-2 px-1">
+                    <span className="text-sm font-medium">Total estimado:</span>
+                    <span className="text-sm font-bold">${editTotalEstimate.toLocaleString()} MXN</span>
                   </div>
                 )}
+              </div>
 
-                <div className="space-y-2 border rounded-lg p-3 bg-background">
-                  <Label className="text-xs text-muted-foreground">Registrar pago</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      placeholder="Monto"
-                      value={newAmount}
-                      onChange={(e) => setNewAmount(e.target.value)}
-                      className="h-8 flex-1"
-                      min={1}
-                    />
-                    <Select value={newMethod} onValueChange={setNewMethod}>
-                      <SelectTrigger className="h-8 w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PAYMENT_METHODS.map(m => (
-                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Input
-                    placeholder="Notas (opcional)"
-                    value={newNotes}
-                    onChange={(e) => setNewNotes(e.target.value)}
-                    className="h-8"
-                  />
-                  <Button size="sm" className="w-full gap-1" onClick={handleAddPayment} disabled={adding || !newAmount}>
-                    <Plus className="h-3 w-3" /> Registrar pago
-                  </Button>
-                </div>
+              <Separator />
+
+              {/* Editable notes */}
+              <div>
+                <Label className="text-xs">Notas</Label>
+                <Textarea
+                  value={editForm.notes}
+                  onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                  placeholder="Observaciones adicionales..."
+                  className="min-h-[60px]"
+                />
+              </div>
+
+              {/* Edit action buttons */}
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={cancelEdit} disabled={saving}>Cancelar</Button>
+                <Button onClick={handleSaveEdit} disabled={saving} className="gap-1">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {saving ? 'Guardando...' : 'Guardar cambios'}
+                </Button>
               </div>
             </>
-          )}
-
-          <Separator />
-
-          {allowedNext.length > 0 && (
-            <div>
-              <Label className="text-xs text-muted-foreground mb-2 block">Avanzar etapa</Label>
-              <div className="flex gap-2 flex-wrap">
-                {allowedNext.map(nextKey => (
-                  <Button
-                    key={nextKey}
-                    size="sm"
-                    variant={nextKey === 'cancelled' ? 'destructive' : 'default'}
-                    className="text-xs gap-1"
-                    onClick={() => onStatusChange(quote.id, nextKey)}
-                  >
-                    {nextKey === 'cancelled' ? <XCircle className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                    {STAGE_MAP[nextKey].label}
-                  </Button>
-                ))}
+          ) : (
+            <>
+              {/* Read-only mode (original view) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="text-xs text-muted-foreground">Cliente</Label><p className="font-medium text-sm">{quote.customer_name}</p></div>
+                <div><Label className="text-xs text-muted-foreground">Festejado</Label><p className="font-medium text-sm">{quote.child_name || '-'}</p></div>
               </div>
-            </div>
+
+              <div className="space-y-1.5 text-sm">
+                <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /><a href={`mailto:${quote.email}`} className="text-secondary hover:underline">{quote.email}</a></div>
+                {quote.phone && <div className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" /><a href={`tel:${quote.phone}`} className="hover:underline">{quote.phone}</a></div>}
+                {quote.location && <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" /><span>{quote.location}</span></div>}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-2.5 rounded-lg bg-accent/50 text-center">
+                  <p className="text-[10px] text-muted-foreground">Fecha</p>
+                  <p className="font-medium text-sm">{quote.event_date ? format(new Date(quote.event_date), 'dd MMM', { locale: es }) : '-'}</p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-accent/50 text-center">
+                  <p className="text-[10px] text-muted-foreground">Niños</p>
+                  <p className="font-medium text-sm">{quote.children_count || '-'}</p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-accent/50 text-center">
+                  <p className="text-[10px] text-muted-foreground">Edades</p>
+                  <p className="font-medium text-sm">{quote.age_range || '-'}</p>
+                </div>
+              </div>
+
+              {dateConflicts.length > 0 && (
+                <div className="flex items-start gap-2 rounded-lg border-2 border-japitown-orange/40 bg-japitown-orange/10 p-2.5">
+                  <AlertTriangle className="h-4 w-4 text-japitown-orange shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-bold text-foreground">
+                      {dateConflicts.length} {dateConflicts.length === 1 ? 'evento' : 'eventos'} más en esta fecha
+                    </p>
+                    <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                      {dateConflicts.map((c, i) => (
+                        <li key={i}>• {c.customer_name} <span className="text-[10px]">({c.status})</span></li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {services.length > 0 && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Servicios</Label>
+                  <div className="mt-1 space-y-1">
+                    {services.map(s => (
+                      <div key={s.id} className="flex justify-between text-sm bg-accent/30 rounded-md px-3 py-1.5">
+                        <span>{s.service_name} {s.quantity > 1 ? `×${s.quantity}` : ''}</span>
+                        <span className="font-medium">${(s.service_price * s.quantity).toLocaleString()}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-sm font-bold px-3 pt-1">
+                      <span>Total estimado</span>
+                      <span>${totalEstimate.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {quote.notes && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Notas</Label>
+                  <p className="text-sm mt-1 bg-accent/30 rounded-md px-3 py-2">{quote.notes}</p>
+                </div>
+              )}
+
+              {quote.preferences && quote.preferences.length > 0 && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Preferencias</Label>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {quote.preferences.map(p => <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>)}
+                  </div>
+                </div>
+              )}
+
+              {/* PDF Section */}
+              <Separator />
+              <PdfSection
+                quote={quote}
+                onPdfGenerated={(url) => onQuoteUpdate?.(quote.id, { pdf_url: url })}
+              />
+
+              {/* Payment section - visible from Contactado onwards */}
+              {effectiveStage !== 'pending' && (
+                <>
+                  <Separator />
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-sm font-bold font-display">Pagos</Label>
+                      <Badge variant="outline" className={`text-xs ${paymentPct >= 100 ? 'border-japitown-green-tag/40 text-japitown-green-tag' : ''}`}>
+                        {paymentPct}%
+                      </Badge>
+                    </div>
+
+                    <Progress value={paymentPct} className="h-2.5 mb-3" />
+
+                    <div className="flex justify-between items-center bg-accent/50 rounded-lg p-3 mb-3">
+                      <div className="text-center flex-1">
+                        <p className="text-[10px] text-muted-foreground">Pagado</p>
+                        <p className="font-bold text-sm text-japitown-green-tag">${totalPaid.toLocaleString()}</p>
+                      </div>
+                      <Separator orientation="vertical" className="h-8 mx-2" />
+                      <div className="text-center flex-1">
+                        <p className="text-[10px] text-muted-foreground">Pendiente</p>
+                        <p className={`font-bold text-sm ${pendingBalance > 0 ? 'text-japitown-orange' : 'text-japitown-green-tag'}`}>
+                          ${Math.max(0, pendingBalance).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    {payments.length > 0 && (
+                      <div className="space-y-1 mb-3 max-h-32 overflow-y-auto">
+                        {payments.map(p => (
+                          <div key={p.id} className="flex items-center justify-between text-xs bg-accent/30 rounded-md px-3 py-2 group/pay">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">${p.amount.toLocaleString()}</span>
+                                <Badge variant="outline" className="text-[9px] capitalize">{p.payment_method}</Badge>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <span>{format(new Date(p.created_at), 'dd MMM yyyy', { locale: es })}</span>
+                                {p.notes && <span className="truncate">· {p.notes}</span>}
+                              </div>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 opacity-0 group-hover/pay:opacity-100 text-destructive"
+                              onClick={async () => { const ok = await deletePayment(p.id); if (ok) onPaymentChange?.(); }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="space-y-2 border rounded-lg p-3 bg-background">
+                      <Label className="text-xs text-muted-foreground">Registrar pago</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          placeholder="Monto"
+                          value={newAmount}
+                          onChange={(e) => setNewAmount(e.target.value)}
+                          className="h-8 flex-1"
+                          min={1}
+                        />
+                        <Select value={newMethod} onValueChange={setNewMethod}>
+                          <SelectTrigger className="h-8 w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PAYMENT_METHODS.map(m => (
+                              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Input
+                        placeholder="Notas (opcional)"
+                        value={newNotes}
+                        onChange={(e) => setNewNotes(e.target.value)}
+                        className="h-8"
+                      />
+                      <Button size="sm" className="w-full gap-1" onClick={handleAddPayment} disabled={adding || !newAmount}>
+                        <Plus className="h-3 w-3" /> Registrar pago
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <Separator />
+
+              {allowedNext.length > 0 && (
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-2 block">Avanzar etapa</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {allowedNext.map(nextKey => (
+                      <Button
+                        key={nextKey}
+                        size="sm"
+                        variant={nextKey === 'cancelled' ? 'destructive' : 'default'}
+                        className="text-xs gap-1"
+                        onClick={() => onStatusChange(quote.id, nextKey)}
+                      >
+                        {nextKey === 'cancelled' ? <XCircle className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                        {STAGE_MAP[nextKey].label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </DialogContent>
