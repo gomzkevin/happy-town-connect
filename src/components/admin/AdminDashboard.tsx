@@ -20,6 +20,7 @@ import { lazy, Suspense } from 'react';
 
 const AdminKanban = lazy(() => import('./AdminKanban'));
 const AdminCalendar = lazy(() => import('./AdminCalendar'));
+const AssetUploader = lazy(() => import('./AssetUploader'));
 
 const AdminDashboard = () => {
   const { user, signOut, isAdmin } = useAuth();
@@ -203,6 +204,7 @@ const AdminDashboard = () => {
             <TabsTrigger value="settings">Config</TabsTrigger>
             <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
             <TabsTrigger value="history">Historial</TabsTrigger>
+            <TabsTrigger value="assets" className="gap-1"><Upload className="h-3.5 w-3.5" />Assets</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pipeline">
@@ -341,6 +343,12 @@ const AdminDashboard = () => {
           
           <TabsContent value="history" className="space-y-6">
             <QuoteHistoryView />
+          </TabsContent>
+
+          <TabsContent value="assets" className="space-y-6">
+            <Suspense fallback={<div className="text-center py-8 text-muted-foreground">Cargando...</div>}>
+              <AssetUploader />
+            </Suspense>
           </TabsContent>
         </Tabs>
         

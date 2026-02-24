@@ -118,6 +118,28 @@ const ESTACION_IDS = ["guarderia", "construccion", "hamburgueseria", "supermerca
 const FIJO_IDS = ["spa", "pesca", "area_bebes", "inflable_bebes"];
 const TALLER_IDS = ["caballetes", "yesitos", "haz-pulsera", "foamy", "diamante"];
 
+// ─── Icon Map (service key → storage path) ──────────────────────
+const ICON_MAP: Record<string, string> = {
+  guarderia: "icons/Iconos-12.png",
+  construccion: "icons/Iconos-04.png",
+  hamburgueseria: "icons/Iconos-03.png",
+  supermercado: "icons/Iconos-05.png",
+  veterinaria: "icons/Iconos-07.png",
+  cafeteria: "icons/Iconos-06.png",
+  correo: "icons/Iconos-08.png",
+  peluqueria: "icons/Iconos-09.png",
+  "decora-cupcake": "icons/Iconos-10.png",
+  spa: "icons/Iconos-02.png",
+  pesca: "icons/Iconos-01.png",
+  area_bebes: "icons/Iconos-11.png",
+  inflable_bebes: "icons/Iconos-11.png",
+  caballetes: "icons/Iconos-16.png",
+  yesitos: "icons/Iconos-16.png",
+  "haz-pulsera": "icons/Iconos-16.png",
+  foamy: "icons/Iconos-16.png",
+  diamante: "icons/Iconos-16.png",
+};
+
 // ─── Catalog (visual presentation data) ─────────────────────────
 const CATALOGO_ESTACIONES: Record<string, { nombre: string; color: string; subtitulo: string; items: string[] }> = {
   guarderia: { nombre: "Guardería", color: "blue", subtitulo: "Cuidado y juego para los más pequeños", items: ["Cunas y cambiadores", "Juguetes sensoriales", "Zona de juego segura", "Staff dedicado"] },
@@ -418,6 +440,50 @@ async function fetchAsset(baseUrl: string, path: string): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer());
 }
 
+// ─── Icon Loading ───────────────────────────────────────────────
+type EmbeddedIconCache = Map<string, any>; // PDFImage
+
+async function loadIcons(
+  pdfDoc: InstanceType<typeof PDFDocument>,
+  serviceKeys: string[]
+): Promise<EmbeddedIconCache> {
+  const cache: EmbeddedIconCache = new Map();
+  const storageUrl = Deno.env.get("SUPABASE_URL") + "/storage/v1/object/public/japitown-assets";
+
+  // Collect unique icon paths
+  const pathsToLoad = new Map<string, string>(); // path → key (for dedup)
+  for (const key of serviceKeys) {
+    const iconPath = ICON_MAP[key];
+    if (iconPath && !pathsToLoad.has(iconPath)) {
+      pathsToLoad.set(iconPath, key);
+    }
+  }
+
+  // Load all icons in parallel
+  const entries = Array.from(pathsToLoad.entries());
+  const results = await Promise.allSettled(
+    entries.map(async ([path]) => {
+      const bytes = await fetchAsset(storageUrl, path);
+      return { path, image: await pdfDoc.embedPng(bytes) };
+    })
+  );
+
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      cache.set(result.value.path, result.value.image);
+    } else {
+      console.warn("Failed to load icon:", result.reason);
+    }
+  }
+
+  return cache;
+}
+
+function getIcon(cache: EmbeddedIconCache, serviceKey: string): any | null {
+  const path = ICON_MAP[serviceKey];
+  return path ? cache.get(path) ?? null : null;
+}
+
 // ─── Rounded Rectangle Helper ───────────────────────────────────
 function drawRoundedRect(
   page: PDFPage,
@@ -517,7 +583,7 @@ function drawEventCallout(page: PDFPage, fonts: FontSet, y: number, config: Quot
   return y - callH;
 }
 
-function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estaciones: string[], precio: number): number {
+function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estaciones: string[], precio: number, icons: EmbeddedIconCache): number {
   const headerH = 34;
   const listH = estaciones.length * 14;
   const totalH = headerH + 12 + listH + 10;
@@ -536,15 +602,24 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
   for (const key of estaciones) {
     const nombre = CATALOGO_ESTACIONES[key]?.nombre || key;
     const color = COLOR_MAP[CATALOGO_ESTACIONES[key]?.color || "blue"] || C.blue;
-    page.drawCircle({ x: ML + 20, y: cy + 3, size: 3, color });
-    page.drawText(nombre, { x: ML + 30, y: cy, font: fonts.regular, size: 8, color: C.dark });
+    
+    // Draw icon if available
+    const icon = getIcon(icons, key);
+    if (icon) {
+      const iconSize = 14;
+      page.drawImage(icon, { x: ML + 14, y: cy - 2, width: iconSize, height: iconSize });
+      page.drawText(nombre, { x: ML + 14 + iconSize + 4, y: cy, font: fonts.regular, size: 8, color: C.dark });
+    } else {
+      page.drawCircle({ x: ML + 20, y: cy + 3, size: 3, color });
+      page.drawText(nombre, { x: ML + 30, y: cy, font: fonts.regular, size: 8, color: C.dark });
+    }
     cy -= 14;
   }
 
   return y - totalH;
 }
 
-function drawCard(page: PDFPage, fonts: FontSet, x: number, y: number, data: CardData, sizes: CardSizes): number {
+function drawCard(page: PDFPage, fonts: FontSet, x: number, y: number, data: CardData, sizes: CardSizes, icons: EmbeddedIconCache): number {
   const itemCount = Math.min(data.items.length, 4);
   // Price is now inside band, so card body only has subtitle + incluye + items
   const totalH = sizes.bandH + 8 + 14 + (itemCount * sizes.itemSpacing) + 10;
@@ -556,10 +631,20 @@ function drawCard(page: PDFPage, fonts: FontSet, x: number, y: number, data: Car
   // Colored top band with rounded top corners
   drawRoundedRectTop(page, x, y - sizes.bandH, sizes.width, sizes.bandH, r, bandColor);
 
-  // Title (left) and Price (right) both vertically centered in band
+  // Icon in band (left side)
+  const icon = getIcon(icons, data.key);
+  const iconOffset = icon ? 24 : 0;
+  if (icon) {
+    const iconSize = 22;
+    const bandBottom = y - sizes.bandH;
+    const iconY = bandBottom + (sizes.bandH - iconSize) / 2;
+    page.drawImage(icon, { x: x + sizes.padX, y: iconY, width: iconSize, height: iconSize });
+  }
+
+  // Title (left, after icon) and Price (right) both vertically centered in band
   const bandBottom = y - sizes.bandH;
   const titleCenterY = bandBottom + sizes.bandH / 2 - sizes.titleSz / 2;
-  page.drawText(data.nombre, { x: x + sizes.padX, y: titleCenterY, font: fonts.bold, size: sizes.titleSz, color: C.white });
+  page.drawText(data.nombre, { x: x + sizes.padX + iconOffset, y: titleCenterY, font: fonts.bold, size: sizes.titleSz, color: C.white });
 
   const priceStr = formatPrice(data.precio);
   const priceW = fonts.bold.widthOfTextAtSize(priceStr, sizes.priceSz);
@@ -585,7 +670,7 @@ function drawCard(page: PDFPage, fonts: FontSet, x: number, y: number, data: Car
   return totalH;
 }
 
-function drawCardRow(page: PDFPage, fonts: FontSet, y: number, cards: CardData[]): number {
+function drawCardRow(page: PDFPage, fonts: FontSet, y: number, cards: CardData[], icons: EmbeddedIconCache): number {
   const n = cards.length as 1 | 2 | 3;
   const sizes = CARD_SIZES[n] || CARD_SIZES[3];
   let maxH = 0;
@@ -597,7 +682,7 @@ function drawCardRow(page: PDFPage, fonts: FontSet, y: number, cards: CardData[]
     } else {
       x = ML + i * (sizes.width + sizes.gap);
     }
-    const h = drawCard(page, fonts, x, y, cards[i], sizes);
+    const h = drawCard(page, fonts, x, y, cards[i], sizes, icons);
     if (h > maxH) maxH = h;
   }
 
@@ -700,6 +785,15 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
 
   const pdfDoc = await PDFDocument.create();
   const fonts = await loadFonts(pdfDoc);
+
+  // Load icons from storage
+  const allServiceKeys = [
+    ...(resolved.estaciones || []),
+    ...(resolved.fijos || []),
+    ...(resolved.talleres || []),
+  ];
+  const icons = await loadIcons(pdfDoc, allServiceKeys);
+
   const page = pdfDoc.addPage([W, H]);
 
   // Background
@@ -749,9 +843,9 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   // Dynamic content blocks
   for (const bloque of bloques) {
     if (bloque.tipo === "estacion_resumen") {
-      y = drawEstacionResumen(page, fonts, y, bloque.estaciones, bloque.precio);
+      y = drawEstacionResumen(page, fonts, y, bloque.estaciones, bloque.precio, icons);
     } else if (bloque.tipo === "fila_cards") {
-      y = drawCardRow(page, fonts, y, bloque.cards);
+      y = drawCardRow(page, fonts, y, bloque.cards, icons);
     }
     y -= 12 + gapExtra;
   }
