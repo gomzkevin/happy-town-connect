@@ -1,18 +1,43 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, PartyPopper, Users, Calendar, MapPin, Heart, Star, Gift, Crown, Palette, Sparkles, Music, Camera, Utensils, Gamepad2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, X, Gamepad2, Palette, Heart, Utensils, Crown, Sparkles, Star, PartyPopper } from "lucide-react";
 import { useServices } from "@/hooks/useServices";
 import { useQuotes } from "@/hooks/useQuotes";
 import { Service, useServices as useServicesContext } from "@/contexts/ServicesContext";
-import * as LucideIcons from "lucide-react";
 import raminegrito from "@/assets/raminegrito.png";
+
+import icono01 from "@/assets/Iconos-01.png";
+import icono02 from "@/assets/Iconos-02.png";
+import icono03 from "@/assets/Iconos-03.png";
+import icono04 from "@/assets/Iconos-04.png";
+import icono05 from "@/assets/Iconos-05.png";
+import icono06 from "@/assets/Iconos-06.png";
+import icono07 from "@/assets/Iconos-07.png";
+import icono08 from "@/assets/Iconos-08.png";
+import icono09 from "@/assets/Iconos-09.png";
+import icono10 from "@/assets/Iconos-10.png";
+import icono11 from "@/assets/Iconos-11.png";
+import icono12 from "@/assets/Iconos-12.png";
+
+const serviceIconMap: Record<string, string> = {
+  pesca: icono01,
+  caballetes: icono02,
+  hamburgueseria: icono03,
+  boliche: icono04,
+  supermercado: icono05,
+  spa: icono06,
+  veterinaria: icono07,
+  "decora-cupcake": icono08,
+  "haz-pulsera": icono09,
+  yesitos: icono10,
+  construccion: icono11,
+  guarderia: icono12,
+};
 
 interface OnboardingData {
   childName: string;
@@ -28,15 +53,17 @@ interface OnboardingData {
 }
 
 const preferenceOptions = [
-  { id: "active", label: "Juegos Activos", icon: Gamepad2, color: "bg-red-100 text-red-800" },
-  { id: "creative", label: "Talleres Creativos", icon: Palette, color: "bg-blue-100 text-blue-800" },
-  { id: "relaxed", label: "Actividades Tranquilas", icon: Heart, color: "bg-green-100 text-green-800" },
-  { id: "food", label: "Experiencias Gastronómicas", icon: Utensils, color: "bg-yellow-100 text-yellow-800" },
-  { id: "roleplay", label: "Juegos de Rol", icon: Crown, color: "bg-purple-100 text-purple-800" },
-  { id: "spa", label: "Experiencias de Spa", icon: Sparkles, color: "bg-pink-100 text-pink-800" },
-  { id: "educational", label: "Educativo y Divertido", icon: Star, color: "bg-indigo-100 text-indigo-800" },
-  { id: "party", label: "Ambiente de Fiesta", icon: PartyPopper, color: "bg-orange-100 text-orange-800" },
+  { id: "active", label: "Juegos Activos", icon: Gamepad2 },
+  { id: "creative", label: "Talleres Creativos", icon: Palette },
+  { id: "relaxed", label: "Actividades Tranquilas", icon: Heart },
+  { id: "food", label: "Gastronomía", icon: Utensils },
+  { id: "roleplay", label: "Juegos de Rol", icon: Crown },
+  { id: "spa", label: "Spa", icon: Sparkles },
+  { id: "educational", label: "Educativo", icon: Star },
+  { id: "party", label: "Fiesta", icon: PartyPopper },
 ];
+
+const TOTAL_STEPS = 5;
 
 interface RamiOnboardingProps {
   isOpen: boolean;
@@ -65,7 +92,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
   const [recommendations, setRecommendations] = useState<Service[]>([]);
 
   const handleNext = () => {
-    if (currentStep < 5) {
+    if (currentStep < TOTAL_STEPS) {
       setCurrentStep(currentStep + 1);
       if (currentStep === 2) {
         generateRecommendations();
@@ -78,7 +105,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
 
     const servicePreferenceMap: Record<string, string[]> = {
       active: ["boliche", "pesca", "construccion"],
-      creative: ["caballetes", "yesitos", "decora-tote-bag", "decora-gorra", "haz-pulsera"],
+      creative: ["caballetes", "yesitos", "haz-pulsera"],
       relaxed: ["guarderia", "spa"],
       food: ["hamburgueseria", "decora-cupcake"],
       roleplay: ["veterinaria", "supermercado"],
@@ -87,12 +114,11 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
       party: ["boliche", "hamburgueseria", "decora-cupcake"]
     };
 
-    const filtered = services.filter(service => 
+    const filtered = services.filter(service =>
       data.preferences.some(pref => servicePreferenceMap[pref]?.includes(service.id))
     ).slice(0, 6);
 
     setRecommendations(filtered);
-    // Clear previous selection and add recommended services
     clearSelection();
     filtered.slice(0, 3).forEach(service => addService(service));
   };
@@ -117,50 +143,100 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
     }
   };
 
+  const canAdvance = () => {
+    switch (currentStep) {
+      case 1: return !!data.childName;
+      case 2: return !!data.ageRange && !!data.childrenCount && data.preferences.length > 0;
+      case 3: return selectedServices.length >= 3;
+      case 4: return !!data.eventDate && !!data.location;
+      case 5: return !!data.customerName && !!data.email && !!data.phone;
+      default: return false;
+    }
+  };
+
+  const stepTitles = [
+    "El festejado",
+    "La fiesta",
+    "Servicios",
+    "Detalles",
+    "Contacto",
+  ];
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl">
-            <img src={raminegrito} alt="Rami" className="w-8 h-8" />
-            ¡Hola! Soy Rami y te ayudaré a planear la fiesta perfecta
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-lg p-0 overflow-hidden rounded-2xl border-0 bg-background shadow-hover gap-0">
+        {/* Header with Rami */}
+        <div className="relative bg-accent/50 px-6 pt-6 pb-4">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-background/80 flex items-center justify-center hover:bg-background transition-colors"
+          >
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
 
-        <div className="space-y-6">
-          <Progress value={(currentStep / 5) * 100} className="w-full" />
+          <div className="flex items-center gap-3 mb-4">
+            <img src={raminegrito} alt="Rami" className="w-12 h-12" />
+            <div>
+              <p className="font-display font-bold text-foreground">¡Hola! Soy Rami</p>
+              <p className="text-sm text-muted-foreground">Te ayudo a planear la fiesta perfecta</p>
+            </div>
+          </div>
 
-          {currentStep === 1 && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">¡Cuéntame sobre el festejado! 🎉</h3>
+          {/* Step indicators */}
+          <div className="flex gap-2">
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                <div
+                  className={`h-1.5 w-full rounded-full transition-colors ${
+                    i + 1 <= currentStep ? 'bg-secondary' : 'bg-border'
+                  }`}
+                />
+                <span className={`text-[10px] ${i + 1 <= currentStep ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                  {stepTitles[i]}
+                </span>
               </div>
-              <div className="space-y-4 max-w-md mx-auto">
-                <div>
-                  <Label htmlFor="childName">¿Cómo se llama el niño o niña que cumple años?</Label>
-                  <Input
-                    id="childName"
-                    value={data.childName}
-                    onChange={(e) => setData({ ...data, childName: e.target.value })}
-                    placeholder="Ej: María, Juan, etc."
-                  />
-                </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="px-6 py-6 max-h-[60vh] overflow-y-auto">
+          {/* Step 1: Child name */}
+          {currentStep === 1 && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-xl font-display font-bold text-foreground mb-1">¡Cuéntame sobre el festejado! 🎉</h3>
+                <p className="text-sm text-muted-foreground">Empecemos con lo más importante</p>
+              </div>
+              <div>
+                <Label htmlFor="childName" className="text-sm font-medium">¿Cómo se llama?</Label>
+                <Input
+                  id="childName"
+                  value={data.childName}
+                  onChange={(e) => setData({ ...data, childName: e.target.value })}
+                  placeholder="Ej: María, Juan..."
+                  className="mt-1.5 rounded-xl bg-card border-border"
+                />
               </div>
             </div>
           )}
 
+          {/* Step 2: Party details + preferences */}
           {currentStep === 2 && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">¡Perfecto! Ahora cuéntame sobre la fiesta de {data.childName} 🎈</h3>
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-xl font-display font-bold text-foreground mb-1">
+                  La fiesta de {data.childName} 🎈
+                </h3>
+                <p className="text-sm text-muted-foreground">Cuéntame más para recomendarte lo mejor</p>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>¿Qué edad tiene {data.childName}?</Label>
-                  <Select value={data.ageRange} onValueChange={(value) => setData({ ...data, ageRange: value })}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecciona el rango de edad" />
+                  <Label className="text-sm font-medium">Edad</Label>
+                  <Select value={data.ageRange} onValueChange={(v) => setData({ ...data, ageRange: v })}>
+                    <SelectTrigger className="mt-1.5 rounded-xl bg-card">
+                      <SelectValue placeholder="Rango" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="2-4">2-4 años</SelectItem>
@@ -171,209 +247,224 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="childrenCount">¿Cuántos niños aproximadamente?</Label>
+                  <Label htmlFor="childrenCount" className="text-sm font-medium">Niños aprox.</Label>
                   <Input
                     id="childrenCount"
                     type="number"
                     value={data.childrenCount || ""}
                     onChange={(e) => setData({ ...data, childrenCount: parseInt(e.target.value) || null })}
-                    placeholder="Ej: 15"
+                    placeholder="15"
+                    className="mt-1.5 rounded-xl bg-card"
                   />
                 </div>
               </div>
 
               <div>
-                <Label>¿Qué tipo de actividades le gustan más a {data.childName}?</Label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-                  {preferenceOptions.map((option) => (
-                    <div
-                      key={option.id}
-                      className={`flex flex-col items-center p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                        data.preferences.includes(option.id)
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                      onClick={() => setData(prev => ({
-                        ...prev,
-                        preferences: prev.preferences.includes(option.id)
-                          ? prev.preferences.filter(p => p !== option.id)
-                          : [...prev.preferences, option.id]
-                      }))}
-                    >
-                      <option.icon className="w-8 h-8 mb-2 text-primary" />
-                      <span className="text-sm text-center font-medium">{option.label}</span>
-                    </div>
-                  ))}
+                <Label className="text-sm font-medium">¿Qué le gusta a {data.childName}?</Label>
+                <div className="grid grid-cols-4 gap-2 mt-2">
+                  {preferenceOptions.map((option) => {
+                    const selected = data.preferences.includes(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all text-center ${
+                          selected
+                            ? 'border-secondary bg-secondary/10'
+                            : 'border-border hover:border-secondary/40 bg-card'
+                        }`}
+                        onClick={() => setData(prev => ({
+                          ...prev,
+                          preferences: prev.preferences.includes(option.id)
+                            ? prev.preferences.filter(p => p !== option.id)
+                            : [...prev.preferences, option.id]
+                        }))}
+                      >
+                        <option.icon className={`w-5 h-5 mb-1 ${selected ? 'text-secondary' : 'text-muted-foreground'}`} />
+                        <span className="text-[10px] leading-tight font-medium">{option.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
           )}
 
+          {/* Step 3: Service recommendations */}
           {currentStep === 3 && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">¡Servicios recomendados para {data.childName}! ⭐</h3>
-                <p className="text-muted-foreground">Selecciona los servicios que más te interesen</p>
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-xl font-display font-bold text-foreground mb-1">
+                  Recomendaciones para {data.childName} ⭐
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Selecciona mínimo 3 servicios · {selectedServices.length} seleccionado{selectedServices.length !== 1 ? 's' : ''}
+                </p>
               </div>
-              
-              {recommendations.length > 0 && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {recommendations.map((service) => (
-                      <Card 
-                        key={service.id} 
-                        className={`cursor-pointer transition-all hover:shadow-lg ${
-                          selectedServices.some(item => item.service.id === service.id)
-                            ? 'ring-2 ring-primary bg-primary/5'
-                            : ''
-                        }`}
-                        onClick={() => {
-                          const isSelected = selectedServices.some(item => item.service.id === service.id);
-                          if (isSelected) {
-                            removeService(service.id);
-                          } else {
-                            addService(service);
-                          }
-                        }}
-                      >
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                              {service.icon && React.createElement(
-                                (LucideIcons as any)[service.icon], 
-                                { className: "w-6 h-6 text-primary" }
-                              )}
-                            </div>
-                            <div className="flex-1">
-                              <h5 className="font-semibold">{service.title}</h5>
-                              <p className="text-sm text-muted-foreground">{service.description}</p>
-                              <p className="text-sm font-medium text-primary mt-1">{service.price}</p>
-                            </div>
-                            {selectedServices.some(item => item.service.id === service.id) && (
-                              <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
+
+              <div className="space-y-2">
+                {recommendations.map((service) => {
+                  const isSelected = selectedServices.some(item => item.service.id === service.id);
+                  const iconSrc = serviceIconMap[service.id];
+                  return (
+                    <button
+                      key={service.id}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                        isSelected
+                          ? 'border-secondary bg-secondary/5'
+                          : 'border-border hover:border-secondary/40 bg-card'
+                      }`}
+                      onClick={() => {
+                        if (isSelected) {
+                          removeService(service.id);
+                        } else {
+                          addService(service);
+                        }
+                      }}
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-accent/50 flex items-center justify-center flex-shrink-0">
+                        <img src={iconSrc} alt={service.title} className="w-7 h-7 object-contain" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-foreground">{service.title}</p>
+                        <p className="text-xs text-muted-foreground truncate">{service.description}</p>
+                      </div>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+                        isSelected ? 'bg-secondary' : 'border-2 border-border'
+                      }`}>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-secondary-foreground" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedServices.length < 3 && (
+                <p className="text-xs text-center text-japitown-orange font-medium">
+                  Faltan {3 - selectedServices.length} servicio{3 - selectedServices.length > 1 ? 's' : ''} más
+                </p>
               )}
             </div>
           )}
 
+          {/* Step 4: Event details */}
           {currentStep === 4 && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">Detalles del evento 📍</h3>
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-xl font-display font-bold text-foreground mb-1">Detalles del evento 📍</h3>
+                <p className="text-sm text-muted-foreground">¿Dónde y cuándo será la fiesta?</p>
               </div>
-              <div className="max-w-md mx-auto space-y-4">
+              <div className="space-y-4">
                 <div>
-                  <Label htmlFor="eventDate">¿Cuándo será la fiesta?</Label>
+                  <Label htmlFor="eventDate" className="text-sm font-medium">Fecha de la fiesta</Label>
                   <Input
                     id="eventDate"
                     type="date"
                     value={data.eventDate}
                     onChange={(e) => setData({ ...data, eventDate: e.target.value })}
+                    className="mt-1.5 rounded-xl bg-card"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="location">¿En qué zona será la fiesta?</Label>
+                  <Label htmlFor="location" className="text-sm font-medium">Zona / Colonia</Label>
                   <Input
                     id="location"
                     value={data.location}
                     onChange={(e) => setData({ ...data, location: e.target.value })}
-                    placeholder="Ej: Polanco, Roma Norte, Satelite..."
+                    placeholder="Ej: Polanco, Roma Norte..."
+                    className="mt-1.5 rounded-xl bg-card"
                   />
                 </div>
               </div>
             </div>
           )}
 
+          {/* Step 5: Contact info */}
           {currentStep === 5 && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">Información de contacto 📞</h3>
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-xl font-display font-bold text-foreground mb-1">¡Casi listo! 📞</h3>
+                <p className="text-sm text-muted-foreground">Tus datos para enviarte la cotización</p>
               </div>
-              <div className="max-w-md mx-auto space-y-4">
+              <div className="space-y-4">
                 <div>
-                  <Label htmlFor="customerName">Tu nombre completo</Label>
+                  <Label htmlFor="customerName" className="text-sm font-medium">Tu nombre</Label>
                   <Input
                     id="customerName"
                     value={data.customerName}
                     onChange={(e) => setData({ ...data, customerName: e.target.value })}
-                    placeholder="Ej: María González"
+                    placeholder="María González"
+                    className="mt-1.5 rounded-xl bg-card"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="email">Correo electrónico</Label>
+                  <Label htmlFor="email" className="text-sm font-medium">Correo electrónico</Label>
                   <Input
                     id="email"
                     type="email"
                     value={data.email}
                     onChange={(e) => setData({ ...data, email: e.target.value })}
-                    placeholder="Ej: maria@email.com"
+                    placeholder="maria@email.com"
+                    className="mt-1.5 rounded-xl bg-card"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="phone">Tu número de teléfono</Label>
+                  <Label htmlFor="phone" className="text-sm font-medium">WhatsApp / Teléfono</Label>
                   <Input
                     id="phone"
                     value={data.phone}
                     onChange={(e) => setData({ ...data, phone: e.target.value })}
-                    placeholder="Ej: 55 1234 5678"
+                    placeholder="55 1234 5678"
+                    className="mt-1.5 rounded-xl bg-card"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="comments">Comentarios adicionales (opcional)</Label>
+                  <Label htmlFor="comments" className="text-sm font-medium">Comentarios (opcional)</Label>
                   <textarea
                     id="comments"
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex min-h-[70px] w-full rounded-xl border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1.5"
                     value={data.comments}
                     onChange={(e) => setData({ ...data, comments: e.target.value })}
-                    placeholder="¿Hay algo especial que debamos saber sobre la fiesta?"
+                    placeholder="¿Algo especial que debamos saber?"
                   />
                 </div>
               </div>
             </div>
           )}
+        </div>
 
-          <div className="flex justify-between pt-6 border-t">
+        {/* Footer actions */}
+        <div className="px-6 py-4 border-t border-border bg-accent/30 flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
+            disabled={currentStep === 1}
+            className="gap-1 rounded-full"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Atrás
+          </Button>
+
+          {currentStep < TOTAL_STEPS ? (
             <Button
-              variant="outline"
-              onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
-              disabled={currentStep === 1}
+              onClick={handleNext}
+              disabled={!canAdvance()}
+              className="gap-1 rounded-full"
+              variant="hero"
             >
-              <ChevronLeft className="w-4 h-4" />
-              Anterior
+              Siguiente
+              <ChevronRight className="w-4 h-4" />
             </Button>
-
-            {currentStep < 5 ? (
-              <Button
-                onClick={handleNext}
-                disabled={
-                  (currentStep === 1 && !data.childName) ||
-                  (currentStep === 2 && (!data.ageRange || !data.childrenCount || data.preferences.length === 0)) ||
-                  (currentStep === 3 && selectedServices.length === 0) ||
-                  (currentStep === 4 && (!data.eventDate || !data.location))
-                }
-              >
-                Siguiente
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            ) : (
-              <Button
-                onClick={handleSubmit}
-                disabled={!data.customerName || !data.email || !data.phone || isSubmitting}
-              >
-                {isSubmitting ? "Enviando..." : "Solicitar Cotización"}
-              </Button>
-            )}
-          </div>
+          ) : (
+            <Button
+              onClick={handleSubmit}
+              disabled={!canAdvance() || isSubmitting}
+              className="rounded-full"
+              variant="hero"
+            >
+              {isSubmitting ? "Enviando..." : "Solicitar Cotización ✨"}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
