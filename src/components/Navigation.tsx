@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, Shield } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import japitownLogo from "@/assets/japitown-logo-oficial.png";
+import logo from "@/assets/Logo-25.png";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { useAuth } from "@/contexts/AuthContext";
 import { RamiOnboarding } from "./RamiOnboarding";
@@ -20,15 +20,15 @@ const Navigation = () => {
   ];
 
   return (
-    <nav className="fixed top-0 w-full bg-background/80 backdrop-blur-md z-50 border-b border-border">
+    <nav className="fixed top-0 w-full bg-background/90 backdrop-blur-lg z-50 border-b border-border/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <img 
-                src={japitownLogo} 
-                alt="japitown - Eventos Infantiles" 
-                className="h-12 w-auto"
+                src={logo} 
+                alt="Japitown - Eventos Infantiles" 
+                className="h-10 w-auto"
               />
             </div>
           </div>
@@ -39,7 +39,7 @@ const Navigation = () => {
               <a
                 key={item.name}
                 href={item.href}
-                className="text-foreground hover:text-primary transition-smooth font-medium"
+                className="text-foreground/70 hover:text-foreground transition-smooth font-medium text-sm tracking-wide"
               >
                 {item.name}
               </a>
@@ -50,17 +50,15 @@ const Navigation = () => {
             {user ? (
               isAdmin ? (
                 <Link to="/admin">
-                  <Button variant="outline" size="sm">
-                    <Shield className="h-4 w-4 mr-2" />
-                    Admin
+                  <Button variant="ghost" size="sm">
+                    <Shield className="h-4 w-4" />
                   </Button>
                 </Link>
               ) : null
             ) : (
               <Link to="/auth">
-                <Button variant="outline" size="sm">
-                  <Shield className="h-4 w-4 mr-2" />
-                  Admin
+                <Button variant="ghost" size="sm">
+                  <Shield className="h-4 w-4" />
                 </Button>
               </Link>
             )}
@@ -81,18 +79,18 @@ const Navigation = () => {
         {/* Mobile navigation */}
         {isOpen && (
           <div className="md:hidden">
-            <div className="px-2 pt-2 pb-3 space-y-1 bg-background border-t border-border">
+            <div className="px-2 pt-2 pb-3 space-y-1 bg-background border-t border-border/50">
               {navItems.map((item) => (
                 <a
                   key={item.name}
                   href={item.href}
-                  className="block px-3 py-2 text-foreground hover:text-primary transition-smooth font-medium"
+                  className="block px-3 py-2 text-foreground/70 hover:text-foreground transition-smooth font-medium"
                   onClick={() => setIsOpen(false)}
                 >
                   {item.name}
                 </a>
               ))}
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <Button 
                   variant="hero" 
                   size="sm" 
@@ -107,7 +105,7 @@ const Navigation = () => {
                 {user ? (
                   isAdmin ? (
                     <Link to="/admin">
-                      <Button variant="outline" size="sm" className="w-full mt-2">
+                      <Button variant="outline" size="sm" className="w-full">
                         <Shield className="h-4 w-4 mr-2" />
                         Admin
                       </Button>
@@ -115,7 +113,7 @@ const Navigation = () => {
                   ) : null
                 ) : (
                   <Link to="/auth">
-                    <Button variant="outline" size="sm" className="w-full mt-2">
+                    <Button variant="outline" size="sm" className="w-full">
                       <Shield className="h-4 w-4 mr-2" />
                       Admin
                     </Button>

@@ -6,38 +6,37 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 const Contact = () => {
   const { openOnboarding } = useOnboarding();
   return (
-    <section id="contacto" className="py-20 bg-muted/30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="contacto" className="py-24 bg-accent/30">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            ¿Necesitas <span className="text-gradient">contactarnos</span>?
+          <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4 text-foreground">
+            Contacto
           </h2>
-          <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Estamos aquí para resolver todas tus dudas y ayudarte a crear la fiesta perfecta.
-            Contáctanos por el medio que prefieras.
           </p>
         </div>
 
         {/* Contact Information */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          <Card className="bg-gradient-card border-0 shadow-soft">
+          <Card className="border-0 bg-card shadow-soft rounded-2xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Phone className="h-5 w-5 text-primary" />
+              <CardTitle className="flex items-center gap-2 font-display text-base">
+                <Phone className="h-5 w-5 text-muted-foreground" />
                 Teléfono
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">+52 951 123 4567</p>
-              <p className="text-sm text-muted-foreground mt-1">Disponible de 9:00 AM a 7:00 PM</p>
+              <p className="text-sm text-muted-foreground/70 mt-1">9:00 AM - 7:00 PM</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-card border-0 shadow-soft">
+          <Card className="border-0 bg-card shadow-soft rounded-2xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5 text-secondary" />
+              <CardTitle className="flex items-center gap-2 font-display text-base">
+                <MessageCircle className="h-5 w-5 text-muted-foreground" />
                 WhatsApp
               </CardTitle>
             </CardHeader>
@@ -49,36 +48,36 @@ const Contact = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-card border-0 shadow-soft">
+          <Card className="border-0 bg-card shadow-soft rounded-2xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5 text-primary" />
+              <CardTitle className="flex items-center gap-2 font-display text-base">
+                <Mail className="h-5 w-5 text-muted-foreground" />
                 Email
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">hola@japitown.com</p>
-              <p className="text-sm text-muted-foreground mt-1">Respuesta en 24 horas</p>
+              <p className="text-sm text-muted-foreground/70 mt-1">Respuesta en 24 horas</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-card border-0 shadow-soft">
+          <Card className="border-0 bg-card shadow-soft rounded-2xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-secondary" />
+              <CardTitle className="flex items-center gap-2 font-display text-base">
+                <MapPin className="h-5 w-5 text-muted-foreground" />
                 Ubicación
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">Oaxaca de Juárez, Oaxaca</p>
-              <p className="text-sm text-muted-foreground mt-1">Servicio a domicilio en toda la ciudad</p>
+              <p className="text-sm text-muted-foreground/70 mt-1">Servicio a domicilio</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-card border-0 shadow-soft">
+          <Card className="border-0 bg-card shadow-soft rounded-2xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-primary" />
+              <CardTitle className="flex items-center gap-2 font-display text-base">
+                <Clock className="h-5 w-5 text-muted-foreground" />
                 Horarios
               </CardTitle>
             </CardHeader>
@@ -86,31 +85,31 @@ const Contact = () => {
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Lun - Vie:</span>
-                  <span>9:00 AM - 7:00 PM</span>
+                  <span className="text-foreground">9:00 - 19:00</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Sábados:</span>
-                  <span>9:00 AM - 6:00 PM</span>
+                  <span className="text-muted-foreground">Sáb:</span>
+                  <span className="text-foreground">9:00 - 18:00</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Domingos:</span>
-                  <span>10:00 AM - 4:00 PM</span>
+                  <span className="text-muted-foreground">Dom:</span>
+                  <span className="text-foreground">10:00 - 16:00</span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-card border-0 shadow-soft md:col-span-2 lg:col-span-1">
+          <Card className="border-0 bg-card shadow-soft rounded-2xl">
             <CardHeader>
-              <CardTitle className="text-lg">¿Listo para cotizar?</CardTitle>
+              <CardTitle className="font-display text-base">¿Listo para cotizar?</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Usa nuestro asistente Rami o selecciona servicios específicos
+                Usa nuestro asistente o selecciona servicios específicos
               </p>
               <div className="space-y-2">
                 <Button 
-                  variant="default" 
+                  variant="hero" 
                   size="sm" 
                   className="w-full" 
                   onClick={openOnboarding}
@@ -118,8 +117,8 @@ const Contact = () => {
                   Cotizar Mi Fiesta
                 </Button>
                 <Button variant="outline" size="sm" className="w-full" onClick={() => {
-                  const servicesSection = document.getElementById('servicios');
-                  servicesSection?.scrollIntoView({ behavior: 'smooth' });
+                  const el = document.getElementById('servicios');
+                  el?.scrollIntoView({ behavior: 'smooth' });
                 }}>
                   Ver Servicios
                 </Button>
