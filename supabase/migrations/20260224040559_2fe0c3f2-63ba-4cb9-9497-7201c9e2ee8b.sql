@@ -1,0 +1,1 @@
+ALTER TABLE public.quotes DROP CONSTRAINT IF EXISTS quotes_status_check;
