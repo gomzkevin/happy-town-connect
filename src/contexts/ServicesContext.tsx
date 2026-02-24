@@ -48,13 +48,9 @@ export const ServicesProvider = ({ children }: { children: ReactNode }) => {
 
   const addService = (service: Service) => {
     setSelectedServices(prev => {
-      const existing = prev.find(item => item.service.id === service.id);
-      if (existing) {
-        return prev.map(item =>
-          item.service.id === service.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
+      // Prevent duplicates — each service can only be added once
+      if (prev.find(item => item.service.id === service.id)) {
+        return prev;
       }
       return [...prev, { service, quantity: 1 }];
     });

@@ -1,18 +1,15 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { ShoppingCart, Plus, Minus, Trash2, X } from "lucide-react";
+import { ShoppingCart, Trash2, X } from "lucide-react";
 import { useServices } from "@/contexts/ServicesContext";
 import { useQuotes } from "@/hooks/useQuotes";
 import * as LucideIcons from "lucide-react";
 
 const ServiceCart = () => {
-  const { selectedServices, removeService, updateQuantity, clearSelection, getTotalPrice, hasMinimumServices, canRemoveService, getRemainingToMinimum } = useServices();
+  const { selectedServices, removeService, clearSelection, hasMinimumServices, getRemainingToMinimum } = useServices();
   const { submitQuote, isSubmitting } = useQuotes();
   const [isOpen, setIsOpen] = useState(false);
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -75,7 +72,7 @@ const ServiceCart = () => {
         >
           <ShoppingCart className="h-5 w-5 mr-2" />
           <span className="font-medium">
-            {selectedServices.reduce((total, item) => total + item.quantity, 0)}
+            {selectedServices.length}
           </span>
         </Button>
       </SheetTrigger>
@@ -91,55 +88,31 @@ const ServiceCart = () => {
           {!showQuoteForm ? (
             <>
               {/* Cart Items */}
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {selectedServices.map((item) => {
                   const IconComponent = (LucideIcons as any)[item.service.icon] || LucideIcons.Star;
                   
                   return (
-                    <Card key={item.service.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
-                            <IconComponent className="h-5 w-5 text-primary-foreground" />
-                          </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-sm">{item.service.title}</h4>
-                            <p className="text-xs text-muted-foreground truncate">{item.service.description}</p>
-                              <div className="flex items-center justify-end mt-2">
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => updateQuantity(item.service.id, item.quantity - 1)}
-                                  disabled={item.quantity === 1 && !canRemoveService(item.service.id)}
-                                >
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                                <span className="text-sm font-medium w-6 text-center">{item.quantity}</span>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => updateQuantity(item.service.id, item.quantity + 1)}
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-6 w-6 text-destructive hover:text-destructive"
-                                  onClick={() => removeService(item.service.id)}
-                                  disabled={!canRemoveService(item.service.id)}
-                                  title={!canRemoveService(item.service.id) ? "Mínimo 2 servicios requeridos" : ""}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <div
+                      key={item.service.id}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card"
+                    >
+                      <div className="w-9 h-9 bg-accent rounded-lg flex items-center justify-center flex-shrink-0">
+                        <IconComponent className="h-4 w-4 text-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm">{item.service.title}</h4>
+                        <p className="text-xs text-muted-foreground truncate">{item.service.description}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive flex-shrink-0"
+                        onClick={() => removeService(item.service.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   );
                 })}
               </div>
