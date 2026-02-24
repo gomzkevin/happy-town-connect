@@ -133,6 +133,8 @@ function QuoteCard({ quote, onClick, stage }: { quote: Quote; onClick: () => voi
       onDragEnd={() => {
         _dragQuoteId = null;
         _dragSourceStage = null;
+        // Dispatch custom event to reset dragOverStage in parent
+        window.dispatchEvent(new CustomEvent('kanban-drag-end'));
       }}
       onClick={onClick}
       className="bg-card border rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-hover transition-smooth group"
@@ -257,9 +259,11 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentUpda
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display">Detalle de Cotización</DialogTitle>
-          <DialogDescription>
-            <Badge variant="outline" className={`${stageInfo.bgColor} ${stageInfo.borderColor}`}>{stageInfo.label}</Badge>
-            <span className="ml-2 text-xs">{format(new Date(quote.created_at), "dd MMM yyyy, HH:mm", { locale: es })}</span>
+          <DialogDescription asChild>
+            <div>
+              <Badge variant="outline" className={`${stageInfo.bgColor} ${stageInfo.borderColor}`}>{stageInfo.label}</Badge>
+              <span className="ml-2 text-xs">{format(new Date(quote.created_at), "dd MMM yyyy, HH:mm", { locale: es })}</span>
+            </div>
           </DialogDescription>
         </DialogHeader>
 
@@ -317,37 +321,40 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentUpda
             </div>
           )}
 
-          <Separator />
-
-          {/* Payments */}
-          <div>
-            <Label className="text-sm font-bold font-display">Pagos</Label>
-            <div className="mt-2 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex-1">
-                  <Label className="text-xs text-muted-foreground">Monto anticipo</Label>
-                  <Input type="number" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} className="h-8 mt-1" min={0} />
-                </div>
-                <div className="flex flex-col items-center gap-1 pt-4">
-                  <Switch checked={depositPaid} onCheckedChange={setDepositPaid} />
-                  <span className="text-[10px] text-muted-foreground">Pagado</span>
-                </div>
-              </div>
+          {/* Only show payments section from Contactado onwards */}
+          {effectiveStage !== 'pending' && (
+            <>
+              <Separator />
               <div>
-                <Label className="text-xs text-muted-foreground">Total pagado</Label>
-                <Input type="number" value={totalPaid} onChange={(e) => setTotalPaid(Number(e.target.value))} className="h-8 mt-1" min={0} />
+                <Label className="text-sm font-bold font-display">Pagos</Label>
+                <div className="mt-2 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1">
+                      <Label className="text-xs text-muted-foreground">Monto anticipo</Label>
+                      <Input type="number" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} className="h-8 mt-1" min={0} />
+                    </div>
+                    <div className="flex flex-col items-center gap-1 pt-4">
+                      <Switch checked={depositPaid} onCheckedChange={setDepositPaid} />
+                      <span className="text-[10px] text-muted-foreground">Pagado</span>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Total pagado</Label>
+                    <Input type="number" value={totalPaid} onChange={(e) => setTotalPaid(Number(e.target.value))} className="h-8 mt-1" min={0} />
+                  </div>
+                  <div className="flex justify-between items-center bg-accent/50 rounded-lg p-3">
+                    <span className="text-sm text-muted-foreground">Saldo pendiente</span>
+                    <span className={`font-bold text-sm ${pendingBalance > 0 ? 'text-japitown-orange' : 'text-japitown-green-tag'}`}>
+                      ${pendingBalance.toLocaleString()}
+                    </span>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => onPaymentUpdate(quote.id, { deposit_amount: depositAmount, deposit_paid: depositPaid, total_paid: totalPaid })} className="w-full">
+                    Guardar pagos
+                  </Button>
+                </div>
               </div>
-              <div className="flex justify-between items-center bg-accent/50 rounded-lg p-3">
-                <span className="text-sm text-muted-foreground">Saldo pendiente</span>
-                <span className={`font-bold text-sm ${pendingBalance > 0 ? 'text-japitown-orange' : 'text-japitown-green-tag'}`}>
-                  ${pendingBalance.toLocaleString()}
-                </span>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => onPaymentUpdate(quote.id, { deposit_amount: depositAmount, deposit_paid: depositPaid, total_paid: totalPaid })} className="w-full">
-                Guardar pagos
-              </Button>
-            </div>
-          </div>
+            </>
+          )}
 
           <Separator />
 
@@ -391,6 +398,13 @@ const AdminKanban = () => {
   }, []);
 
   useEffect(() => { fetchQuotes(); }, [fetchQuotes]);
+
+  // Reset drag state when drag ends (even on invalid targets)
+  useEffect(() => {
+    const handler = () => setDragOverStage(null);
+    window.addEventListener('kanban-drag-end', handler);
+    return () => window.removeEventListener('kanban-drag-end', handler);
+  }, []);
 
   const grouped = STAGES.reduce((acc, stage) => {
     acc[stage.key] = quotes.filter(q => getEffectiveStage(q) === stage.key);
