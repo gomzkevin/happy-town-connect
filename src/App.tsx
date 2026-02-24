@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ServicesProvider } from "@/contexts/ServicesContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { OnboardingProvider } from "@/contexts/OnboardingContext";
 import Index from "./pages/Index";
 import ServiceDetail from "@/components/ServiceDetail";
 import EventDetail from "@/components/EventDetail";
@@ -21,24 +22,26 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <ServicesProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<AuthPage />} />
-              <Route path="/admin" element={
-                <ProtectedRoute requireAdmin>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/servicio/:id" element={<ServiceDetail />} />
-              <Route path="/evento/:id" element={<EventDetail />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-            <ServiceCart />
-          </BrowserRouter>
+          <OnboardingProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={<AuthPage />} />
+                <Route path="/admin" element={
+                  <ProtectedRoute requireAdmin>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/servicio/:id" element={<ServiceDetail />} />
+                <Route path="/evento/:id" element={<EventDetail />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+              <ServiceCart />
+            </BrowserRouter>
+          </OnboardingProvider>
         </ServicesProvider>
       </AuthProvider>
     </TooltipProvider>
