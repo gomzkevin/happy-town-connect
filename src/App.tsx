@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,15 +8,23 @@ import { ServicesProvider } from "@/contexts/ServicesContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OnboardingProvider } from "@/contexts/OnboardingContext";
 import Index from "./pages/Index";
-import ServiceDetail from "@/components/ServiceDetail";
-import EventDetail from "@/components/EventDetail";
 import ServiceCart from "@/components/ServiceCart";
-import AuthPage from "@/components/auth/AuthPage";
-import AdminDashboard from "@/components/admin/AdminDashboard";
-import ProtectedRoute from "@/components/admin/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
+// Lazy load heavy routes
+const ServiceDetail = lazy(() => import("@/components/ServiceDetail"));
+const EventDetail = lazy(() => import("@/components/EventDetail"));
+const AuthPage = lazy(() => import("@/components/auth/AuthPage"));
+const AdminDashboard = lazy(() => import("@/components/admin/AdminDashboard"));
+const ProtectedRoute = lazy(() => import("@/components/admin/ProtectedRoute"));
+
 const queryClient = new QueryClient();
+
+const LazyFallback = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -26,19 +35,21 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/auth" element={<AuthPage />} />
-                <Route path="/admin" element={
-                  <ProtectedRoute requireAdmin>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                } />
-                <Route path="/servicio/:id" element={<ServiceDetail />} />
-                <Route path="/evento/:id" element={<EventDetail />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <Suspense fallback={<LazyFallback />}>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/auth" element={<AuthPage />} />
+                  <Route path="/admin" element={
+                    <ProtectedRoute requireAdmin>
+                      <AdminDashboard />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/servicio/:id" element={<ServiceDetail />} />
+                  <Route path="/evento/:id" element={<EventDetail />} />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
               <ServiceCart />
             </BrowserRouter>
           </OnboardingProvider>

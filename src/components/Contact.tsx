@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Phone, Mail, MapPin, Clock, MessageCircle } from "lucide-react";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { ScrollReveal, StaggerContainer, StaggerItem } from "@/components/ui/scroll-reveal";
+import { motion } from "framer-motion";
 
 const Contact = () => {
   const { openOnboarding } = useOnboarding();
@@ -87,15 +88,17 @@ const Contact = () => {
         <StaggerContainer className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto" stagger={0.08}>
           {cards.map((card) => (
             <StaggerItem key={card.title}>
-              <Card className="border-0 bg-card shadow-soft rounded-2xl h-full">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 font-display text-base">
-                    <card.icon className="h-5 w-5 text-muted-foreground" />
-                    {card.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>{card.content}</CardContent>
-              </Card>
+              <motion.div whileHover={{ y: -4 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
+                <Card className="border-0 bg-card shadow-soft rounded-2xl h-full hover:shadow-hover transition-shadow duration-300">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 font-display text-base">
+                      <card.icon className="h-5 w-5 text-muted-foreground" />
+                      {card.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>{card.content}</CardContent>
+                </Card>
+              </motion.div>
             </StaggerItem>
           ))}
 
