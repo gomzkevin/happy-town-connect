@@ -4,11 +4,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import { Calendar, Mail, Phone, MapPin, DollarSign, TrendingUp, Clock, GripVertical, ChevronRight, XCircle, Plus, Trash2 } from 'lucide-react';
+import { Calendar, Mail, Phone, MapPin, DollarSign, TrendingUp, Clock, GripVertical, ChevronRight, XCircle, Plus, Trash2, FileText, Download, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, differenceInDays, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -37,6 +39,7 @@ interface Quote {
   deposit_paid: boolean | null;
   total_paid: number | null;
   quote_type: string;
+  pdf_url: string | null;
 }
 
 interface QuoteService {
@@ -44,6 +47,14 @@ interface QuoteService {
   service_name: string;
   service_price: number;
   quantity: number;
+}
+
+interface ServiceOption {
+  id: string;
+  title: string;
+  price: string;
+  base_price: number;
+  is_active: boolean;
 }
 
 type StageKey = 'pending' | 'contacted' | 'confirmed' | 'upcoming' | 'completed' | 'cancelled';
@@ -67,7 +78,13 @@ const STAGES: Stage[] = [
 
 const STAGE_MAP = Object.fromEntries(STAGES.map(s => [s.key, s])) as Record<StageKey, Stage>;
 
-// Module-level drag state (HTML5 D&D can't read dataTransfer in dragover)
+const SOURCE_LABELS: Record<string, { label: string; className: string }> = {
+  manual: { label: 'Manual', className: 'border-japitown-orange/40 text-japitown-orange' },
+  onboarding: { label: 'Wizard', className: '' },
+  services: { label: 'Servicios', className: '' },
+};
+
+// Module-level drag state
 let _dragQuoteId: string | null = null;
 let _dragSourceStage: StageKey | null = null;
 
@@ -138,6 +155,8 @@ function PaymentProgressMini({ quoteId, totalEstimate, refreshKey }: { quoteId: 
 }
 
 function QuoteCard({ quote, onClick, stage, paymentVersion }: { quote: Quote; onClick: () => void; stage: StageKey; paymentVersion: number }) {
+  const sourceInfo = SOURCE_LABELS[quote.source || ''] || { label: quote.source || 'Web', className: '' };
+
   return (
     <div
       draggable
@@ -173,8 +192,8 @@ function QuoteCard({ quote, onClick, stage, paymentVersion }: { quote: Quote; on
         )}
         <div className="flex items-center justify-between">
           <span className="font-medium text-foreground">${(quote.total_estimate || 0).toLocaleString()}</span>
-          <Badge variant="outline" className="text-[9px]">
-            {quote.source === 'onboarding' ? 'Wizard' : 'Servicios'}
+          <Badge variant="outline" className={`text-[9px] ${sourceInfo.className}`}>
+            {sourceInfo.label}
           </Badge>
         </div>
         {!['pending', 'contacted'].includes(stage) && (
@@ -245,11 +264,297 @@ function KanbanColumn({ stage, quotes, onCardClick, onDrop, dragOverStage, onDra
   );
 }
 
+// PDF Section in Detail Dialog
+function PdfSection({ quote, onPdfGenerated }: { quote: Quote; onPdfGenerated: (url: string) => void }) {
+  const [generating, setGenerating] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState(quote.pdf_url);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-quote-pdf', {
+        body: { quoteId: quote.id },
+      });
+      if (error) throw error;
+      if (data?.pdf_url) {
+        setPdfUrl(data.pdf_url);
+        onPdfGenerated(data.pdf_url);
+        toast({ title: 'PDF generado', description: 'La cotización está lista para descargar.' });
+      }
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      toast({ title: 'Error', description: 'No se pudo generar el PDF.', variant: 'destructive' });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm font-bold font-display">Documento</Label>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1 flex-1"
+          onClick={handleGenerate}
+          disabled={generating}
+        >
+          {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+          {generating ? 'Generando...' : pdfUrl ? 'Regenerar PDF' : 'Generar PDF'}
+        </Button>
+        {pdfUrl && (
+          <Button
+            size="sm"
+            variant="warm"
+            className="gap-1 flex-1"
+            asChild
+          >
+            <a href={pdfUrl} target="_blank" rel="noopener noreferrer">
+              <Download className="h-3 w-3" /> Descargar PDF
+            </a>
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// New Quote Dialog
+function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [availableServices, setAvailableServices] = useState<ServiceOption[]>([]);
+  const [form, setForm] = useState({
+    customer_name: '',
+    email: '',
+    phone: '',
+    location: '',
+    event_date: '',
+    child_name: '',
+    children_count: '',
+    age_range: '',
+    notes: '',
+  });
+  const [selectedServices, setSelectedServices] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    supabase.from('services').select('id, title, price, base_price, is_active').eq('is_active', true).then(({ data }) => {
+      setAvailableServices((data || []) as ServiceOption[]);
+    });
+  }, [open]);
+
+  const toggleService = (id: string, checked: boolean) => {
+    setSelectedServices(prev => {
+      if (checked) return { ...prev, [id]: 1 };
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const updateQuantity = (id: string, qty: number) => {
+    if (qty < 1) return;
+    setSelectedServices(prev => ({ ...prev, [id]: qty }));
+  };
+
+  const totalEstimate = Object.entries(selectedServices).reduce((total, [id, qty]) => {
+    const svc = availableServices.find(s => s.id === id);
+    if (!svc) return total;
+    return total + svc.base_price * qty;
+  }, 0);
+
+  const handleSave = async () => {
+    if (!form.customer_name.trim() || !form.email.trim()) {
+      toast({ title: 'Campos requeridos', description: 'Nombre y email son obligatorios.', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data: quote, error: quoteError } = await supabase
+        .from('quotes')
+        .insert({
+          customer_name: form.customer_name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim() || null,
+          location: form.location.trim() || null,
+          event_date: form.event_date || null,
+          child_name: form.child_name.trim() || null,
+          children_count: form.children_count ? parseInt(form.children_count) : null,
+          age_range: form.age_range.trim() || null,
+          notes: form.notes.trim() || null,
+          total_estimate: totalEstimate,
+          source: 'manual',
+          quote_type: 'manual',
+          status: 'pending',
+        })
+        .select()
+        .single();
+
+      if (quoteError) throw quoteError;
+
+      // Insert selected services
+      const serviceEntries = Object.entries(selectedServices);
+      if (serviceEntries.length > 0 && quote) {
+        const quoteServices = serviceEntries.map(([serviceId, quantity]) => {
+          const svc = availableServices.find(s => s.id === serviceId)!;
+          return {
+            quote_id: quote.id,
+            service_id: serviceId,
+            service_name: svc.title,
+            service_price: svc.base_price,
+            quantity,
+          };
+        });
+        const { error: svcError } = await supabase.from('quote_services').insert(quoteServices);
+        if (svcError) console.error('Error inserting services:', svcError);
+      }
+
+      toast({ title: 'Cotización creada', description: `Se creó la cotización para ${form.customer_name}.` });
+      // Reset form
+      setForm({ customer_name: '', email: '', phone: '', location: '', event_date: '', child_name: '', children_count: '', age_range: '', notes: '' });
+      setSelectedServices({});
+      onCreated();
+      onClose();
+    } catch (err) {
+      console.error('Error creating quote:', err);
+      toast({ title: 'Error', description: 'No se pudo crear la cotización.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display">Nueva Cotización Manual</DialogTitle>
+          <DialogDescription>Crea una cotización para un lead que llegó por WhatsApp, Facebook u otro canal.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Client data */}
+          <div>
+            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Datos del cliente</Label>
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <div className="col-span-2 sm:col-span-1">
+                <Label className="text-xs">Nombre *</Label>
+                <Input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} placeholder="Nombre completo" className="h-9" />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <Label className="text-xs">Email *</Label>
+                <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="correo@ejemplo.com" className="h-9" />
+              </div>
+              <div>
+                <Label className="text-xs">Teléfono</Label>
+                <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="55 1234 5678" className="h-9" />
+              </div>
+              <div>
+                <Label className="text-xs">Ubicación</Label>
+                <Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="Ciudad o zona" className="h-9" />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Event data */}
+          <div>
+            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Datos del evento</Label>
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <div>
+                <Label className="text-xs">Fecha del evento</Label>
+                <Input type="date" value={form.event_date} onChange={e => setForm(f => ({ ...f, event_date: e.target.value }))} className="h-9" />
+              </div>
+              <div>
+                <Label className="text-xs">Festejado(a)</Label>
+                <Input value={form.child_name} onChange={e => setForm(f => ({ ...f, child_name: e.target.value }))} placeholder="Nombre" className="h-9" />
+              </div>
+              <div>
+                <Label className="text-xs">Número de niños</Label>
+                <Input type="number" min={1} value={form.children_count} onChange={e => setForm(f => ({ ...f, children_count: e.target.value }))} className="h-9" />
+              </div>
+              <div>
+                <Label className="text-xs">Rango de edad</Label>
+                <Input value={form.age_range} onChange={e => setForm(f => ({ ...f, age_range: e.target.value }))} placeholder="4-8 años" className="h-9" />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Services selector */}
+          <div>
+            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Servicios</Label>
+            <div className="mt-2 space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+              {availableServices.map(svc => {
+                const isSelected = svc.id in selectedServices;
+                return (
+                  <div key={svc.id} className="flex items-center gap-3">
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={(checked) => toggleService(svc.id, !!checked)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{svc.title}</p>
+                      <p className="text-xs text-muted-foreground">${svc.base_price.toLocaleString()}</p>
+                    </div>
+                    {isSelected && (
+                      <Input
+                        type="number"
+                        min={1}
+                        value={selectedServices[svc.id]}
+                        onChange={e => updateQuantity(svc.id, parseInt(e.target.value) || 1)}
+                        className="h-7 w-16 text-center"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+              {availableServices.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">Cargando servicios...</p>
+              )}
+            </div>
+            {totalEstimate > 0 && (
+              <div className="flex justify-between items-center mt-2 px-1">
+                <span className="text-sm font-medium">Total estimado:</span>
+                <span className="text-sm font-bold">${totalEstimate.toLocaleString()} MXN</span>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Notes */}
+          <div>
+            <Label className="text-xs">Notas</Label>
+            <Textarea
+              value={form.notes}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Observaciones adicionales..."
+              className="min-h-[60px]"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving} className="gap-1">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {saving ? 'Guardando...' : 'Crear Cotización'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Detail Dialog
-function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChange }: {
+function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChange, onQuoteUpdate }: {
   quote: Quote | null; open: boolean; onClose: () => void;
   onStatusChange: (id: string, s: StageKey) => void;
   onPaymentChange?: () => void;
+  onQuoteUpdate?: (id: string, updates: Partial<Quote>) => void;
 }) {
   const [services, setServices] = useState<QuoteService[]>([]);
   const { payments, totalPaid, addPayment, deletePayment } = useQuotePayments(quote?.id);
@@ -288,15 +593,18 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     setAdding(false);
   };
 
+  const sourceInfo = SOURCE_LABELS[quote.source || ''] || { label: quote.source || 'Web', className: '' };
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display">Detalle de Cotización</DialogTitle>
           <DialogDescription asChild>
-            <div>
+            <div className="flex items-center gap-2">
               <Badge variant="outline" className={`${stageInfo.bgColor} ${stageInfo.borderColor}`}>{stageInfo.label}</Badge>
-              <span className="ml-2 text-xs">{format(new Date(quote.created_at), "dd MMM yyyy, HH:mm", { locale: es })}</span>
+              <Badge variant="outline" className={`text-[9px] ${sourceInfo.className}`}>{sourceInfo.label}</Badge>
+              <span className="text-xs">{format(new Date(quote.created_at), "dd MMM yyyy, HH:mm", { locale: es })}</span>
             </div>
           </DialogDescription>
         </DialogHeader>
@@ -346,6 +654,13 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
             </div>
           )}
 
+          {quote.notes && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Notas</Label>
+              <p className="text-sm mt-1 bg-accent/30 rounded-md px-3 py-2">{quote.notes}</p>
+            </div>
+          )}
+
           {quote.preferences && quote.preferences.length > 0 && (
             <div>
               <Label className="text-xs text-muted-foreground">Preferencias</Label>
@@ -354,6 +669,13 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
               </div>
             </div>
           )}
+
+          {/* PDF Section */}
+          <Separator />
+          <PdfSection
+            quote={quote}
+            onPdfGenerated={(url) => onQuoteUpdate?.(quote.id, { pdf_url: url })}
+          />
 
           {/* Payment section - visible from Contactado onwards */}
           {effectiveStage !== 'pending' && (
@@ -367,7 +689,6 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                   </Badge>
                 </div>
 
-                {/* Progress bar */}
                 <Progress value={paymentPct} className="h-2.5 mb-3" />
 
                 <div className="flex justify-between items-center bg-accent/50 rounded-lg p-3 mb-3">
@@ -384,7 +705,6 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                   </div>
                 </div>
 
-                {/* Payment list */}
                 {payments.length > 0 && (
                   <div className="space-y-1 mb-3 max-h-32 overflow-y-auto">
                     {payments.map(p => (
@@ -412,7 +732,6 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                   </div>
                 )}
 
-                {/* Add payment form */}
                 <div className="space-y-2 border rounded-lg p-3 bg-background">
                   <Label className="text-xs text-muted-foreground">Registrar pago</Label>
                   <div className="flex gap-2">
@@ -483,6 +802,7 @@ const AdminKanban = () => {
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [dragOverStage, setDragOverStage] = useState<StageKey | null>(null);
   const [paymentVersion, setPaymentVersion] = useState(0);
+  const [showNewQuote, setShowNewQuote] = useState(false);
 
   const fetchQuotes = useCallback(async () => {
     const { data, error } = await supabase.from('quotes').select('*').order('created_at', { ascending: false });
@@ -493,7 +813,6 @@ const AdminKanban = () => {
 
   useEffect(() => { fetchQuotes(); }, [fetchQuotes]);
 
-  // Reset drag state when drag ends (even on invalid targets)
   useEffect(() => {
     const handler = () => setDragOverStage(null);
     window.addEventListener('kanban-drag-end', handler);
@@ -513,11 +832,21 @@ const AdminKanban = () => {
     toast({ title: 'Etapa actualizada', description: `Movido a "${STAGE_MAP[newStatus].label}"` });
   };
 
+  const handleQuoteUpdate = (id: string, updates: Partial<Quote>) => {
+    setQuotes(prev => prev.map(q => q.id === id ? { ...q, ...updates } : q));
+    if (selectedQuote?.id === id) setSelectedQuote(prev => prev ? { ...prev, ...updates } : null);
+  };
+
   if (loading) return <div className="text-center py-12 text-muted-foreground">Cargando pipeline...</div>;
 
   return (
     <div className="space-y-4">
-      <KPIBar quotes={quotes} />
+      <div className="flex items-center justify-between">
+        <KPIBar quotes={quotes} />
+        <Button onClick={() => setShowNewQuote(true)} className="gap-1 shrink-0">
+          <Plus className="h-4 w-4" /> Nueva Cotización
+        </Button>
+      </div>
       <div className="flex gap-3 overflow-x-auto pb-4 -mx-2 px-2">
         {STAGES.map(stage => (
           <KanbanColumn
@@ -546,6 +875,12 @@ const AdminKanban = () => {
         onClose={() => setSelectedQuote(null)}
         onStatusChange={updateStatus}
         onPaymentChange={() => setPaymentVersion(v => v + 1)}
+        onQuoteUpdate={handleQuoteUpdate}
+      />
+      <NewQuoteDialog
+        open={showNewQuote}
+        onClose={() => setShowNewQuote(false)}
+        onCreated={fetchQuotes}
       />
     </div>
   );
