@@ -44,7 +44,7 @@ export const useServices = () => {
 export const ServicesProvider = ({ children }: { children: ReactNode }) => {
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   
-  const MINIMUM_SERVICES = 3;
+  const MINIMUM_SERVICES = 2;
 
   const addService = (service: Service) => {
     setSelectedServices(prev => {
