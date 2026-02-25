@@ -116,7 +116,7 @@ export const QuoteEmailComplete = ({
               marginBottom: '8px',
             }}
           />
-          <Text style={subtitle}>Entretenimiento Infantil Premium</Text>
+          <Text style={subtitle}>Eventos Infantiles</Text>
         </Section>
 
         {/* Rainbow stripe */}
@@ -149,7 +149,7 @@ export const QuoteEmailComplete = ({
         <Section style={welcomeSection}>
           <Heading style={h2}>¡Hola {customerName}! 🎉</Heading>
           <Text style={text}>
-            Gracias por contactar a <strong>{companyName}</strong>. Hemos preparado una cotización personalizada para tu evento.
+            Gracias por tu interés en <strong>Japitown</strong>. Hemos preparado una cotización personalizada para tu evento.
           </Text>
           {services.length > 0 && (
             <Text style={{ ...text, color: '#a68bea', fontWeight: '600' }}>
@@ -262,7 +262,16 @@ export const QuoteEmailComplete = ({
         {termsConditions && (
           <Section style={termsSection} className="print-friendly">
             <Heading style={h3}>📋 Términos y Condiciones</Heading>
-            <Text style={termsText}>{termsConditions}</Text>
+            {termsConditions.split('\n').filter((line: string) => line.trim()).map((line: string, i: number) => {
+              const processed = childrenCount
+                ? line.replace(/\d+\s*niños/gi, `${childrenCount} niños`)
+                : line;
+              return (
+                <Text key={i} style={termsText}>
+                  • {processed.replace(/^[•\-\*]\s*/, '').trim()}
+                </Text>
+              );
+            })}
           </Section>
         )}
 
@@ -278,7 +287,7 @@ export const QuoteEmailComplete = ({
             </Column>
           </Row>
           <Text style={footerText}>
-            Esta cotización es válida por 30 días desde la fecha de emisión.
+            Esta cotización es válida por 15 días desde la fecha de emisión.
           </Text>
           <Text style={footerText}>
             ¡Gracias por confiar en {companyName} para tu evento especial! 🎉
@@ -477,10 +486,11 @@ const termsSection = {
 }
 
 const termsText = {
-  color: '#888',
-  fontSize: '11px',
-  lineHeight: '17px',
-  margin: '0',
+  color: '#555250',
+  fontSize: '12px',
+  lineHeight: '18px',
+  margin: '0 0 8px',
+  paddingLeft: '4px',
   fontFamily: fontBody,
 }
 
