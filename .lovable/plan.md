@@ -1,63 +1,121 @@
 
 
-# Recalculo masivo de precios en cotizaciones existentes
+# Rediseno del Email de Cotizacion + PDF Adjunto
 
-## Problema
-Las cotizaciones creadas antes del refactor tienen precios snapshot de los catalogos hardcodeados, que difieren de los `base_price` actuales en la BD. Esto genera confusion en el admin.
+## Resumen
 
-## Solucion
+Redisenar la plantilla de email `quote-email-complete.tsx` para alinearse con la identidad visual de japitown (Fredoka/Quicksand, paleta de colores neutros/purpura, iconos del bucket), y modificar el flujo `send-quote-email` para generar el PDF automaticamente y adjuntarlo al correo.
 
-Crear una Edge Function temporal `recalculate-quotes` que:
+---
 
-1. Consulte todas las cotizaciones con status distinto de `completed`/`cancelled`
-2. Para cada cotizacion, obtenga sus `quote_services` y los `base_price` actuales de la tabla `services`
-3. Aplique la logica de `calcularPreciosCotizacion` (pares de estaciones, multiplicadores de talleres) usando el `children_count` de cada cotizacion
-4. Actualice `quote_services.service_price` y `quotes.total_estimate` con los nuevos valores
+## 1. Rediseno del HTML del Email (Identidad Corporativa)
 
-### Detalles tecnicos
+### Cambios en `supabase/functions/send-quote-email/_templates/quote-email-complete.tsx`:
 
-**Nueva Edge Function**: `supabase/functions/recalculate-quotes/index.ts`
-- Replica la logica de pricing de `src/lib/pricing.ts` (TIERS, pares de estaciones)
-- Consulta todas las quotes activas (`pending`, `contacted`, `negotiating`, `accepted`)
-- Para cada quote:
-  - Obtiene sus quote_services con el service_id
-  - Busca el base_price y category actuales de cada service_id en la tabla `services`
-  - Recalcula precios individuales y total
-  - Actualiza `quote_services.service_price` por cada registro
-  - Actualiza `quotes.total_estimate` y `quotes.deposit_amount` (50% del total)
-- Devuelve un resumen de cuantas cotizaciones se actualizaron
+**Tipografia**:
+- Reemplazar la font-family generica por Google Fonts embebidos via `<link>` en el `<Head>`:
+  - `Fredoka` para encabezados (h1, h2, h3)
+  - `Quicksand` para cuerpo de texto
+- Nota: No todos los clientes de correo soportan Google Fonts, pero los principales (Gmail, Apple Mail, Outlook web) si. Se mantiene un fallback seguro (`Arial, sans-serif`).
 
-**Boton en AdminKanban**: `src/components/admin/AdminKanban.tsx`
-- Agregar un boton "Recalcular precios" en la barra superior del Kanban
-- Al hacer clic, invoca la Edge Function
-- Muestra un toast con el resultado
-- Recarga los datos del Kanban
+**Paleta de colores**:
+- Header: fondo `#f3ece5` (crema calido) en lugar de purpura solido, con texto `#555250`
+- Acento principal: `#a68bea` (purpura) para bordes, badges de numero de cotizacion y fila de total
+- Categorias de servicios con colores de tag: verde `#84bc70` (talleres) y azul `#9bc2e5` (estaciones)
+- Footer y secciones secundarias: `#f3ece5` crema
 
-**Configuracion**: `supabase/config.toml`
-- Registrar la nueva funcion con `verify_jwt = false` (protegida por logica interna)
+**Logo e Iconos**:
+- Usar el logo oficial desde el bucket publico: `https://hnkkgjmudteyzzfbogto.supabase.co/storage/v1/object/public/japitown-assets/logos/Logo-21.png`
+- Agregar iconos decorativos (estrellas, nubes) del bucket `japitown-assets/icons/` como imagenes en el header y footer del email
+- Los iconos se referencian como URLs publicas del bucket de Supabase Storage
 
-### Logica de recalculo (misma que pricing.ts)
+**Estructura visual mejorada**:
+- Header con logo centrado grande sobre fondo crema
+- Badges de categoria por servicio (verde/azul) en la tabla de servicios
+- Bordes redondeados en secciones (dentro de lo que permite email HTML)
+- Footer con iconos decorativos y texto de marca
+
+---
+
+## 2. PDF Adjunto al Email
+
+### Tradeoffs evaluados
+
+| Opcion | Ventajas | Desventajas |
+|---|---|---|
+| **A) Generar PDF dentro de `send-quote-email`** | Un solo request, atomico | Duplica logica de `generate-quote`, Edge Function pesada |
+| **B) Llamar a `generate-quote` desde `send-quote-email`** | Reutiliza logica existente, un solo punto de verdad | Latencia adicional (~2-5s), dependencia entre funciones |
+| **C) Generar PDF en el frontend antes de enviar email** | Separacion clara | Mala UX (el usuario espera mas), requiere cambios en el frontend |
+
+**Recomendacion: Opcion B** - `send-quote-email` invoca internamente a `generate-quote` con el `quoteId`, obtiene el PDF ya generado (o lo genera si no existe), y lo adjunta al correo via Resend.
+
+### Flujo propuesto
 
 ```text
-Estaciones de Juego:
-  1 estacion  -> base_price individual
-  2+ estaciones -> floor(n/2) * 3000 + (n%2) * 1800, distribuido
-
-Talleres Creativos:
-  base_price * multiplicador(children_count)
-  <=15: x1.0 | <=30: x1.3 | <=50: x1.5 | >50: x1.8
-
-Otros (Servicios Fijos):
-  base_price directo
+Cliente completa wizard/servicios
+        |
+        v
+useQuotes.submitQuote()
+        |
+        v
+  send-quote-email (Edge Function)
+        |
+        +-- 1. Llama a generate-quote con quoteId
+        |      (genera PDF y lo sube a Storage)
+        |
+        +-- 2. Descarga el PDF desde Storage (como bytes)
+        |
+        +-- 3. Renderiza email HTML con nueva plantilla
+        |
+        +-- 4. Envia via Resend con PDF como attachment
+        |
+        v
+  Cliente recibe email con PDF adjunto
 ```
 
-### Archivos a crear/modificar
-- **Crear**: `supabase/functions/recalculate-quotes/index.ts`
-- **Modificar**: `supabase/config.toml` (registrar funcion)
-- **Modificar**: `src/components/admin/AdminKanban.tsx` (boton de recalculo)
+### Cambios en `supabase/functions/send-quote-email/index.ts`:
 
-### Riesgos
-- Minimo: solo actualiza precios, no modifica servicios ni estructura
-- Las cotizaciones `completed` o `cancelled` no se tocan
-- Si un `service_id` en quote_services no existe en la tabla services, se mantiene el precio actual
+1. Despues de preparar `emailData`, invocar `generate-quote` pasando el `quoteId`:
+   - Hacer un `fetch` interno al endpoint de `generate-quote` con `{ quoteId }` y `output=storage`
+   - Obtener la `pdf_url` del response
+2. Descargar el PDF desde la URL publica de Storage como `Uint8Array`
+3. Usar el campo `attachments` de Resend para adjuntar el PDF:
+   ```typescript
+   attachments: [{
+     filename: `Cotizacion-japitown-${quoteNumber}.pdf`,
+     content: Buffer.from(pdfBytes).toString('base64'),
+   }]
+   ```
+4. Si la generacion del PDF falla, enviar el email sin adjunto (fallback graceful) y loguear el error
+
+### Impacto en latencia:
+- Actualmente el email se envia en ~1-2s
+- Con PDF adjunto: ~4-7s totales (generacion PDF + upload + descarga + envio)
+- Esto es aceptable porque el usuario ya ve el toast de confirmacion inmediato (el email se envia en background)
+
+---
+
+## 3. Archivos a modificar
+
+| Archivo | Cambio |
+|---|---|
+| `supabase/functions/send-quote-email/_templates/quote-email-complete.tsx` | Rediseno completo: tipografia Fredoka/Quicksand, paleta crema/purpura, logo e iconos del bucket, badges de categoria |
+| `supabase/functions/send-quote-email/index.ts` | Agregar logica para: (1) invocar `generate-quote`, (2) descargar PDF, (3) adjuntar al email via Resend |
+
+### Archivos que NO se modifican
+- `supabase/functions/generate-quote/index.ts` — se reutiliza tal cual, sin cambios
+- `src/hooks/useQuotes.ts` — el flujo del frontend no cambia, sigue invocando solo `send-quote-email`
+- `supabase/config.toml` — no requiere cambios
+
+---
+
+## 4. Riesgos y mitigaciones
+
+| Riesgo | Mitigacion |
+|---|---|
+| `generate-quote` falla o timeout | Enviar email sin PDF y loguear error en `quote_history` |
+| Iconos/logo no cargan en ciertos clientes de correo | Los iconos son decorativos, el contenido critico es texto; se usan `alt` tags descriptivos |
+| Google Fonts no soportadas en Outlook desktop | Fallback a Arial/sans-serif en la declaracion de font-family |
+| PDF muy grande para adjuntar via Resend | Los PDFs de japitown son ~100-200KB, Resend permite hasta 40MB |
+| Latencia total del email aumenta | El toast de confirmacion es inmediato; el email es asincrono para el usuario |
 
