@@ -94,7 +94,14 @@ async function generateAndDownloadPDF(
     }
 
     const pdfBytes = new Uint8Array(await pdfResponse.arrayBuffer());
-    const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
+    // Convert to base64 in chunks to avoid stack overflow
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < pdfBytes.length; i += chunkSize) {
+      const chunk = pdfBytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    const pdfBase64 = btoa(binary);
 
     // Sanitize filename
     const safeName = customerName
@@ -162,6 +169,67 @@ async function logQuoteHistory(
   }
 }
 
+// ─── Pricing Logic (mirrors src/lib/pricing.ts) ────────────────
+
+const TIERS = [
+  { limite: 15, multiplicador: 1.0 },
+  { limite: 30, multiplicador: 1.3 },
+  { limite: 50, multiplicador: 1.5 },
+  { limite: Infinity, multiplicador: 1.8 },
+];
+
+function getMultiplicador(nNinos: number): number {
+  for (const tier of TIERS) {
+    if (nNinos <= tier.limite) return tier.multiplicador;
+  }
+  return 1.8;
+}
+
+interface ServiceForPricing {
+  id: string;
+  base_price: number;
+  category: string;
+}
+
+function calcularPreciosCotizacion(
+  services: ServiceForPricing[],
+  nNinos: number
+): { perService: Map<string, number>; total: number } {
+  const estaciones = services.filter(s => s.category === 'Estaciones de Juego');
+  const talleres = services.filter(s => s.category === 'Talleres Creativos');
+  const otros = services.filter(
+    s => s.category !== 'Estaciones de Juego' && s.category !== 'Talleres Creativos'
+  );
+
+  const perService = new Map<string, number>();
+
+  if (estaciones.length === 1) {
+    perService.set(estaciones[0].id, estaciones[0].base_price);
+  } else if (estaciones.length >= 2) {
+    const totalEstaciones =
+      Math.floor(estaciones.length / 2) * 3000 + (estaciones.length % 2) * 1800;
+    const perStation = Math.round(totalEstaciones / estaciones.length);
+    const remainder = totalEstaciones - perStation * estaciones.length;
+    estaciones.forEach((s, i) => {
+      perService.set(s.id, perStation + (i === 0 ? remainder : 0));
+    });
+  }
+
+  const mult = getMultiplicador(nNinos || 15);
+  talleres.forEach(s => {
+    perService.set(s.id, Math.round(s.base_price * mult));
+  });
+
+  otros.forEach(s => {
+    perService.set(s.id, s.base_price);
+  });
+
+  let total = 0;
+  perService.forEach(v => (total += v));
+
+  return { perService, total };
+}
+
 // ─── Main Handler ───────────────────────────────────────────────
 
 const handler = async (req: Request): Promise<Response> => {
@@ -179,16 +247,56 @@ const handler = async (req: Request): Promise<Response> => {
     const data: QuoteEmailRequest = await req.json();
     console.log('Processing quote email for:', data.customerName);
 
-    // Fetch settings in parallel
-    const [companyResult, templateResult, notificationResult] = await Promise.all([
+    // Fetch settings + real services from DB in parallel
+    const [companyResult, templateResult, notificationResult, quoteServicesResult] = await Promise.all([
       supabase.from('company_settings').select('*').single(),
       supabase.from('email_templates').select('*').eq('template_type', 'quote').eq('is_active', true).single(),
       supabase.from('notification_settings').select('*').single(),
+      supabase.from('quote_services').select('service_id, service_name, service_price, quantity').eq('quote_id', data.quoteId),
     ]);
 
     const companySettings = companyResult.data;
     const emailTemplate = templateResult.data;
     const notificationSettings = notificationResult.data;
+    const quoteServices = quoteServicesResult.data || [];
+
+    // Fetch real base_price + category from services table
+    const serviceIds = quoteServices.map(qs => qs.service_id);
+    let dbServicesMap = new Map<string, { base_price: number; category: string }>();
+
+    if (serviceIds.length > 0) {
+      const { data: dbServices } = await supabase
+        .from('services')
+        .select('id, base_price, category')
+        .in('id', serviceIds);
+
+      if (dbServices) {
+        dbServices.forEach(s => dbServicesMap.set(s.id, { base_price: s.base_price, category: s.category }));
+      }
+    }
+
+    // Recalculate prices using DB data and pricing logic
+    const svcsForPricing: ServiceForPricing[] = quoteServices.map(qs => {
+      const dbSvc = dbServicesMap.get(qs.service_id);
+      return {
+        id: qs.service_id,
+        base_price: dbSvc?.base_price ?? qs.service_price,
+        category: dbSvc?.category ?? '',
+      };
+    });
+
+    const nNinos = data.childrenCount || 15;
+    const { perService: priceMap, total: calculatedTotal } = calcularPreciosCotizacion(svcsForPricing, nNinos);
+
+    // Build services array with correct prices for the email
+    const servicesForEmail = quoteServices.map(qs => ({
+      name: qs.service_name,
+      price: priceMap.get(qs.service_id) ?? qs.service_price,
+      quantity: qs.quantity,
+      category: dbServicesMap.get(qs.service_id)?.category,
+    }));
+
+    console.log('📊 DB prices recalculated:', { servicesForEmail, calculatedTotal });
 
     const quoteNumber = `QUO-${Date.now().toString().slice(-6)}`;
     const createdDate = new Date().toLocaleDateString('es-MX', {
@@ -207,8 +315,8 @@ const handler = async (req: Request): Promise<Response> => {
       companyPhone: companySettings?.phone,
       companyAddress: companySettings?.address,
       logoUrl: companySettings?.logo_url,
-      services: data.services,
-      totalEstimate: data.totalEstimate,
+      services: servicesForEmail,
+      totalEstimate: calculatedTotal,
       eventDate: data.eventDate,
       childrenCount: data.childrenCount,
       location: data.location,
@@ -253,8 +361,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     await logQuoteHistory(data.quoteId, 'email_sent', data.email, 'success', {
       email_id: emailResult.data?.id,
-      services_count: data.services.length,
-      total_estimate: data.totalEstimate,
+      services_count: servicesForEmail.length,
+      total_estimate: calculatedTotal,
       format: 'html_email_with_pdf',
       pdf_attached: !!pdfResult,
       quote_number: quoteNumber,
@@ -272,8 +380,8 @@ const handler = async (req: Request): Promise<Response> => {
       if (notificationSettings.admin_notification_enabled && companySettings?.whatsapp_number) {
         const msg = notificationSettings.admin_whatsapp_template
           ?.replace('{{customer_name}}', data.customerName)
-          ?.replace('{{total_estimate}}', data.totalEstimate.toString()) ||
-          `Nueva cotización para: ${data.customerName} - Total: $${data.totalEstimate.toLocaleString()}`;
+          ?.replace('{{total_estimate}}', calculatedTotal.toString()) ||
+          `Nueva cotización para: ${data.customerName} - Total: $${calculatedTotal.toLocaleString()}`;
         const ok = await sendWhatsAppNotification(companySettings.whatsapp_number, msg, notificationSettings);
         await logQuoteHistory(data.quoteId, 'whatsapp_sent', companySettings.whatsapp_number, ok ? 'success' : 'failed');
       }

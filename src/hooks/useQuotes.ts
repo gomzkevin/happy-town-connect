@@ -29,7 +29,7 @@ export const useQuotes = () => {
       // Calculate total using business pricing logic
       const svcsForPricing = selectedServices.map(item => ({
         id: item.service.id,
-        base_price: parseInt(item.service.price.replace(/[^\d]/g, '')),
+        base_price: item.service.base_price ?? parseInt(item.service.price.replace(/[^\d]/g, '')),
         category: item.service.category,
       }));
       const { perService: priceMap, total: totalEstimate } = calcularPreciosCotizacion(
