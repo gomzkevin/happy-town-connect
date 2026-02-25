@@ -1066,12 +1066,49 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
 
   for (const qs of qServices || []) {
     const sid = qs.service_id;
-    if (ESTACION_IDS.includes(sid)) estaciones.push(sid);
-    else if (FIJO_IDS.includes(sid)) fijos.push(sid);
-    else if (TALLER_IDS.includes(sid)) talleres.push(sid);
-    else console.warn(`[DIAG] service_id "${sid}" no clasificado en ninguna lista`);
+    // 1) Try hardcoded lists first (legacy compatibility)
+    if (ESTACION_IDS.includes(sid)) { estaciones.push(sid); continue; }
+    if (FIJO_IDS.includes(sid)) { fijos.push(sid); continue; }
+    if (TALLER_IDS.includes(sid)) { talleres.push(sid); continue; }
+
+    // 2) Fallback: classify by DB category
+    const dbSvc = dbServices.get(sid);
+    if (dbSvc) {
+      const cat = dbSvc.category?.toLowerCase() || "";
+      if (cat.includes("estacion") || cat.includes("juego")) {
+        estaciones.push(sid);
+        // Auto-register in catalog if missing
+        if (!CATALOGO_ESTACIONES[sid]) {
+          CATALOGO_ESTACIONES[sid] = {
+            nombre: dbSvc.title, color: "green",
+            subtitulo: "", items: dbSvc.features || [],
+          };
+        }
+      } else if (cat.includes("taller") || cat.includes("creativ")) {
+        talleres.push(sid);
+        if (!CATALOGO_TALLERES[sid]) {
+          CATALOGO_TALLERES[sid] = {
+            nombre: dbSvc.title, color: "blue",
+            subtitulo: "", precio: dbSvc.base_price, horaExtra: dbSvc.hora_extra || 500,
+            itemsFn: (n: number) => dbSvc.features || [],
+          };
+        }
+      } else {
+        // Default: treat as fijo
+        fijos.push(sid);
+        if (!CATALOGO_FIJOS[sid]) {
+          CATALOGO_FIJOS[sid] = {
+            nombre: dbSvc.title, precio: dbSvc.base_price, horaExtra: dbSvc.hora_extra || 500,
+            color: "blue", subtitulo: "", items: dbSvc.features || [],
+          };
+        }
+      }
+      console.log(`[DIAG] service_id "${sid}" classified by DB category "${dbSvc.category}"`);
+    } else {
+      console.warn(`[DIAG] service_id "${sid}" not found in hardcoded lists or DB — skipped`);
+    }
   }
-  console.log(`[DIAG mapQuoteToConfig] service_ids recibidos: ${(qServices||[]).map(q=>q.service_id).join(", ")}`);
+  console.log(`[DIAG mapQuoteToConfig] service_ids recibidos: ${(qServices||[]).map((q: any)=>q.service_id).join(", ")}`);
   console.log(`[DIAG mapQuoteToConfig] estaciones=${JSON.stringify(estaciones)} talleres=${JSON.stringify(talleres)} fijos=${JSON.stringify(fijos)}`);
 
   let fecha = "";
@@ -1165,6 +1202,24 @@ serve(async (req: Request) => {
 
       if (quoteId) {
         await supabase.from("quotes").update({ pdf_url: pdfUrl }).eq("id", quoteId);
+
+        // Traceability: record pdf_generated in quote_history
+        await supabase.from("quote_history").insert({
+          quote_id: quoteId,
+          action_type: "pdf_generated",
+          status: "success",
+          recipient: config.cliente,
+          metadata: {
+            pdf_url: pdfUrl,
+            service_ids: [
+              ...(config.estaciones || []),
+              ...(config.fijos || []),
+              ...(config.talleres || []),
+            ],
+            n_ninos: config.n_ninos,
+            timestamp: new Date().toISOString(),
+          },
+        });
       }
 
       return new Response(JSON.stringify({ success: true, pdf_url: pdfUrl }), {
