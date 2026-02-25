@@ -344,6 +344,8 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
   const fij = config.fijos || [];
   const tal = config.talleres || [];
 
+  const cards: CardData[] = [];
+
   if (est.length >= 2) {
     bloques.push({ tipo: "estacion_resumen", estaciones: est, precio: precioEstaciones(est.length, dbServices, est) });
   } else if (est.length === 1) {
@@ -361,8 +363,6 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
       color: cat?.color || "green",
     });
   }
-
-  const cards: CardData[] = [];
   for (const key of fij) {
     const cat = CATALOGO_FIJOS[key];
     const dbSvc = dbServices?.get(key);
