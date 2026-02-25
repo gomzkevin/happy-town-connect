@@ -1,38 +1,49 @@
 
 
-# Fix: Reclasificar "Decora tu Cupcake" como Taller Creativo
+# Eliminar listas hardcodeadas de categorias en la Edge Function
 
-## Problema
+## Problema actual
 
-"Decora tu Cupcake" (`decora-cupcake`) esta clasificado como "Estaciones de Juego" en dos lugares:
+La Edge Function `generate-quote` tiene dos listas hardcodeadas:
+- `ESTACION_IDS` (8 servicios)
+- `TALLER_IDS` (7 servicios)
 
-1. **Base de datos** (`services` table): `category = 'Estaciones de Juego'`
-2. **Edge Function** (lista hardcodeada `ESTACION_IDS`): incluye `"decora-cupcake"`
+Cada vez que se agrega, quita o reclasifica un servicio, hay que actualizar estas listas manualmente, lo que genera riesgo de inconsistencia con la base de datos.
 
-Esto causa que en la cotizacion PDF aparezca junto a las estaciones en vez de con los talleres.
+## Solucion propuesta
 
-## Plan de correccion
+Reemplazar las listas hardcodeadas por una consulta a la tabla `services` que lea la categoria de cada servicio dinamicamente.
 
-### Paso 1 — Actualizar la categoria en la base de datos
-Ejecutar un UPDATE en la tabla `services` para cambiar la categoria de `decora-cupcake` a "Talleres Creativos".
+### Cambios en `supabase/functions/generate-quote/index.ts`
 
-### Paso 2 — Mover el ID en las listas hardcodeadas de la Edge Function
-En `supabase/functions/generate-quote/index.ts` (linea 244):
-- **Quitar** `"decora-cupcake"` de `ESTACION_IDS`
-- **Agregar** `"decora-cupcake"` a `TALLER_IDS` (linea 246)
+1. **Eliminar** las constantes `ESTACION_IDS` y `TALLER_IDS`
+2. **Agregar** una consulta al inicio del flujo que obtenga las categorias de los servicios seleccionados:
+   ```text
+   SELECT id, category FROM services WHERE id IN (...)
+   ```
+3. **Derivar** las listas de estaciones y talleres a partir del resultado de la consulta, filtrando por `category = 'Estaciones de Juego'` y `category = 'Talleres Creativos'`
+4. **Actualizar** todas las referencias a `ESTACION_IDS` y `TALLER_IDS` para usar las listas derivadas
+5. **Actualizar** la funcion `validateRequest` para que use las listas dinamicas en lugar de las constantes
 
-### Paso 3 — Actualizar la validacion
-En la funcion `validateRequest` (linea 931), la validacion de estaciones ya no incluira `decora-cupcake`, y la de talleres si. Esto ocurre automaticamente al cambiar las listas del Paso 2.
+### Detalles tecnicos
 
-## Archivos a modificar
+- La consulta se hara con el cliente Supabase (service role) que ya existe en la funcion
+- Se usara un Map o Set para busquedas eficientes por ID
+- Se mantiene la misma logica de precios, solo cambia de donde vienen las listas
+- La validacion en `validateRequest` seguira funcionando igual, pero consultando la BD en vez de listas fijas
 
-1. **Base de datos**: UPDATE en tabla `services`
-2. **`supabase/functions/generate-quote/index.ts`**: Mover `"decora-cupcake"` de `ESTACION_IDS` a `TALLER_IDS`
+### Beneficios
 
-## Impacto en precios
+- **Fuente unica de verdad**: la categoria vive solo en la tabla `services`
+- **Sin mantenimiento manual**: agregar un nuevo servicio en la BD es suficiente
+- **Cero riesgo de desincronizacion** entre BD y Edge Function
 
-Al ser taller creativo, el precio de "Decora tu Cupcake" ahora aplicara el multiplicador por numero de ninos (x1.0 hasta 15, x1.3 hasta 30, etc.) en lugar del calculo de pares de estaciones. Esto es el comportamiento correcto segun la solicitud.
+### Riesgo
 
-## Riesgo de regresion
+- Agrega una consulta extra a la BD por cada generacion de cotizacion (impacto minimo, < 50ms)
+- Si la tabla `services` no esta disponible, la generacion fallara (mismo riesgo que ya existe con `dbServices`)
 
-Minimo. Solo se mueve un servicio de una categoria a otra, manteniendo la coherencia entre BD y Edge Function.
+### Archivos a modificar
+
+- `supabase/functions/generate-quote/index.ts` — eliminar constantes hardcodeadas y usar consulta dinamica
+
