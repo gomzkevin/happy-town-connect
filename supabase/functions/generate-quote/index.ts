@@ -1194,7 +1194,12 @@ serve(async (req: Request) => {
     const output = url.searchParams.get("output") ?? (quoteId ? "storage" : "binary");
 
     if (output === "storage") {
-      const safeName = config.cliente.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s0-9]/g, "").trim();
+      const safeName = config.cliente
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")  // Remove accents (ñ→n, á→a)
+        .replace(/[^a-zA-Z0-9]/g, "_")                     // Replace non-alphanumeric with _
+        .replace(/_+/g, "_")                                // Collapse multiple underscores
+        .replace(/^_|_$/g, "")                              // Trim leading/trailing _
+        .substring(0, 50) || "cliente";                     // Limit length
       const fileName = `cotizacion-${safeName}-${Date.now()}.pdf`;
 
       const { error: uploadError } = await supabase.storage
