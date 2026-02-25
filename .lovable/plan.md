@@ -1,47 +1,41 @@
 
-# Corregir el generador de PDF: servicios faltantes
 
-## Problema
+# Diagnosticar y corregir la generacion del PDF
 
-Al generar el PDF para una cotizacion con 3 servicios (supermercado, haz-pulsera, yesitos), solo aparece "yesitos". Esto se debe a 3 bugs en el archivo `supabase/functions/generate-quote/index.ts`:
+## Diagnostico
 
-### Bug 1: ID desalineado -- `haz-pulsera` vs `pulseras`
-- La base de datos usa `service_id = "haz-pulsera"`, pero `TALLER_IDS` (linea 246) lista `"pulseras"`.
-- En `mapQuoteToConfig`, `haz-pulsera` no coincide con ninguna categoria y se descarta silenciosamente.
-- El catalogo `CATALOGO_TALLERES` tampoco tiene entrada para `haz-pulsera`.
+Revise el codigo actual de `supabase/functions/generate-quote/index.ts` y **todos los fixes estan presentes**:
+- `haz-pulsera` esta en `TALLER_IDS` (linea 246) y en `CATALOGO_TALLERES` (linea 274)
+- `precioEstaciones` maneja `n=1` (lineas 292-301)
+- `calcularLayout` maneja estacion sola como card (lineas 351-364)
+- `generarResumen` y `generarNotaHoraExtra` usan `>= 1` (lineas 451, 476)
 
-### Bug 2: Estaciones con 1 sola se ignoran
-- `calcularLayout` (linea 338) solo genera el bloque de estaciones si `est.length >= 2`.
-- `calcularTotal` (linea 309) tambien ignora estaciones si hay menos de 2.
-- `precioEstaciones(1)` retorna `$0` (linea 292).
-- Resultado: si solo hay 1 estacion (como `supermercado`), no aparece en el PDF ni se cobra.
+Verifique la base de datos: la cotizacion `f32f24b3` tiene 3 servicios correctos (supermercado, haz-pulsera, yesitos).
 
-### Bug 3: Resumen tambien omite estaciones solas
-- `generarResumen` (linea 428) dice `if (nEst >= 2)`, asi que 1 estacion no aparece en el texto resumen.
+**El problema mas probable es que la edge function no se redesplegó** despues de los ultimos cambios. Solo se ven logs de boot/shutdown sin ninguna ejecucion real con los fixes.
 
-## Solucion
+## Plan de accion
 
-### Paso 1: Agregar `haz-pulsera` como alias en TALLER_IDS
-Agregar `"haz-pulsera"` a la lista `TALLER_IDS` para que se clasifique correctamente:
-```
-const TALLER_IDS = ["caballetes", "yesitos", "pulseras", "haz-pulsera", "foamy", "diamante"];
-```
+### Paso 1: Agregar logging diagnostico a la edge function
+Agregar `console.log` en puntos clave de `mapQuoteToConfig` y `calcularLayout` para poder verificar que los servicios se clasifican y renderizan correctamente:
+- Log de los `service_id` recibidos de la BD
+- Log de la clasificacion (estaciones/talleres/fijos)
+- Log de los cards generados por `calcularLayout`
+- Log del total calculado
 
-### Paso 2: Agregar entrada en CATALOGO_TALLERES para `haz-pulsera`
-Duplicar la entrada de `pulseras` con la clave `haz-pulsera` para que el nombre, precio e items se resuelvan correctamente.
+### Paso 2: Forzar redespliegue
+Al guardar el archivo con los cambios de logging, la edge function se redesplegaría automaticamente.
 
-### Paso 3: Manejar 1 estacion sola
-Cuando solo hay 1 estacion, renderizarla como tarjeta individual (tipo card) en lugar de ignorarla. Cambios en:
-- `calcularLayout`: si `est.length === 1`, crear una CardData y agregarla a las cards en vez del bloque resumen.
-- `calcularTotal`: calcular precio para 1 estacion (usar el `base_price` de la BD o un precio por defecto).
-- `precioEstaciones`: ajustar para que `n=1` retorne un precio razonable (el `base_price` del servicio de la BD).
+### Paso 3: Verificar en logs
+Despues del redespliegue, al generar un PDF se podran ver los logs y confirmar si la clasificacion funciona correctamente.
 
-### Paso 4: Actualizar texto resumen
-- `generarResumen`: cambiar `if (nEst >= 2)` a `if (nEst >= 1)` para incluir estaciones solas.
-- `generarNotaHoraExtra`: cambiar `if (... >= 2)` a `if (... >= 1)` de la misma forma.
+## Detalle tecnico
 
-## Archivos a modificar
-- `supabase/functions/generate-quote/index.ts` (se despliega automaticamente)
+Archivos a modificar:
+- `supabase/functions/generate-quote/index.ts` — agregar ~5 lineas de `console.log` en:
+  - `mapQuoteToConfig`: despues de clasificar servicios (~linea 1069)
+  - `calcularLayout`: despues de construir cards (~linea 393)
+  - `generateQuotePDF`: log del total y bloques (~linea 939)
 
-## Alternativa mas simple
-Si el negocio NO deberia permitir cotizaciones con 1 sola estacion (siempre deben ser 2+), entonces solo necesitamos resolver el Bug 1 (alias `haz-pulsera`). Pero dado que el sistema ya permite agregar 1 estacion, la solucion completa es mas robusta.
+Los logs no afectan el rendimiento del PDF y se pueden remover despues de confirmar que todo funciona.
+
