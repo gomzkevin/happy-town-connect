@@ -1,0 +1,1 @@
+UPDATE services SET category = 'Talleres Creativos' WHERE id = 'decora-cupcake';
