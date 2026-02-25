@@ -12,6 +12,7 @@ export interface Service {
   max_participants?: number;
   age_range?: string;
   space_requirements?: string;
+  base_price?: number;
 }
 
 export interface SelectedService {
