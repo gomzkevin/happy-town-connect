@@ -295,6 +295,11 @@ function PdfSection({ quote, onPdfGenerated }: { quote: Quote; onPdfGenerated: (
   const [generating, setGenerating] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(quote.pdf_url);
 
+  // Sync local state when quote.pdf_url changes (e.g. after regeneration from another flow)
+  useEffect(() => {
+    setPdfUrl(quote.pdf_url);
+  }, [quote.pdf_url]);
+
   const handleGenerate = async () => {
     setGenerating(true);
     try {
