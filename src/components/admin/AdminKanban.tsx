@@ -339,24 +339,16 @@ function PdfSection({ quote, onPdfGenerated }: { quote: Quote; onPdfGenerated: (
             size="sm"
             variant="warm"
             className="gap-1 flex-1"
-            onClick={async () => {
-              try {
-                const res = await fetch(pdfUrl);
-                const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `cotizacion-${quote.customer_name || "japitown"}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(url);
-              } catch {
-                window.open(pdfUrl, "_blank");
-              }
-            }}
+            asChild
           >
-            <Download className="h-3 w-3" /> Descargar PDF
+            <a
+              href={pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={`cotizacion-${quote.customer_name || "japitown"}.pdf`}
+            >
+              <Download className="h-3 w-3" /> Descargar PDF
+            </a>
           </Button>
         )}
       </div>
