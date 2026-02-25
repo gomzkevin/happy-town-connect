@@ -1,96 +1,77 @@
 
-# Diagnóstico de inconsistencias en regeneración de PDF
 
-## Hallazgos (con evidencia de logs y contenido real)
+# Fix: Botón de descarga PDF y precios ajustados por niños
 
-Revisé los logs de Edge Functions, los requests de `function_edge_logs`, el contenido del PDF generado más reciente y el código frontend/admin.
+## Problemas identificados
 
-### 1) Hay **versiones distintas desplegadas** de `generate-quote` y eso está causando regresiones
-En analytics de edge logs aparecen POST recientes ejecutando versiones diferentes de la misma función:
+### Problema 1: Edge Function falla con `ReferenceError: dbServices is not defined`
+Los logs muestran claramente el error:
+```
+Error generating quote PDF: ReferenceError: dbServices is not defined
+    at mapQuoteToConfig (generate-quote/index.ts:1694:19)
+```
 
-- v30, v32, v33, v34, v36 (todas recientes)
-- Ejemplo de secuencia reciente:
-  - v34 (01:05–01:06)
-  - v36 (01:08–01:10)
+En la funcion `mapQuoteToConfig` (linea 1075 del archivo fuente), el codigo de clasificacion dinamica referencia `dbServices.get(sid)` pero esa variable **nunca se declara ni se inicializa**. Fue agregada como parte del "Paso 3" del plan anterior (eliminar clasificacion rigida) pero falto crear el Map con los datos de la BD.
 
-Esto confirma que no era una sola versión estable, sino despliegues sucesivos con cambios distintos.
+Cuando un `service_id` esta en las listas hardcodeadas (`ESTACION_IDS`, `TALLER_IDS`, `FIJO_IDS`), funciona bien (por eso la segunda ejecucion exitosa en los logs muestra los 3 servicios correctos). Pero cuando cae al fallback dinamico, explota.
 
-**Señal fuerte de regresión entre versiones:**
-- En v34 sí aparecen logs DIAG (`[DIAG mapQuoteToConfig]`, `[DIAG calcularLayout]` con 3 cards).
-- En v36 ya no aparecen esos DIAG.
-- Al invocar nuevamente `generate-quote` para la cotización `f32f24b3...` (respuesta 200), el PDF guardado resultante (`cotizacion-Ari-1771981855370.pdf`) contiene solo “Yesitos” y texto antiguo.
-  
-Conclusión: la versión activa más reciente volvió a un estado regresionado (o diferente al que tenía fixes).
+**Por que a veces funciona y a veces no:** Supabase ejecuta multiples versiones de la Edge Function simultaneamente. La version anterior (sin el codigo de `dbServices`) funciona. La version nueva falla solo cuando un servicio no esta en las listas hardcodeadas.
+
+### Problema 2: Precios en selector de servicios no muestran ajuste por niños
+En las lineas 644 y 1007, el selector de servicios muestra `$svc.base_price.toLocaleString()` — el precio base crudo de la BD. Deberia mostrar el precio ajustado segun `calcularPreciosCotizacion` (que aplica multiplicadores por numero de niños para talleres y formula de pares para estaciones).
 
 ---
 
-### 2) El frontend del admin puede descargar un **PDF viejo (URL stale)** aunque la cotización ya tenga una URL nueva
-En `src/components/admin/AdminKanban.tsx`, `PdfSection` hace:
+## Plan de correccion
 
-- `const [pdfUrl, setPdfUrl] = useState(quote.pdf_url);`
+### Paso 1 — Corregir `dbServices` en la Edge Function
+En `supabase/functions/generate-quote/index.ts`, dentro de `mapQuoteToConfig`, agregar una consulta a la tabla `services` para construir el Map `dbServices` **antes** del loop de clasificacion:
 
-pero **no sincroniza** ese estado cuando `quote.pdf_url` cambia por regeneración automática desde otro flujo (por ejemplo al guardar edición de cotización).
+```typescript
+// Fetch all active services from DB for dynamic classification
+const { data: allDbServices } = await supabase
+  .from("services")
+  .select("id, title, category, base_price, hora_extra, features")
+  .eq("is_active", true);
 
-Esto puede provocar que el usuario descargue una URL anterior y vea “texto no actualizado”, aunque el backend haya generado una versión nueva.
+const dbServices = new Map<string, any>();
+for (const s of allDbServices || []) {
+  dbServices.set(s.id, s);
+}
+```
 
----
+Esto se inserta justo despues de obtener `qServices` (linea 1061) y antes del loop `for (const qs of qServices || [])` (linea 1067).
 
-### 3) Hay deriva entre catálogo DB y clasificación hardcodeada del PDF (causa “faltan servicios” en ciertos casos)
-La función clasifica con listas estáticas (`ESTACION_IDS`, `FIJO_IDS`, `TALLER_IDS`), pero en DB hay servicios activos que no están en esas listas o están en categorías distintas:
+### Paso 2 — Mostrar precios ajustados en el selector de servicios
+En los dos lugares donde se muestra `$svc.base_price.toLocaleString()`:
 
-- Ejemplo: `hamburgueseria` existe en DB activa y no está en `ESTACION_IDS`.
-- Cuando un `service_id` no coincide, se descarta silenciosamente (warning en logs).
+**NewQuoteDialog (linea 644):** Reemplazar con el precio calculado de `priceMap`:
+```typescript
+<p className="text-muted-foreground mt-0.5">
+  ${(isSelected ? (priceMap.get(svc.id) ?? svc.base_price) : svc.base_price).toLocaleString()}
+</p>
+```
 
-Esto explica comportamiento “a veces sí / a veces no” según qué servicios tenga cada cotización.
+**QuoteDetailDialog edit mode (linea 1007):** Mismo patron con `editPriceMap`:
+```typescript
+<p className="text-muted-foreground mt-0.5">
+  ${(isSelected ? (editPriceMap.get(svc.id) ?? svc.base_price) : svc.base_price).toLocaleString()}
+</p>
+```
 
----
+Asi, cuando un servicio esta seleccionado, muestra el precio ajustado; cuando no esta seleccionado, muestra el precio base.
 
-## Qué problema genera las inconsistencias (raíz)
-
-La inconsistencia no parece ser un bug aleatorio del motor PDF en tiempo de ejecución; es una combinación de:
-
-1. **Regresiones por despliegues múltiples/versionado no estabilizado** en `generate-quote` (v34 vs v36).
-2. **Descarga de URL vieja en admin** por estado local no sincronizado.
-3. **Mapeo estático desalineado con servicios reales de DB**, que hace que algunos servicios se pierdan según la cotización.
-
----
-
-## Plan de corrección propuesto
-
-## Paso 1 — Congelar una sola versión estable de `generate-quote`
-- Dejar una única versión con:
-  - fixes de `haz-pulsera`,
-  - soporte correcto de 1 estación (según regla actual),
-  - logs de diagnóstico mínimos temporales.
-- Validar que todos los requests nuevos caen en la misma versión (sin saltos regresivos).
-
-## Paso 2 — Corregir stale URL en `PdfSection` (admin)
-- Sincronizar `pdfUrl` local con cambios de `quote.pdf_url` para que “Descargar PDF” siempre use la última URL.
-- Así se elimina el falso positivo de “regeneré pero se bajó el viejo”.
-
-## Paso 3 — Eliminar clasificación rígida por listas hardcodeadas
-- Clasificar por `services.category` de DB (y fallback por ID legacy).
-- Mantener un mapa de aliases únicamente para compatibilidad histórica.
-- Así servicios nuevos (ej. `hamburgueseria`) no desaparecen.
-
-## Paso 4 — Trazabilidad mínima en historial
-- Registrar en `quote_history` acción `pdf_generated` con:
-  - `quote_id`,
-  - `pdf_url`,
-  - `function_version`/`deployment_id`,
-  - snapshot de `service_ids` usados.
-- Esto permite auditar exactamente “qué versión generó qué PDF”.
-
-## Paso 5 — Prueba de verificación end-to-end
-- Regenerar la misma cotización problemática (`f32f24b3...`).
-- Confirmar:
-  - URL nueva en DB,
-  - descarga desde admin abre esa URL nueva,
-  - PDF incluye supermercado + haz-pulsera + yesitos,
-  - texto actualizado de la edge function visible.
+### Paso 3 — Sin cambios al mecanismo de descarga
+El boton de descarga (lineas 342-374) esta implementado correctamente con fetch-blob-createObjectURL. El problema de descarga es **consecuencia** del error de la Edge Function: si `generate-quote` falla con error 500, no hay `pdf_url` nuevo, y el boton no puede descargar nada. Al corregir el Paso 1, la generacion funcionara y el boton de descarga operara normalmente.
 
 ---
 
-## Nota técnica importante
+## Archivos a modificar
 
-En los logs DIAG de v34, la función reporta 3 cards correctas, pero el PDF final que devuelve la versión más reciente (v36) sigue saliendo solo con Yesitos. Esto refuerza que el problema principal ahora mismo es **versión desplegada regresionada + consumo de URL antigua en UI**, no únicamente el dataset de la cotización.
+1. **`supabase/functions/generate-quote/index.ts`** — Agregar consulta de `services` y crear Map `dbServices` (6 lineas nuevas)
+2. **`src/components/admin/AdminKanban.tsx`** — Mostrar precio ajustado en selector de servicios (2 lineas modificadas)
+
+## Riesgo de regresion
+
+- **Edge Function**: El cambio solo agrega la variable faltante. No modifica logica de clasificacion, layout, ni generacion de PDF. Los servicios que ya estan en listas hardcodeadas siguen funcionando igual (el fallback dinamico solo se usa cuando no estan en esas listas).
+- **Frontend**: El precio mostrado cambia solo visualmente cuando el servicio esta seleccionado. Los calculos de `calcularPreciosCotizacion` y los datos guardados en `quote_services` no se modifican.
