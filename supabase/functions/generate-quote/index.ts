@@ -243,7 +243,7 @@ const CARD_SIZES: Record<number, CardSizes> = {
 // ─── Service Classification ─────────────────────────────────────
 const ESTACION_IDS = ["guarderia", "construccion", "pizzeria", "supermercado", "veterinaria", "cafeteria", "correo", "peluqueria", "decora-cupcake"];
 const FIJO_IDS = ["spa", "pesca", "area_bebes", "inflable_bebes"];
-const TALLER_IDS = ["caballetes", "yesitos", "pulseras", "foamy", "diamante"];
+const TALLER_IDS = ["caballetes", "yesitos", "pulseras", "haz-pulsera", "foamy", "diamante"];
 
 // ─── Catalog ────────────────────────────────────────────────────
 const CATALOGO_ESTACIONES: Record<string, { nombre: string; color: string; subtitulo: string; items: string[] }> = {
@@ -270,7 +270,8 @@ const CATALOGO_TALLERES: Record<string, { nombre: string; precio: number; horaEx
   yesitos:    { nombre: "Yesitos",          precio: 1500, horaExtra: 1000, color: "pink",   subtitulo: "Figuras de yeso para pintar", itemsFn: (n) => [`3 yesitos por niño (${n * 3} piezas total)`, "Pinceles individuales", "Pintura de colores surtidos", `${Math.ceil(n/6)} mesas para ${Math.min(6, n)} niños cada una`, "1 persona de apoyo dedicada"] },
   pulseras:   { nombre: "Arma tu Pulsera",  precio: 1500, horaExtra: 1000, color: "green",  subtitulo: "Diseña tu propia joyería", itemsFn: (n) => [`Kit de charms para ${n} niños`, "Hilo encerado y cuentas", "Dijes decorativos", "Bolsas de regalo", "1 persona de apoyo dedicada"] },
   foamy:      { nombre: "Foami Moldeable",  precio: 800,  horaExtra: 500,  color: "yellow", subtitulo: "Moldea y crea figuras", itemsFn: (n) => [`Foami moldeable para ${n} niños`, "Moldes y cortadores", "Accesorios decorativos", "Bolsas para llevar", "1 persona de apoyo dedicada"] },
-  diamante:   { nombre: "Arte Diamante",    precio: 800,  horaExtra: 500,  color: "blue",   subtitulo: "Brilla con arte de gemas", itemsFn: (n) => [`Kit de arte diamante para ${n} niños`, "Gemas de colores surtidos", "Plantillas temáticas", "Bolsas para llevar", "1 persona de apoyo dedicada"] },
+  diamante:      { nombre: "Arte Diamante",    precio: 800,  horaExtra: 500,  color: "blue",   subtitulo: "Brilla con arte de gemas", itemsFn: (n) => [`Kit de arte diamante para ${n} niños`, "Gemas de colores surtidos", "Plantillas temáticas", "Bolsas para llevar", "1 persona de apoyo dedicada"] },
+  "haz-pulsera": { nombre: "Arma tu Pulsera",  precio: 1500, horaExtra: 1000, color: "green",  subtitulo: "Diseña tu propia joyería", itemsFn: (n) => [`Kit de charms para ${n} niños`, "Hilo encerado y cuentas", "Dijes decorativos", "Bolsas de regalo", "1 persona de apoyo dedicada"] },
 };
 
 // ─── Pricing ────────────────────────────────────────────────────
@@ -288,8 +289,16 @@ function getMultiplicador(nNinos: number): number {
   return 1.8;
 }
 
-function precioEstaciones(n: number): number {
-  if (n < 2) return 0;
+function precioEstaciones(n: number, dbServices?: Map<string, DBService>, estacionIds?: string[]): number {
+  if (n === 0) return 0;
+  if (n === 1) {
+    // For a single station, use its base_price from DB, or fallback to 1800
+    if (dbServices && estacionIds && estacionIds.length > 0) {
+      const svc = dbServices.get(estacionIds[0]);
+      if (svc) return svc.base_price;
+    }
+    return 1800;
+  }
   return Math.floor(n / 2) * 3000 + (n % 2) * 1800;
 }
 
@@ -306,8 +315,8 @@ function calcularTotal(
   const desglose: Record<string, number> = {};
 
   const nEst = config.estaciones?.length ?? 0;
-  if (nEst >= 2) {
-    const p = precioEstaciones(nEst);
+  if (nEst >= 1) {
+    const p = precioEstaciones(nEst, dbServices, config.estaciones);
     total += p;
     desglose.estaciones = p;
   }
@@ -336,7 +345,21 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
   const tal = config.talleres || [];
 
   if (est.length >= 2) {
-    bloques.push({ tipo: "estacion_resumen", estaciones: est, precio: precioEstaciones(est.length) });
+    bloques.push({ tipo: "estacion_resumen", estaciones: est, precio: precioEstaciones(est.length, dbServices, est) });
+  } else if (est.length === 1) {
+    // Single station: render as an individual card
+    const key = est[0];
+    const cat = CATALOGO_ESTACIONES[key];
+    const dbSvc = dbServices?.get(key);
+    const precio = precioEstaciones(1, dbServices, est);
+    cards.push({
+      tipo: "fijo", key,
+      nombre: cat?.nombre || dbSvc?.title || key,
+      precio,
+      subtitulo: cat?.subtitulo || "",
+      items: cat?.items || dbSvc?.features || [],
+      color: cat?.color || "green",
+    });
   }
 
   const cards: CardData[] = [];
@@ -425,7 +448,7 @@ function generarSubtitulo(config: QuoteRequest): string {
 function generarResumen(config: QuoteRequest): string {
   const parts: string[] = [];
   const nEst = config.estaciones?.length ?? 0;
-  if (nEst >= 2) parts.push(`${nEst} estaciones`);
+  if (nEst >= 1) parts.push(`${nEst} ${nEst === 1 ? "estación" : "estaciones"}`);
   const nFij = config.fijos?.length ?? 0;
   if (nFij > 0) parts.push(`${nFij} ${nFij === 1 ? "servicio fijo" : "servicios fijos"}`);
   const nTal = config.talleres?.length ?? 0;
@@ -450,7 +473,7 @@ function generarCondiciones(config: QuoteRequest): string[] {
 
 function generarNotaHoraExtra(config: QuoteRequest, dbServices: Map<string, DBService>): string {
   const parts: string[] = [];
-  if ((config.estaciones?.length ?? 0) >= 2) parts.push("$500 por estación");
+  if ((config.estaciones?.length ?? 0) >= 1) parts.push("$500 por estación");
   const extras: Record<number, string[]> = {};
   for (const key of config.fijos ?? []) {
     const p = dbServices?.get(key)?.hora_extra ?? CATALOGO_FIJOS[key]?.horaExtra ?? 500;
