@@ -11,6 +11,3 @@ verify_jwt = false
 
 [functions.send-team-invitation]
 verify_jwt = false
-
-[functions.recalculate-quotes]
-verify_jwt = false
