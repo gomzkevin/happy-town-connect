@@ -1,0 +1,1 @@
+UPDATE services SET is_active = false WHERE id IN ('peluqueria', 'correo');
