@@ -391,10 +391,12 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
     });
   }
 
+  console.log(`[DIAG calcularLayout] cards generados: ${cards.map(c => `${c.key}(${c.tipo})`).join(", ")} total=${cards.length}`);
   const filas = distribuirEnFilas(cards);
   for (const fila of filas) {
     bloques.push({ tipo: "fila_cards", cards: fila, cardsPerRow: fila.length });
   }
+  console.log(`[DIAG calcularLayout] bloques totales: ${bloques.length}`);
 
   return bloques;
 }
@@ -937,6 +939,7 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   const resolved = resolveDefaults(config);
   const { total } = calcularTotal(resolved, dbServices);
   const bloques = calcularLayout(resolved, dbServices);
+  console.log(`[DIAG generateQuotePDF] total=${total}, bloques=${bloques.length}, config.estaciones=${JSON.stringify(resolved.estaciones)} config.talleres=${JSON.stringify(resolved.talleres)}`);
 
   const pdfDoc = await PDFDocument.create();
   const fonts = await loadFonts(pdfDoc);
@@ -1066,7 +1069,10 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     if (ESTACION_IDS.includes(sid)) estaciones.push(sid);
     else if (FIJO_IDS.includes(sid)) fijos.push(sid);
     else if (TALLER_IDS.includes(sid)) talleres.push(sid);
+    else console.warn(`[DIAG] service_id "${sid}" no clasificado en ninguna lista`);
   }
+  console.log(`[DIAG mapQuoteToConfig] service_ids recibidos: ${(qServices||[]).map(q=>q.service_id).join(", ")}`);
+  console.log(`[DIAG mapQuoteToConfig] estaciones=${JSON.stringify(estaciones)} talleres=${JSON.stringify(talleres)} fijos=${JSON.stringify(fijos)}`);
 
   let fecha = "";
   if (quote.event_date) {
