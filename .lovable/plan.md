@@ -1,33 +1,63 @@
 
-# Auditoría Edge Function `generate-quote` — COMPLETADO ✅
 
-## Cambios Realizados
+# Recalculo masivo de precios en cotizaciones existentes
 
-### Fase 1 ✅ — Nuevas columnas en `services`
-- Columna `pdf_color` (text, default 'blue') — color de la card en el PDF
-- Columna `pdf_subtitle` (text, nullable) — subtítulo descriptivo en el PDF
-- Datos poblados para los 16 servicios existentes
+## Problema
+Las cotizaciones creadas antes del refactor tienen precios snapshot de los catalogos hardcodeados, que difieren de los `base_price` actuales en la BD. Esto genera confusion en el admin.
 
-### Fase 2 ✅ — Servicios faltantes agregados
-- `correo` — Estación de Juego, $1,800
-- `peluqueria` — Estación de Juego, $1,800
-- Alias `pizzeria`/`pulseras` resueltos: se usa `hamburgueseria` y `haz-pulsera` como IDs canónicos
+## Solucion
 
-### Fase 3 ✅ — Catálogos hardcodeados eliminados
-- `CATALOGO_ESTACIONES`, `CATALOGO_FIJOS`, `CATALOGO_TALLERES` eliminados completamente
-- Nombre, color, subtítulo, features, precio y hora_extra se leen de la BD
-- `deriveServiceSets()` clasifica dinámicamente por categoría
-- `mapQuoteToConfig()` ya no muta catálogos
+Crear una Edge Function temporal `recalculate-quotes` que:
 
-### Fase 4 ✅ — Datos bancarios en `company_settings`
-- Columna `bank_info` agregada a `company_settings`
-- `drawPaymentInfo()` lee de BD en lugar de hardcodear
+1. Consulte todas las cotizaciones con status distinto de `completed`/`cancelled`
+2. Para cada cotizacion, obtenga sus `quote_services` y los `base_price` actuales de la tabla `services`
+3. Aplique la logica de `calcularPreciosCotizacion` (pares de estaciones, multiplicadores de talleres) usando el `children_count` de cada cotizacion
+4. Actualice `quote_services.service_price` y `quotes.total_estimate` con los nuevos valores
 
-### Constantes que se mantienen (lógica de negocio)
-- `TIERS` multiplicadores — lógica de negocio, no datos
-- `pairPrice = 3000`, `singlePrice = 1800` — fórmula de estaciones
-- Colores del PDF (C object) — paleta de diseño
+### Detalles tecnicos
 
-### Archivos modificados
-- `supabase/functions/generate-quote/index.ts` — refactor completo
-- 2 migraciones SQL — columnas + datos
+**Nueva Edge Function**: `supabase/functions/recalculate-quotes/index.ts`
+- Replica la logica de pricing de `src/lib/pricing.ts` (TIERS, pares de estaciones)
+- Consulta todas las quotes activas (`pending`, `contacted`, `negotiating`, `accepted`)
+- Para cada quote:
+  - Obtiene sus quote_services con el service_id
+  - Busca el base_price y category actuales de cada service_id en la tabla `services`
+  - Recalcula precios individuales y total
+  - Actualiza `quote_services.service_price` por cada registro
+  - Actualiza `quotes.total_estimate` y `quotes.deposit_amount` (50% del total)
+- Devuelve un resumen de cuantas cotizaciones se actualizaron
+
+**Boton en AdminKanban**: `src/components/admin/AdminKanban.tsx`
+- Agregar un boton "Recalcular precios" en la barra superior del Kanban
+- Al hacer clic, invoca la Edge Function
+- Muestra un toast con el resultado
+- Recarga los datos del Kanban
+
+**Configuracion**: `supabase/config.toml`
+- Registrar la nueva funcion con `verify_jwt = false` (protegida por logica interna)
+
+### Logica de recalculo (misma que pricing.ts)
+
+```text
+Estaciones de Juego:
+  1 estacion  -> base_price individual
+  2+ estaciones -> floor(n/2) * 3000 + (n%2) * 1800, distribuido
+
+Talleres Creativos:
+  base_price * multiplicador(children_count)
+  <=15: x1.0 | <=30: x1.3 | <=50: x1.5 | >50: x1.8
+
+Otros (Servicios Fijos):
+  base_price directo
+```
+
+### Archivos a crear/modificar
+- **Crear**: `supabase/functions/recalculate-quotes/index.ts`
+- **Modificar**: `supabase/config.toml` (registrar funcion)
+- **Modificar**: `src/components/admin/AdminKanban.tsx` (boton de recalculo)
+
+### Riesgos
+- Minimo: solo actualiza precios, no modifica servicios ni estructura
+- Las cotizaciones `completed` o `cancelled` no se tocan
+- Si un `service_id` en quote_services no existe en la tabla services, se mantiene el precio actual
+
