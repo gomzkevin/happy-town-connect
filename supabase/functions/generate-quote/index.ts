@@ -241,9 +241,9 @@ const CARD_SIZES: Record<number, CardSizes> = {
 };
 
 // ─── Service Classification ─────────────────────────────────────
-const ESTACION_IDS = ["guarderia", "construccion", "pizzeria", "supermercado", "veterinaria", "cafeteria", "correo", "peluqueria", "decora-cupcake"];
+const ESTACION_IDS = ["guarderia", "construccion", "pizzeria", "supermercado", "veterinaria", "cafeteria", "correo", "peluqueria"];
 const FIJO_IDS = ["spa", "pesca", "area_bebes", "inflable_bebes"];
-const TALLER_IDS = ["caballetes", "yesitos", "pulseras", "haz-pulsera", "foamy", "diamante"];
+const TALLER_IDS = ["caballetes", "yesitos", "pulseras", "haz-pulsera", "foamy", "diamante", "decora-cupcake"];
 
 // ─── Catalog ────────────────────────────────────────────────────
 const CATALOGO_ESTACIONES: Record<string, { nombre: string; color: string; subtitulo: string; items: string[] }> = {
