@@ -348,6 +348,10 @@ function PdfSection({ quote, onPdfGenerated }: { quote: Quote; onPdfGenerated: (
                   .eq('id', quote.id)
                   .single();
                 const url = freshQuote?.pdf_url || pdfUrl;
+                if (!url) {
+                  toast({ title: 'Sin PDF', description: 'Genera el PDF primero.', variant: 'destructive' });
+                  return;
+                }
                 if (url !== pdfUrl) setPdfUrl(url);
 
                 const res = await fetch(url);
@@ -356,17 +360,21 @@ function PdfSection({ quote, onPdfGenerated }: { quote: Quote; onPdfGenerated: (
                 const blobUrl = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = blobUrl;
-                a.download = `cotizacion-${quote.customer_name || 'japitown'}.pdf`;
+                a.download = `cotizacion-${(quote.customer_name || 'japitown').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
                 URL.revokeObjectURL(blobUrl);
               } catch (err) {
                 console.error('PDF download error:', err);
-                // Fallback: programmatic <a> click (avoids popup blockers)
+                const fallbackUrl = pdfUrl;
+                if (!fallbackUrl) {
+                  toast({ title: 'Error', description: 'No se pudo descargar el PDF.', variant: 'destructive' });
+                  return;
+                }
                 const a = document.createElement('a');
-                a.href = pdfUrl;
-                a.download = `cotizacion-${quote.customer_name || 'japitown'}.pdf`;
+                a.href = fallbackUrl;
+                a.download = `cotizacion-${(quote.customer_name || 'japitown').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
