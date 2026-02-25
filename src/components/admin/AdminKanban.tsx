@@ -339,16 +339,41 @@ function PdfSection({ quote, onPdfGenerated }: { quote: Quote; onPdfGenerated: (
             size="sm"
             variant="warm"
             className="gap-1 flex-1"
-            asChild
+            onClick={async () => {
+              try {
+                // Re-fetch latest pdf_url from DB to avoid stale URLs
+                const { data: freshQuote } = await supabase
+                  .from('quotes')
+                  .select('pdf_url')
+                  .eq('id', quote.id)
+                  .single();
+                const url = freshQuote?.pdf_url || pdfUrl;
+                if (url !== pdfUrl) setPdfUrl(url);
+
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('fetch failed');
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = `cotizacion-${quote.customer_name || 'japitown'}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(blobUrl);
+              } catch (err) {
+                console.error('PDF download error:', err);
+                // Fallback: programmatic <a> click (avoids popup blockers)
+                const a = document.createElement('a');
+                a.href = pdfUrl;
+                a.download = `cotizacion-${quote.customer_name || 'japitown'}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+              }
+            }}
           >
-            <a
-              href={pdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              download={`cotizacion-${quote.customer_name || "japitown"}.pdf`}
-            >
-              <Download className="h-3 w-3" /> Descargar PDF
-            </a>
+            <Download className="h-3 w-3" /> Descargar PDF
           </Button>
         )}
       </div>
