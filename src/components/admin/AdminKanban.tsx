@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import { Calendar, Mail, Phone, MapPin, DollarSign, TrendingUp, Clock, GripVertical, ChevronRight, XCircle, Plus, Trash2, FileText, Download, Loader2, AlertTriangle, Pencil } from 'lucide-react';
+import { Calendar, Mail, Phone, MapPin, DollarSign, TrendingUp, Clock, GripVertical, ChevronRight, XCircle, Plus, Trash2, FileText, Download, Loader2, AlertTriangle, Pencil, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, differenceInDays, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -1269,6 +1269,26 @@ const AdminKanban = () => {
   const [paymentVersion, setPaymentVersion] = useState(0);
   const [showNewQuote, setShowNewQuote] = useState(false);
   const [paymentTotals, setPaymentTotals] = useState<Record<string, number>>({});
+  const [recalculating, setRecalculating] = useState(false);
+
+  const handleRecalculate = async () => {
+    setRecalculating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('recalculate-quotes');
+      if (error) throw error;
+      toast({
+        title: 'Precios actualizados',
+        description: `${data.updated} cotización(es) recalculada(s), ${data.skipped} omitida(s).`,
+      });
+      await fetchQuotes();
+      await fetchPaymentTotals();
+    } catch (err) {
+      console.error('Recalculate error:', err);
+      toast({ title: 'Error', description: 'No se pudieron recalcular los precios.', variant: 'destructive' });
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   const fetchQuotes = useCallback(async () => {
     const { data, error } = await supabase.from('quotes').select('*').order('created_at', { ascending: false });
@@ -1317,11 +1337,17 @@ const AdminKanban = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <KPIBar quotes={quotes} paymentTotals={paymentTotals} />
-        <Button onClick={() => setShowNewQuote(true)} className="gap-1 shrink-0">
-          <Plus className="h-4 w-4" /> Nueva Cotización
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={handleRecalculate} disabled={recalculating} className="gap-1">
+            <RefreshCw className={`h-4 w-4 ${recalculating ? 'animate-spin' : ''}`} />
+            {recalculating ? 'Recalculando...' : 'Recalcular precios'}
+          </Button>
+          <Button onClick={() => setShowNewQuote(true)} className="gap-1">
+            <Plus className="h-4 w-4" /> Nueva Cotización
+          </Button>
+        </div>
       </div>
       <div className="flex gap-3 overflow-x-auto pb-4 -mx-2 px-2">
         {STAGES.map(stage => (
