@@ -16,6 +16,7 @@ import { format, differenceInDays, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
 import { useQuotePayments } from '@/hooks/useQuotePayments';
+import { calcularPreciosCotizacion, type ServiceForPricing } from '@/lib/pricing';
 
 // Types
 interface Quote {
@@ -404,10 +405,11 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
     });
   };
 
-  const totalEstimate = Array.from(selectedServices).reduce((total, id) => {
-    const svc = availableServices.find(s => s.id === id);
-    return total + (svc?.base_price || 0);
-  }, 0);
+  const nNinos = form.children_count ? parseInt(form.children_count) : 15;
+  const selectedSvcsForPricing = Array.from(selectedServices)
+    .map(id => availableServices.find(s => s.id === id))
+    .filter(Boolean) as ServiceForPricing[];
+  const { perService: priceMap, total: totalEstimate } = calcularPreciosCotizacion(selectedSvcsForPricing, nNinos);
 
   // Group services by category
   const servicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
@@ -472,7 +474,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
             quote_id: quote.id,
             service_id: serviceId,
             service_name: svc.title,
-            service_price: svc.base_price,
+            service_price: priceMap.get(serviceId) ?? svc.base_price,
             quantity: 1,
           };
         });
@@ -752,10 +754,11 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     });
   };
 
-  const editTotalEstimate = Array.from(editSelectedServices).reduce((total, id) => {
-    const svc = availableServices.find(s => s.id === id);
-    return total + (svc?.base_price || 0);
-  }, 0);
+  const editNNinos = editForm.children_count ? parseInt(editForm.children_count) : 15;
+  const editSvcsForPricing = Array.from(editSelectedServices)
+    .map(id => availableServices.find(s => s.id === id))
+    .filter(Boolean) as ServiceForPricing[];
+  const { perService: editPriceMap, total: editTotalEstimate } = calcularPreciosCotizacion(editSvcsForPricing, editNNinos);
 
   const editServicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
     const cat = svc.category || 'Otros';
@@ -810,7 +813,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
             quote_id: quote.id,
             service_id: serviceId,
             service_name: svc.title,
-            service_price: svc.base_price,
+            service_price: editPriceMap.get(serviceId) ?? svc.base_price,
             quantity: 1,
           };
         });
