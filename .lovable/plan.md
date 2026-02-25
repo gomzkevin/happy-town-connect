@@ -1,34 +1,47 @@
 
+# Corregir el generador de PDF: servicios faltantes
 
-# Reemplazar el generador de PDF con la version correcta
+## Problema
 
-## Problema identificado
+Al generar el PDF para una cotizacion con 3 servicios (supermercado, haz-pulsera, yesitos), solo aparece "yesitos". Esto se debe a 3 bugs en el archivo `supabase/functions/generate-quote/index.ts`:
 
-El archivo `supabase/functions/generate-quote/index.ts` actual (974 lineas) es una version anterior al archivo que subiste (1160 lineas). Las diferencias principales son:
+### Bug 1: ID desalineado -- `haz-pulsera` vs `pulseras`
+- La base de datos usa `service_id = "haz-pulsera"`, pero `TALLER_IDS` (linea 246) lista `"pulseras"`.
+- En `mapQuoteToConfig`, `haz-pulsera` no coincide con ninguna categoria y se descarta silenciosamente.
+- El catalogo `CATALOGO_TALLERES` tampoco tiene entrada para `haz-pulsera`.
 
-| Aspecto | Version actual (vieja) | Version correcta (subida) |
-|---|---|---|
-| Lineas | 974 | 1160 |
-| ID estacion | `hamburgueseria` | `pizzeria` |
-| ID taller | `haz-pulsera` | `pulseras` |
-| Iconos en PDF | Carga iconos de servicio (01-12) | Solo iconos decorativos (13-19) |
-| CardSizes | Sin `bodyPadTop`/`bodyPadBot` | Con padding adaptativo |
-| Firma `precioTaller` | `(basePrice, nNinos)` | `(key, nNinos, dbPrice?)` |
-| Catalogo fijos | Sin precios en catalogo | Con precios y hora extra |
-| Visual | Sin banda arcoiris, sin iconos dispersos | Rainbow stripe, scattered icons, icon band |
-| Espaciado | Basico | Sistema adaptativo con gaps minimos y bonus distribuido |
+### Bug 2: Estaciones con 1 sola se ignoran
+- `calcularLayout` (linea 338) solo genera el bloque de estaciones si `est.length >= 2`.
+- `calcularTotal` (linea 309) tambien ignora estaciones si hay menos de 2.
+- `precioEstaciones(1)` retorna `$0` (linea 292).
+- Resultado: si solo hay 1 estacion (como `supermercado`), no aparece en el PDF ni se cobra.
 
-No hay dos funciones compitiendo: `generate-quote-pdf` (jsPDF) existe en el repo pero ningun componente del cliente lo invoca. El problema es simplemente que el archivo fue revertido o sobrescrito en algun momento.
+### Bug 3: Resumen tambien omite estaciones solas
+- `generarResumen` (linea 428) dice `if (nEst >= 2)`, asi que 1 estacion no aparece en el texto resumen.
 
-## Plan de accion
+## Solucion
 
-### Paso 1: Reemplazar el archivo de la edge function
-Sobrescribir `supabase/functions/generate-quote/index.ts` con el contenido completo del archivo subido (1160 lineas). Esto se despliega automaticamente.
+### Paso 1: Agregar `haz-pulsera` como alias en TALLER_IDS
+Agregar `"haz-pulsera"` a la lista `TALLER_IDS` para que se clasifique correctamente:
+```
+const TALLER_IDS = ["caballetes", "yesitos", "pulseras", "haz-pulsera", "foamy", "diamante"];
+```
 
-### Paso 2: Verificar que no se necesitan otros cambios
-No hay cambios necesarios en el cliente -- la funcion se invoca de la misma forma (`supabase.functions.invoke('generate-quote', { body: { quoteId } })`). La interfaz de entrada/salida es identica.
+### Paso 2: Agregar entrada en CATALOGO_TALLERES para `haz-pulsera`
+Duplicar la entrada de `pulseras` con la clave `haz-pulsera` para que el nombre, precio e items se resuelvan correctamente.
 
-## Notas
-- La version correcta usa solo iconos decorativos (13-19) del storage, lo cual es mas eficiente en CPU.
-- Los IDs de servicio cambian (`pizzeria` en lugar de `hamburgueseria`, `pulseras` en lugar de `haz-pulsera`). Si la base de datos usa los IDs viejos, habria un desajuste. Esto se valida con los logs que ya muestran `haz-pulsera` -- habria que confirmar si la BD tiene `pulseras` o `haz-pulsera`.
+### Paso 3: Manejar 1 estacion sola
+Cuando solo hay 1 estacion, renderizarla como tarjeta individual (tipo card) en lugar de ignorarla. Cambios en:
+- `calcularLayout`: si `est.length === 1`, crear una CardData y agregarla a las cards en vez del bloque resumen.
+- `calcularTotal`: calcular precio para 1 estacion (usar el `base_price` de la BD o un precio por defecto).
+- `precioEstaciones`: ajustar para que `n=1` retorne un precio razonable (el `base_price` del servicio de la BD).
 
+### Paso 4: Actualizar texto resumen
+- `generarResumen`: cambiar `if (nEst >= 2)` a `if (nEst >= 1)` para incluir estaciones solas.
+- `generarNotaHoraExtra`: cambiar `if (... >= 2)` a `if (... >= 1)` de la misma forma.
+
+## Archivos a modificar
+- `supabase/functions/generate-quote/index.ts` (se despliega automaticamente)
+
+## Alternativa mas simple
+Si el negocio NO deberia permitir cotizaciones con 1 sola estacion (siempre deben ser 2+), entonces solo necesitamos resolver el Bug 1 (alias `haz-pulsera`). Pero dado que el sistema ya permite agregar 1 estacion, la solucion completa es mas robusta.
