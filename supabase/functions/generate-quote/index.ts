@@ -76,6 +76,8 @@ interface DBService {
   base_price: number;
   hora_extra: number;
   features: string[] | null;
+  pdf_color: string;
+  pdf_subtitle: string | null;
 }
 
 // deno-lint-ignore no-explicit-any
@@ -264,34 +266,10 @@ function deriveServiceSets(dbServices: Map<string, DBService>): {
   return { estacionIds, fijoIds, tallerIds };
 }
 
-// ─── Catalog ────────────────────────────────────────────────────
-const CATALOGO_ESTACIONES: Record<string, { nombre: string; color: string; subtitulo: string; items: string[] }> = {
-  guarderia:        { nombre: "Guardería",         color: "blue",   subtitulo: "Cuidado y juego para los más pequeños", items: ["Cunas y cambiadores", "Juguetes sensoriales", "Zona de juego segura", "Staff dedicado", "Material sanitizado"] },
-  construccion:     { nombre: "Construcción",      color: "yellow", subtitulo: "Construye, imagina y crea", items: ["Bloques de construcción", "Herramientas de juguete", "Cascos y chalecos", "Material reutilizable", "1 persona de apoyo dedicada"] },
-  pizzeria:         { nombre: "Pizzería",          color: "red",    subtitulo: "Pizza artesanal de juguete", items: ["Horno de juguete", "Ingredientes de felpa", "Cajas de pizza", "Uniformes de chef", "1 persona de apoyo dedicada"] },
-  supermercado:     { nombre: "Supermercado",      color: "green",  subtitulo: "Compra, paga y diviértete", items: ["Carritos de compra", "Productos de juguete", "Cajas registradoras", "Bolsas de compra", "1 persona de apoyo dedicada"] },
-  veterinaria:      { nombre: "Veterinaria",       color: "green",  subtitulo: "Cuida a los animalitos", items: ["Peluches de animales", "Kit veterinario", "Certificados de salud", "Batas y estetoscopios", "1 persona de apoyo dedicada"] },
-  cafeteria:        { nombre: "Cafetería",         color: "pink",   subtitulo: "Barista por un día", items: ["Máquina de café de juguete", "Tazas y platos", "Postres de juguete", "Mandiles y gorros", "1 persona de apoyo dedicada"] },
-  correo:           { nombre: "Correo",            color: "blue",   subtitulo: "Entrega cartas y paquetes", items: ["Buzón de juguete", "Sellos y etiquetas", "Paquetes para enviar", "Uniforme de cartero", "1 persona de apoyo dedicada"] },
-  peluqueria:       { nombre: "Peluquería",        color: "purple", subtitulo: "Estilista por un día", items: ["Silla de peluquería", "Secadoras y cepillos", "Accesorios para el pelo", "Capas y espejos", "1 persona de apoyo dedicada"] },
-  "decora-cupcake": { nombre: "Decora tu Cupcake", color: "pink",   subtitulo: "Decora y disfruta", items: ["Cupcakes", "Betún de colores", "Decoraciones", "Sprinkles", "1 persona de apoyo dedicada"] },
-};
-
-const CATALOGO_FIJOS: Record<string, { nombre: string; precio: number; horaExtra: number; color: string; subtitulo: string; items: string[] }> = {
-  spa:            { nombre: "SPA",                 precio: 2200, horaExtra: 1000, color: "pink",  subtitulo: "Relajación y cuidado personal", items: ["Mascarillas faciales", "Aplicación de esmalte", "Accesorios para el pelo", "Aromaterapia infantil", "1 persona de apoyo dedicada"] },
-  pesca:          { nombre: "Pesca y Boliche",     precio: 1200, horaExtra: 500,  color: "blue",  subtitulo: "Diversión con cañas y pinos", items: ["Cañas de pescar magnéticas", "Peces de juguete", "Set de boliche completo", "Equipo reutilizable", "1 persona de apoyo dedicada"] },
-  area_bebes:     { nombre: "Área de Bebés",       precio: 2500, horaExtra: 500,  color: "blue",  subtitulo: "Espacio seguro para los más pequeños", items: ["Toldo de protección solar", "Tapete acolchado", "Juguetes sensoriales", "Staff dedicado", "Material sanitizado"] },
-  inflable_bebes: { nombre: "Inflable para Bebés", precio: 1500, horaExtra: 500,  color: "green", subtitulo: "Brinca-brinca seguro para bebés", items: ["Inflable 2×2m", "Pelotas de colores", "Supervisión constante", "Montaje incluido", "1 persona de apoyo dedicada"] },
-};
-
-const CATALOGO_TALLERES: Record<string, { nombre: string; precio: number; horaExtra: number; color: string; subtitulo: string; itemsFn: (n: number) => string[] }> = {
-  caballetes: { nombre: "Caballetes",       precio: 2000, horaExtra: 1000, color: "purple", subtitulo: "Pinturas y dibujos personalizados", itemsFn: (n) => [`${Math.ceil(n/6)} caballetes dobles (${Math.min(n, Math.ceil(n/6)*2*5)} niños simultáneos)`, `Hasta ${n} dibujos personalizados`, "Impresiones ilimitadas durante el servicio", "Mandiles para cada niño", "1 persona de apoyo dedicada"] },
-  yesitos:    { nombre: "Yesitos",          precio: 1500, horaExtra: 1000, color: "pink",   subtitulo: "Figuras de yeso para pintar", itemsFn: (n) => [`3 yesitos por niño (${n * 3} piezas total)`, "Pinceles individuales", "Pintura de colores surtidos", `${Math.ceil(n/6)} mesas para ${Math.min(6, n)} niños cada una`, "1 persona de apoyo dedicada"] },
-  pulseras:   { nombre: "Arma tu Pulsera",  precio: 1500, horaExtra: 1000, color: "green",  subtitulo: "Diseña tu propia joyería", itemsFn: (n) => [`Kit de charms para ${n} niños`, "Hilo encerado y cuentas", "Dijes decorativos", "Bolsas de regalo", "1 persona de apoyo dedicada"] },
-  foamy:      { nombre: "Foami Moldeable",  precio: 800,  horaExtra: 500,  color: "yellow", subtitulo: "Moldea y crea figuras", itemsFn: (n) => [`Foami moldeable para ${n} niños`, "Moldes y cortadores", "Accesorios decorativos", "Bolsas para llevar", "1 persona de apoyo dedicada"] },
-  diamante:      { nombre: "Arte Diamante",    precio: 800,  horaExtra: 500,  color: "blue",   subtitulo: "Brilla con arte de gemas", itemsFn: (n) => [`Kit de arte diamante para ${n} niños`, "Gemas de colores surtidos", "Plantillas temáticas", "Bolsas para llevar", "1 persona de apoyo dedicada"] },
-  "haz-pulsera": { nombre: "Arma tu Pulsera",  precio: 1500, horaExtra: 1000, color: "green",  subtitulo: "Diseña tu propia joyería", itemsFn: (n) => [`Kit de charms para ${n} niños`, "Hilo encerado y cuentas", "Dijes decorativos", "Bolsas de regalo", "1 persona de apoyo dedicada"] },
-};
+// ─── Catalogs REMOVED ───────────────────────────────────────────
+// All service data (name, color, subtitle, features, price) now comes
+// exclusively from the `services` table via dbServices Map.
+// No hardcoded catalogs remain — the DB is the single source of truth.
 
 // ─── Pricing ────────────────────────────────────────────────────
 const TIERS = [
@@ -321,9 +299,8 @@ function precioEstaciones(n: number, dbServices?: Map<string, DBService>, estaci
   return Math.floor(n / 2) * 3000 + (n % 2) * 1800;
 }
 
-function precioTaller(key: string, nNinos: number, dbPrice?: number): number {
-  const base = dbPrice ?? CATALOGO_TALLERES[key]?.precio ?? 0;
-  return Math.round(base * getMultiplicador(nNinos));
+function precioTaller(dbPrice: number, nNinos: number): number {
+  return Math.round(dbPrice * getMultiplicador(nNinos));
 }
 
 function calcularTotal(
@@ -341,14 +318,14 @@ function calcularTotal(
   }
 
   for (const key of config.fijos ?? []) {
-    const p = dbServices?.get(key)?.base_price ?? CATALOGO_FIJOS[key]?.precio ?? 0;
+    const p = dbServices?.get(key)?.base_price ?? 0;
     total += p;
     desglose[key] = p;
   }
 
   for (const key of config.talleres ?? []) {
-    const dbPrice = dbServices?.get(key)?.base_price;
-    const p = precioTaller(key, config.n_ninos, dbPrice);
+    const dbSvc = dbServices?.get(key);
+    const p = precioTaller(dbSvc?.base_price ?? 0, config.n_ninos);
     total += p;
     desglose[key] = p;
   }
@@ -368,45 +345,40 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
   if (est.length >= 2) {
     bloques.push({ tipo: "estacion_resumen", estaciones: est, precio: precioEstaciones(est.length, dbServices, est) });
   } else if (est.length === 1) {
-    // Single station: render as an individual card
     const key = est[0];
-    const cat = CATALOGO_ESTACIONES[key];
     const dbSvc = dbServices?.get(key);
     const precio = precioEstaciones(1, dbServices, est);
     cards.push({
       tipo: "fijo", key,
-      nombre: cat?.nombre || dbSvc?.title || key,
+      nombre: dbSvc?.title || key,
       precio,
-      subtitulo: cat?.subtitulo || "",
-      items: cat?.items || dbSvc?.features || [],
-      color: cat?.color || "green",
+      subtitulo: dbSvc?.pdf_subtitle || "",
+      items: dbSvc?.features || [],
+      color: dbSvc?.pdf_color || "green",
     });
   }
   for (const key of fij) {
-    const cat = CATALOGO_FIJOS[key];
     const dbSvc = dbServices?.get(key);
     cards.push({
       tipo: "fijo", key,
-      nombre: cat?.nombre || dbSvc?.title || key,
-      precio: dbSvc?.base_price ?? cat?.precio ?? 0,
-      subtitulo: cat?.subtitulo || "",
-      items: cat?.items || dbSvc?.features || [],
-      color: cat?.color || "blue",
+      nombre: dbSvc?.title || key,
+      precio: dbSvc?.base_price ?? 0,
+      subtitulo: dbSvc?.pdf_subtitle || "",
+      items: dbSvc?.features || [],
+      color: dbSvc?.pdf_color || "blue",
     });
   }
 
   for (const key of tal) {
-    const cat = CATALOGO_TALLERES[key];
     const dbSvc = dbServices?.get(key);
-    const dbPrice = dbSvc?.base_price;
-    const precio = precioTaller(key, config.n_ninos, dbPrice);
+    const precio = precioTaller(dbSvc?.base_price ?? 0, config.n_ninos);
     cards.push({
       tipo: "taller", key,
-      nombre: cat?.nombre || dbSvc?.title || key,
+      nombre: dbSvc?.title || key,
       precio,
-      subtitulo: cat?.subtitulo || "",
-      items: cat?.itemsFn?.(config.n_ninos) || dbSvc?.features || [],
-      color: cat?.color || "blue",
+      subtitulo: dbSvc?.pdf_subtitle || "",
+      items: dbSvc?.features || [],
+      color: dbSvc?.pdf_color || "blue",
     });
   }
 
@@ -494,15 +466,22 @@ function generarCondiciones(config: QuoteRequest): string[] {
 
 function generarNotaHoraExtra(config: QuoteRequest, dbServices: Map<string, DBService>): string {
   const parts: string[] = [];
-  if ((config.estaciones?.length ?? 0) >= 1) parts.push("$500 por estación");
+  if ((config.estaciones?.length ?? 0) >= 1) {
+    // Use hora_extra from first station, or default 500
+    const firstSvc = dbServices?.get(config.estaciones![0]);
+    const horaEst = firstSvc?.hora_extra ?? 500;
+    parts.push(`$${horaEst.toLocaleString("es-MX")} por estación`);
+  }
   const extras: Record<number, string[]> = {};
   for (const key of config.fijos ?? []) {
-    const p = dbServices?.get(key)?.hora_extra ?? CATALOGO_FIJOS[key]?.horaExtra ?? 500;
-    (extras[p] ||= []).push(CATALOGO_FIJOS[key]?.nombre || key);
+    const dbSvc = dbServices?.get(key);
+    const p = dbSvc?.hora_extra ?? 500;
+    (extras[p] ||= []).push(dbSvc?.title || key);
   }
   for (const key of config.talleres ?? []) {
-    const p = dbServices?.get(key)?.hora_extra ?? CATALOGO_TALLERES[key]?.horaExtra ?? 500;
-    (extras[p] ||= []).push(CATALOGO_TALLERES[key]?.nombre || key);
+    const dbSvc = dbServices?.get(key);
+    const p = dbSvc?.hora_extra ?? 500;
+    (extras[p] ||= []).push(dbSvc?.title || key);
   }
   for (const [precio, nombres] of Object.entries(extras).sort((a, b) => +b[0] - +a[0])) {
     parts.push(`$${Number(precio).toLocaleString("es-MX")} por ${nombres.length === 1 ? 'taller' : 'taller'}`);
@@ -603,7 +582,7 @@ function drawEventCallout(page: PDFPage, fonts: FontSet, y: number, config: Quot
   return cY;
 }
 
-function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estaciones: string[], precio: number): number {
+function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estaciones: string[], precio: number, dbServices: Map<string, DBService>): number {
   const nEst = estaciones.length;
   const nPairs = Math.floor(nEst / 2);
   const nSingle = nEst % 2;
@@ -622,7 +601,7 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
   page.drawRectangle({ x: ML, y: bY + bodyH, width: CW, height: 7, color: darkBand });
 
   page.drawText("Paquetes de Estaciones — Mini Ciudad", { x: ML + 16, y: bY + bodyH + headerH - 20, font: fonts.bold, size: 13, color: C.white });
-  const subText = `${nEst} estaciones temáticas · ${estaciones.length >= 2 ? '3' : '3'} horas · Juguetes, mobiliario, materiales y personal dedicado`;
+  const subText = `${nEst} estaciones temáticas · 3 horas · Juguetes, mobiliario, materiales y personal dedicado`;
   page.drawText(subText, { x: ML + 16, y: bY + bodyH + headerH - 35, font: fonts.regular, size: 7, color: rgb(0.75, 0.75, 0.78) });
 
   const priceText = formatPrice(precio);
@@ -642,9 +621,12 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
   for (let i = 0; i < nPairs; i++) {
     const idx = i * 2;
     const key1 = estaciones[idx];
-    const name1 = CATALOGO_ESTACIONES[key1]?.nombre || key1;
-    const name2 = CATALOGO_ESTACIONES[estaciones[idx + 1]]?.nombre || estaciones[idx + 1];
-    const color1 = BULLET_MAP[CATALOGO_ESTACIONES[key1]?.color as keyof typeof BULLET_MAP] || C.bullet_blue;
+    const key2 = estaciones[idx + 1];
+    const svc1 = dbServices?.get(key1);
+    const svc2 = dbServices?.get(key2);
+    const name1 = svc1?.title || key1;
+    const name2 = svc2?.title || key2;
+    const color1 = BULLET_MAP[(svc1?.pdf_color || "blue") as keyof typeof BULLET_MAP] || C.bullet_blue;
     const pairLabel = `${name1} + ${name2}`;
     const pairPriceStr = formatPrice(pairPrice);
 
@@ -666,8 +648,9 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
   if (nSingle > 0) {
     const idx = nEst - 1;
     const key = estaciones[idx];
-    const name = CATALOGO_ESTACIONES[key]?.nombre || key;
-    const color = BULLET_MAP[CATALOGO_ESTACIONES[key]?.color as keyof typeof BULLET_MAP] || C.bullet_blue;
+    const svc = dbServices?.get(key);
+    const name = svc?.title || key;
+    const color = BULLET_MAP[(svc?.pdf_color || "blue") as keyof typeof BULLET_MAP] || C.bullet_blue;
     const singlePriceStr = formatPrice(singlePrice);
 
     page.drawCircle({ x: ML + 22, y: cy + 3, size: 3.5, color });
@@ -810,7 +793,7 @@ function drawConditions(page: PDFPage, fonts: FontSet, y: number, condiciones: s
   return cy - 4;
 }
 
-function drawPaymentInfo(page: PDFPage, fonts: FontSet, y: number): number {
+function drawPaymentInfo(page: PDFPage, fonts: FontSet, y: number, bankInfo?: string): number {
   const infoH = 30;
   const pY = y - infoH;
   const barW = 4;
@@ -821,7 +804,7 @@ function drawPaymentInfo(page: PDFPage, fonts: FontSet, y: number): number {
   page.drawRectangle({ x: ML, y: pY + 3, width: barW, height: infoH - 6, color: C.orange });
 
   page.drawText("Datos para depósito de anticipo", { x: ML + 16, y: pY + infoH - 11, font: fonts.bold, size: 7.5, color: C.dark });
-  page.drawText("BBVA · Frida Velásquez Hdez. · CLABE: 012 610 015493815314", {
+  page.drawText(bankInfo || "Contactar para datos de pago", {
     x: ML + 16, y: pY + 5, font: fonts.regular, size: 7, color: C.dlt,
   });
   return pY;
@@ -957,7 +940,7 @@ function validate(
 }
 
 // ─── Main Pipeline ──────────────────────────────────────────────
-async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DBService>, supabase?: any): Promise<Uint8Array> {
+async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DBService>, supabase?: any, bankInfo?: string): Promise<Uint8Array> {
   const resolved = resolveDefaults(config);
   const { total } = calcularTotal(resolved, dbServices);
   const bloques = calcularLayout(resolved, dbServices);
@@ -1037,7 +1020,7 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   for (let i = 0; i < bloques.length; i++) {
     const bloque = bloques[i];
     if (bloque.tipo === "estacion_resumen") {
-      y = drawEstacionResumen(page, fonts, y, bloque.estaciones, bloque.precio);
+      y = drawEstacionResumen(page, fonts, y, bloque.estaciones, bloque.precio, dbServices);
     } else {
       y = drawCardRow(page, fonts, y, bloque.cards);
     }
@@ -1058,7 +1041,7 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   y = drawConditions(page, fonts, y, condiciones);
   y -= MIN_GAP_AFTER_CONDITIONS;
 
-  y = drawPaymentInfo(page, fonts, y);
+  y = drawPaymentInfo(page, fonts, y, bankInfo);
   y -= MIN_GAP_AFTER_PAYMENT;
 
   drawScatteredIcons(page, H - HEADER_H - MIN_GAP_HEADER, contentBottom, icons);
@@ -1085,7 +1068,7 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
   // Fetch all active services from DB for dynamic classification fallback
   const { data: allDbServices } = await supabase
     .from("services")
-    .select("id, title, category, base_price, hora_extra, features")
+    .select("id, title, category, base_price, hora_extra, features, pdf_color, pdf_subtitle")
     .eq("is_active", true);
 
   const dbServices = new Map<string, any>();
@@ -1106,35 +1089,14 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
       const cat = dbSvc.category?.toLowerCase() || "";
       if (cat.includes("estacion") || cat.includes("juego")) {
         estaciones.push(sid);
-        // Auto-register in catalog if missing
-        if (!CATALOGO_ESTACIONES[sid]) {
-          CATALOGO_ESTACIONES[sid] = {
-            nombre: dbSvc.title, color: "green",
-            subtitulo: "", items: dbSvc.features || [],
-          };
-        }
       } else if (cat.includes("taller") || cat.includes("creativ")) {
         talleres.push(sid);
-        if (!CATALOGO_TALLERES[sid]) {
-          CATALOGO_TALLERES[sid] = {
-            nombre: dbSvc.title, color: "blue",
-            subtitulo: "", precio: dbSvc.base_price, horaExtra: dbSvc.hora_extra || 500,
-            itemsFn: (n: number) => dbSvc.features || [],
-          };
-        }
       } else {
-        // Default: treat as fijo
         fijos.push(sid);
-        if (!CATALOGO_FIJOS[sid]) {
-          CATALOGO_FIJOS[sid] = {
-            nombre: dbSvc.title, precio: dbSvc.base_price, horaExtra: dbSvc.hora_extra || 500,
-            color: "blue", subtitulo: "", items: dbSvc.features || [],
-          };
-        }
       }
       console.log(`[DIAG] service_id "${sid}" classified by DB category "${dbSvc.category}"`);
     } else {
-      console.warn(`[DIAG] service_id "${sid}" not found in hardcoded lists or DB — skipped`);
+      console.warn(`[DIAG] service_id "${sid}" not found in DB — skipped`);
     }
   }
   console.log(`[DIAG mapQuoteToConfig] service_ids recibidos: ${(qServices||[]).map((q: any)=>q.service_id).join(", ")}`);
@@ -1180,11 +1142,16 @@ serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: dbServicesRaw } = await supabase
-      .from("services").select("id, title, category, base_price, hora_extra, features").eq("is_active", true);
+      .from("services").select("id, title, category, base_price, hora_extra, features, pdf_color, pdf_subtitle").eq("is_active", true);
     const dbServices = new Map<string, DBService>();
     for (const s of dbServicesRaw || []) {
       dbServices.set(s.id, s as DBService);
     }
+
+    // Fetch bank info from company_settings
+    const { data: companySettings } = await supabase
+      .from("company_settings").select("bank_info").single();
+    const bankInfo = companySettings?.bank_info || undefined;
 
     let config: QuoteRequest;
     let quoteId: string | null = null;
@@ -1207,7 +1174,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const pdfBytes = await generateQuotePDF(config, dbServices, supabase);
+    const pdfBytes = await generateQuotePDF(config, dbServices, supabase, bankInfo);
 
     const url = new URL(req.url);
     const output = url.searchParams.get("output") ?? (quoteId ? "storage" : "binary");
