@@ -311,7 +311,7 @@ const handler = async (req: Request): Promise<Response> => {
       email: data.email,
       phone: data.phone,
       companyName: companySettings?.company_name || 'Japitown',
-      companyEmail: companySettings?.email || 'cotizaciones@japitown.com',
+      companyEmail: companySettings?.email || 'fvh_32@hotmail.com',
       companyPhone: companySettings?.phone,
       companyAddress: companySettings?.address,
       logoUrl: companySettings?.logo_url,
