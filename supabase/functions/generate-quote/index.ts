@@ -1060,6 +1060,17 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
   const { data: qServices } = await supabase
     .from("quote_services").select("service_id, quantity").eq("quote_id", quoteId);
 
+  // Fetch all active services from DB for dynamic classification fallback
+  const { data: allDbServices } = await supabase
+    .from("services")
+    .select("id, title, category, base_price, hora_extra, features")
+    .eq("is_active", true);
+
+  const dbServices = new Map<string, any>();
+  for (const s of allDbServices || []) {
+    dbServices.set(s.id, s);
+  }
+
   const estaciones: string[] = [];
   const fijos: string[] = [];
   const talleres: string[] = [];

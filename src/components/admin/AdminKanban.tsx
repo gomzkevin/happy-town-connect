@@ -641,7 +641,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
                             }`}
                           >
                             <p className="font-medium truncate">{svc.title}</p>
-                            <p className="text-muted-foreground mt-0.5">${svc.base_price.toLocaleString()}</p>
+<p className="text-muted-foreground mt-0.5">${(isSelected ? (priceMap.get(svc.id) ?? svc.base_price) : svc.base_price).toLocaleString()}</p>
                           </button>
                         );
                       })}
@@ -1004,7 +1004,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                                 }`}
                               >
                                 <p className="font-medium truncate">{svc.title}</p>
-                                <p className="text-muted-foreground mt-0.5">${svc.base_price.toLocaleString()}</p>
+                                <p className="text-muted-foreground mt-0.5">${(isSelected ? (editPriceMap.get(svc.id) ?? svc.base_price) : svc.base_price).toLocaleString()}</p>
                               </button>
                             );
                           })}
