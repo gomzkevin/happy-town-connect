@@ -6,16 +6,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { QuoteEmailComplete } from './_templates/quote-email-complete.tsx';
 
 // Initialize Supabase client
-const supabaseUrl = Deno.env.get('SUPABASE_URL');
-const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-const supabase = createClient(supabaseUrl!, supabaseServiceRoleKey!);
-
-// Initialize RESEND_API_KEY validation (exactly like version 6 that worked)
+// Initialize Resend
 const resendApiKey = Deno.env.get("RESEND_API_KEY");
 console.log("🔧 RESEND_API_KEY validation:", resendApiKey ? "Key found" : "Key missing");
 
-// Initialize Resend client conditionally to prevent startup failures
 let resend: Resend | null = null;
 if (resendApiKey) {
   try {
@@ -32,7 +30,7 @@ const corsHeaders = {
 };
 
 interface QuoteEmailRequest {
-  quoteId: string; // UUID from the database
+  quoteId: string;
   customerName: string;
   email: string;
   phone?: string;
@@ -46,21 +44,84 @@ interface QuoteEmailRequest {
     name: string;
     price: number;
     quantity: number;
+    category?: string;
   }>;
   totalEstimate: number;
 }
 
+// ─── PDF Generation & Download ──────────────────────────────────
 
-// Send WhatsApp notification
+async function generateAndDownloadPDF(
+  quoteId: string,
+  quoteNumber: string,
+  customerName: string
+): Promise<{ pdfBase64: string; filename: string } | null> {
+  try {
+    console.log(`📄 Generating PDF for quote ${quoteId}...`);
+
+    // Call generate-quote edge function internally
+    const generateUrl = `${supabaseUrl}/functions/v1/generate-quote?output=storage`;
+    const response = await fetch(generateUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceRoleKey}`,
+      },
+      body: JSON.stringify({ quoteId }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ generate-quote failed (${response.status}):`, errorText);
+      return null;
+    }
+
+    const result = await response.json();
+    const pdfUrl = result.pdf_url;
+
+    if (!pdfUrl) {
+      console.error('❌ No pdf_url returned from generate-quote');
+      return null;
+    }
+
+    console.log(`📥 Downloading PDF from: ${pdfUrl}`);
+
+    // Download the PDF bytes
+    const pdfResponse = await fetch(pdfUrl);
+    if (!pdfResponse.ok) {
+      console.error(`❌ Failed to download PDF (${pdfResponse.status})`);
+      return null;
+    }
+
+    const pdfBytes = new Uint8Array(await pdfResponse.arrayBuffer());
+    const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
+
+    // Sanitize filename
+    const safeName = customerName
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "")
+      .substring(0, 40) || "cliente";
+
+    const filename = `Cotizacion-Japitown-${safeName}-${quoteNumber}.pdf`;
+
+    console.log(`✅ PDF ready: ${filename} (${pdfBytes.length} bytes)`);
+    return { pdfBase64, filename };
+  } catch (error) {
+    console.error('❌ PDF generation/download error:', error);
+    return null;
+  }
+}
+
+// ─── WhatsApp Notification ──────────────────────────────────────
+
 async function sendWhatsAppNotification(
-  phoneNumber: string, 
-  message: string, 
+  phoneNumber: string,
+  message: string,
   settings: any
 ): Promise<boolean> {
-  if (!settings?.whatsapp_enabled || !settings?.whatsapp_api_url) {
-    return false;
-  }
-
+  if (!settings?.whatsapp_enabled || !settings?.whatsapp_api_url) return false;
   try {
     const response = await fetch(settings.whatsapp_api_url, {
       method: 'POST',
@@ -68,13 +129,8 @@ async function sendWhatsAppNotification(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${settings.whatsapp_api_token}`,
       },
-      body: JSON.stringify({
-        to: phoneNumber,
-        message: message,
-        type: 'text'
-      })
+      body: JSON.stringify({ to: phoneNumber, message, type: 'text' }),
     });
-
     return response.ok;
   } catch (error) {
     console.error('WhatsApp notification failed:', error);
@@ -82,7 +138,8 @@ async function sendWhatsAppNotification(
   }
 }
 
-// Log to quote history
+// ─── Quote History Logger ───────────────────────────────────────
+
 async function logQuoteHistory(
   quoteId: string,
   actionType: string,
@@ -95,59 +152,52 @@ async function logQuoteHistory(
     await supabase.from('quote_history').insert({
       quote_id: quoteId,
       action_type: actionType,
-      recipient: recipient,
-      status: status,
-      metadata: metadata,
-      error_message: errorMessage
+      recipient,
+      status,
+      metadata,
+      error_message: errorMessage,
     });
   } catch (error) {
     console.error('Failed to log quote history:', error);
   }
 }
 
+// ─── Main Handler ───────────────────────────────────────────────
+
 const handler = async (req: Request): Promise<Response> => {
   console.log("🔔 Request received:", req.method);
-  
-  // Handle CORS preflight requests (always return 200)
+
   if (req.method === "OPTIONS") {
-    console.log("✅ CORS preflight request handled");
-    return new Response(null, { 
-      status: 200,
-      headers: corsHeaders 
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    console.log("📧 Processing quote email request...");
-    
-    // Check if Resend client is available
     if (!resend) {
       throw new Error("Email service is not properly configured. Please check RESEND_API_KEY.");
     }
-    
-    const data: QuoteEmailRequest = await req.json();
-    console.log('Processing quote email request for:', data.customerName);
 
-    // Get company settings and templates from database
+    const data: QuoteEmailRequest = await req.json();
+    console.log('Processing quote email for:', data.customerName);
+
+    // Fetch settings in parallel
     const [companyResult, templateResult, notificationResult] = await Promise.all([
       supabase.from('company_settings').select('*').single(),
       supabase.from('email_templates').select('*').eq('template_type', 'quote').eq('is_active', true).single(),
-      supabase.from('notification_settings').select('*').single()
+      supabase.from('notification_settings').select('*').single(),
     ]);
 
     const companySettings = companyResult.data;
     const emailTemplate = templateResult.data;
     const notificationSettings = notificationResult.data;
 
-    // Generate quote number and current date
     const quoteNumber = `QUO-${Date.now().toString().slice(-6)}`;
     const createdDate = new Date().toLocaleDateString('es-MX', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+      year: 'numeric', month: 'long', day: 'numeric',
     });
 
-    // Prepare email data
+    // Generate PDF in parallel with email rendering
+    const pdfPromise = generateAndDownloadPDF(data.quoteId, quoteNumber, data.customerName);
+
     const emailData = {
       customerName: data.customerName,
       email: data.email,
@@ -167,20 +217,34 @@ const handler = async (req: Request): Promise<Response> => {
       createdDate,
     };
 
-    // Generate complete email HTML with all quote information
-    const emailHtml = await renderAsync(
-      React.createElement(QuoteEmailComplete, emailData)
-    );
+    const [emailHtml, pdfResult] = await Promise.all([
+      renderAsync(React.createElement(QuoteEmailComplete, emailData)),
+      pdfPromise,
+    ]);
 
-    // Send email without PDF attachment
-    const emailSubject = emailTemplate?.subject || `🎉 Tu cotización #${quoteNumber} de ${emailData.companyName} está lista`;
-    
-    const emailResult = await resend.emails.send({
+    // Build email payload
+    const emailSubject = emailTemplate?.subject ||
+      `🎉 Tu cotización #${quoteNumber} de ${emailData.companyName} está lista`;
+
+    const emailPayload: any = {
       from: `${emailData.companyName} <${emailData.companyEmail}>`,
       to: [data.email],
       subject: emailSubject,
       html: emailHtml,
-    });
+    };
+
+    // Attach PDF if available
+    if (pdfResult) {
+      emailPayload.attachments = [{
+        filename: pdfResult.filename,
+        content: pdfResult.pdfBase64,
+      }];
+      console.log(`📎 PDF attached: ${pdfResult.filename}`);
+    } else {
+      console.warn('⚠️ PDF not available, sending email without attachment');
+    }
+
+    const emailResult = await resend.emails.send(emailPayload);
 
     if (emailResult.error) {
       await logQuoteHistory(data.quoteId, 'email_sent', data.email, 'failed', emailResult, emailResult.error.message);
@@ -191,84 +255,46 @@ const handler = async (req: Request): Promise<Response> => {
       email_id: emailResult.data?.id,
       services_count: data.services.length,
       total_estimate: data.totalEstimate,
-      format: 'html_email',
-      quote_number: quoteNumber
+      format: 'html_email_with_pdf',
+      pdf_attached: !!pdfResult,
+      quote_number: quoteNumber,
     });
 
-    // Send WhatsApp notifications if enabled
+    // WhatsApp notifications
     if (notificationSettings?.whatsapp_enabled) {
-      // Client notification
       if (notificationSettings.client_notification_enabled && data.phone) {
-        const clientMessage = notificationSettings.client_whatsapp_template || 
+        const msg = notificationSettings.client_whatsapp_template ||
           `Hola ${data.customerName}! Te hemos enviado tu cotización por correo electrónico. ¡Revisa tu bandeja de entrada! 🎉`;
-        
-        const clientWhatsAppSuccess = await sendWhatsAppNotification(
-          data.phone,
-          clientMessage,
-          notificationSettings
-        );
-
-        await logQuoteHistory(
-          data.quoteId, 
-          'whatsapp_sent', 
-          data.phone, 
-          clientWhatsAppSuccess ? 'success' : 'failed'
-        );
+        const ok = await sendWhatsAppNotification(data.phone, msg, notificationSettings);
+        await logQuoteHistory(data.quoteId, 'whatsapp_sent', data.phone, ok ? 'success' : 'failed');
       }
 
-      // Admin notification
       if (notificationSettings.admin_notification_enabled && companySettings?.whatsapp_number) {
-        const adminMessage = notificationSettings.admin_whatsapp_template
+        const msg = notificationSettings.admin_whatsapp_template
           ?.replace('{{customer_name}}', data.customerName)
           ?.replace('{{total_estimate}}', data.totalEstimate.toString()) ||
-          `Nueva cotización generada para: ${data.customerName} - Total estimado: $${data.totalEstimate.toLocaleString()}`;
-        
-        const adminWhatsAppSuccess = await sendWhatsAppNotification(
-          companySettings.whatsapp_number,
-          adminMessage,
-          notificationSettings
-        );
-
-        await logQuoteHistory(
-          data.quoteId, 
-          'whatsapp_sent', 
-          companySettings.whatsapp_number, 
-          adminWhatsAppSuccess ? 'success' : 'failed'
-        );
+          `Nueva cotización para: ${data.customerName} - Total: $${data.totalEstimate.toLocaleString()}`;
+        const ok = await sendWhatsAppNotification(companySettings.whatsapp_number, msg, notificationSettings);
+        await logQuoteHistory(data.quoteId, 'whatsapp_sent', companySettings.whatsapp_number, ok ? 'success' : 'failed');
       }
     }
 
-    console.log('Quote email sent successfully:', emailResult.data?.id);
+    console.log('✅ Quote email sent:', emailResult.data?.id);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         emailId: emailResult.data?.id,
-        quoteNumber: quoteNumber
+        quoteNumber,
+        pdfAttached: !!pdfResult,
       }),
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-      }
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
-    console.error("Error in send-quote-email function:", error);
-    
+    console.error("Error in send-quote-email:", error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message || 'An unexpected error occurred',
-        success: false 
-      }),
-      {
-        status: 500,
-        headers: { 
-          "Content-Type": "application/json", 
-          ...corsHeaders 
-        },
-      }
+      JSON.stringify({ error: error.message || 'An unexpected error occurred', success: false }),
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 };
