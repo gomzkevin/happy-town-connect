@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useServices, Service } from '@/contexts/ServicesContext';
 import { useToast } from '@/hooks/use-toast';
+import { calcularPreciosCotizacion } from '@/lib/pricing';
 
 export interface QuoteData {
   customerName: string;
@@ -25,11 +26,16 @@ export const useQuotes = () => {
     setIsSubmitting(true);
     
     try {
-      // Calculate total estimate
-      const totalEstimate = selectedServices.reduce((total, item) => {
-        const price = parseInt(item.service.price.replace(/[^\d]/g, ''));
-        return total + (price * item.quantity);
-      }, 0);
+      // Calculate total using business pricing logic
+      const svcsForPricing = selectedServices.map(item => ({
+        id: item.service.id,
+        base_price: parseInt(item.service.price.replace(/[^\d]/g, '')),
+        category: item.service.category,
+      }));
+      const { perService: priceMap, total: totalEstimate } = calcularPreciosCotizacion(
+        svcsForPricing,
+        quoteData.childrenCount || 15
+      );
 
       // Create the quote
         const { data: quote, error: quoteError } = await supabase
@@ -61,7 +67,7 @@ export const useQuotes = () => {
           quote_id: quote.id,
           service_id: item.service.id,
           service_name: item.service.title,
-          service_price: parseInt(item.service.price.replace(/[^\d]/g, '')),
+          service_price: priceMap.get(item.service.id) ?? parseInt(item.service.price.replace(/[^\d]/g, '')),
           quantity: item.quantity
         }));
 
@@ -94,7 +100,7 @@ export const useQuotes = () => {
         location: quoteData.location,
         services: selectedServices.map(item => ({
           name: item.service.title,
-          price: parseInt(item.service.price.replace(/[^\d]/g, '')),
+          price: priceMap.get(item.service.id) ?? parseInt(item.service.price.replace(/[^\d]/g, '')),
           quantity: item.quantity
         })),
         totalEstimate
