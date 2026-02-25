@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // generate-quote — Supabase Edge Function
 // Generates branded PDF quotes for Japitown using pdf-lib
+// Combines renderer-v2 logic with Edge Function boilerplate
 // ═══════════════════════════════════════════════════════════════
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -40,7 +41,7 @@ interface FontSet {
 }
 
 interface CardData {
-  tipo: "fijo" | "taller";
+  tipo: "fijo" | "taller" | "estacion_resumen";
   key: string;
   nombre: string;
   precio: number;
@@ -60,6 +61,8 @@ interface CardSizes {
   itemSpacing: number;
   padX: number;
   bulletR: number;
+  bodyPadTop: number;
+  bodyPadBot: number;
 }
 
 type LayoutBlock =
@@ -75,6 +78,71 @@ interface DBService {
   features: string[] | null;
 }
 
+// deno-lint-ignore no-explicit-any
+type PDFImage = any;
+
+// ─── Icon Maps ──────────────────────────────────────────────────
+// Note: Service icons (01-12) are NOT used in PDFs, only in the web app.
+// Only decorative icons (13-19) are used in the PDF cotización.
+
+// Decorative icons for scattered placement and footer band (only 13-19)
+const DECORATIVE_ICON_PATHS: string[] = [
+  "icons/Iconos-13.png", // Espiral
+  "icons/Iconos-14.png", // Flor
+  "icons/Iconos-15.png", // Nube
+  "icons/Iconos-16.png", // Talleres
+  "icons/Iconos-17.png", // Estrella
+  "icons/Iconos-18.png", // Decorativo
+  "icons/Iconos-19.png", // Sol
+];
+
+
+// ─── Asset Fetching & Icon Loading ──────────────────────────────
+// CPU-optimized: only loads service icons actually needed for this quote.
+// Decorative icons and logo use geometric fallbacks to save CPU.
+
+async function fetchAsset(baseUrl: string, path: string): Promise<Uint8Array> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000); // 4s timeout per asset
+  try {
+    const res = await fetch(`${baseUrl}/${path}`, { signal: controller.signal });
+    if (!res.ok) throw new Error(`Failed to fetch asset: ${path} (${res.status})`);
+    return new Uint8Array(await res.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+interface IconCache {
+  service: Map<string, PDFImage>;    // service key → embedded image
+  decorative: PDFImage[];            // array of decorative icons (empty = use geometric fallback)
+  logo: PDFImage | null;             // null = use text fallback
+}
+
+async function loadAllIcons(
+  pdfDoc: InstanceType<typeof PDFDocument>,
+): Promise<IconCache> {
+  const storageUrl = Deno.env.get("SUPABASE_URL") + "/storage/v1/object/public/japitown-assets";
+  const cache: IconCache = { service: new Map(), decorative: [], logo: null };
+
+  // Only load decorative icons (13-19) — service icons are NOT used in PDFs.
+  // Load sequentially to minimize peak CPU usage (embedPng is heavy).
+  for (const path of DECORATIVE_ICON_PATHS) {
+    try {
+      const bytes = await fetchAsset(storageUrl, path);
+      const image = await pdfDoc.embedPng(bytes);
+      cache.decorative.push(image);
+    } catch (e) {
+      console.warn(`Failed to load decorative icon ${path}:`, e);
+      cache.decorative.push(null);
+    }
+  }
+
+  return cache;
+}
+
+// Service icons not used in PDF — only in web app
+
 // ─── Page Constants ─────────────────────────────────────────────
 const W = 612;
 const H = 792;
@@ -84,87 +152,125 @@ const CW = W - ML - MR; // 528
 
 // ─── Colors ─────────────────────────────────────────────────────
 const C = {
-  brown: rgb(0.737, 0.659, 0.627),
+  // Background & structure
+  bg:       rgb(0.976, 0.965, 0.953),
+  brown:    rgb(0.737, 0.659, 0.627),
   brown_lt: rgb(0.831, 0.769, 0.737),
-  cream: rgb(0.953, 0.918, 0.898),
-  lcream: rgb(1.0, 0.965, 0.886),
-  dark: rgb(0.306, 0.31, 0.31),
-  dlt: rgb(0.494, 0.498, 0.498),
-  pink: rgb(0.973, 0.761, 0.667),
-  blue: rgb(0.608, 0.761, 0.898),
-  green: rgb(0.518, 0.737, 0.439),
-  yellow: rgb(0.965, 0.733, 0.22),
-  red: rgb(0.914, 0.369, 0.239),
-  purple: rgb(0.643, 0.565, 0.769),
-  white: rgb(1, 1, 1),
-  offwhite: rgb(0.98, 0.969, 0.957),
+  cream:    rgb(0.953, 0.918, 0.898),
+  lcream:   rgb(1.0, 0.965, 0.886),
+  offwhite: rgb(0.992, 0.984, 0.976),
+
+  // Text
+  dark:     rgb(0.306, 0.310, 0.310),
+  dlt:      rgb(0.494, 0.498, 0.498),
+  white:    rgb(1, 1, 1),
+
+  // Accent colors
+  pink:     rgb(0.973, 0.761, 0.667),
+  blue:     rgb(0.608, 0.761, 0.898),
+  green:    rgb(0.518, 0.737, 0.439),
+  yellow:   rgb(0.965, 0.733, 0.220),
+  red:      rgb(0.914, 0.369, 0.239),
+  purple:   rgb(0.643, 0.565, 0.769),
+  orange:   rgb(0.949, 0.682, 0.459),
+
+  // Decorative icon colors
+  ico_pink:    rgb(0.949, 0.725, 0.757),
+  ico_blue:    rgb(0.565, 0.741, 0.886),
+  ico_green:   rgb(0.518, 0.737, 0.439),
+  ico_yellow:  rgb(0.965, 0.800, 0.220),
+  ico_red:     rgb(0.914, 0.463, 0.357),
+  ico_orange:  rgb(0.949, 0.682, 0.459),
+  ico_purple:  rgb(0.706, 0.604, 0.808),
+  ico_teal:    rgb(0.494, 0.757, 0.757),
+
+  // Card band colors
+  band_purple: rgb(0.745, 0.667, 0.824),
+  band_pink:   rgb(0.941, 0.769, 0.706),
+  band_blue:   rgb(0.690, 0.808, 0.910),
+  band_green:  rgb(0.647, 0.835, 0.573),
+  band_yellow: rgb(0.965, 0.843, 0.494),
+  band_red:    rgb(0.925, 0.620, 0.545),
+
+  // Card outline colors
+  outline_purple: rgb(0.878, 0.835, 0.918),
+  outline_pink:   rgb(0.973, 0.890, 0.855),
+  outline_blue:   rgb(0.843, 0.902, 0.953),
+  outline_green:  rgb(0.808, 0.914, 0.757),
+  outline_yellow: rgb(0.988, 0.933, 0.757),
+  outline_red:    rgb(0.969, 0.808, 0.773),
+
+  // Bullet colors
+  bullet_purple: rgb(0.576, 0.478, 0.698),
+  bullet_pink:   rgb(0.914, 0.596, 0.522),
+  bullet_blue:   rgb(0.416, 0.639, 0.804),
+  bullet_green:  rgb(0.384, 0.620, 0.302),
+  bullet_yellow: rgb(0.878, 0.659, 0.133),
+  bullet_red:    rgb(0.831, 0.306, 0.200),
+
+  // Rainbow stripe colors
+  rainbow: [
+    rgb(0.914, 0.369, 0.239),  // red
+    rgb(0.949, 0.682, 0.459),  // orange
+    rgb(0.965, 0.800, 0.220),  // yellow
+    rgb(0.518, 0.737, 0.439),  // green
+    rgb(0.416, 0.639, 0.804),  // blue
+    rgb(0.576, 0.478, 0.698),  // purple
+    rgb(0.914, 0.596, 0.522),  // pink
+  ],
 };
 
-const COLOR_MAP: Record<string, ReturnType<typeof rgb>> = {
-  blue: C.blue, yellow: C.yellow, red: C.red,
-  green: C.green, pink: C.pink, purple: C.purple,
+const BAND_MAP = {
+  blue: C.band_blue, yellow: C.band_yellow, red: C.band_red,
+  green: C.band_green, pink: C.band_pink, purple: C.band_purple,
+};
+const OUTLINE_MAP = {
+  blue: C.outline_blue, yellow: C.outline_yellow, red: C.outline_red,
+  green: C.outline_green, pink: C.outline_pink, purple: C.outline_purple,
+};
+const BULLET_MAP = {
+  blue: C.bullet_blue, yellow: C.bullet_yellow, red: C.bullet_red,
+  green: C.bullet_green, pink: C.bullet_pink, purple: C.bullet_purple,
 };
 
 // ─── Card Sizes by columns ──────────────────────────────────────
 const CARD_SIZES: Record<number, CardSizes> = {
-  1: { width: CW * 0.58, gap: 0, bandH: 40, titleSz: 12, subSz: 6.5, priceSz: 14, itemSz: 6.5, itemSpacing: 11, padX: 14, bulletR: 1.8 },
-  2: { width: (CW - 14) / 2, gap: 14, bandH: 38, titleSz: 11, subSz: 6, priceSz: 13, itemSz: 6.2, itemSpacing: 10, padX: 12, bulletR: 1.5 },
-  3: { width: (CW - 20) / 3, gap: 10, bandH: 36, titleSz: 10, subSz: 5.5, priceSz: 12, itemSz: 5.8, itemSpacing: 9.5, padX: 10, bulletR: 1.3 },
+  1: { width: CW * 0.58, gap: 0, bandH: 48, titleSz: 14, subSz: 7.5, priceSz: 18, itemSz: 7.5, itemSpacing: 13, padX: 16, bulletR: 2.5, bodyPadTop: 14, bodyPadBot: 12 },
+  2: { width: (CW - 18) / 2, gap: 18, bandH: 44, titleSz: 13, subSz: 7, priceSz: 16, itemSz: 7.2, itemSpacing: 12, padX: 14, bulletR: 2.2, bodyPadTop: 12, bodyPadBot: 10 },
+  3: { width: (CW - 24) / 3, gap: 12, bandH: 38, titleSz: 11, subSz: 6, priceSz: 13, itemSz: 6.5, itemSpacing: 10, padX: 12, bulletR: 1.8, bodyPadTop: 10, bodyPadBot: 8 },
 };
 
 // ─── Service Classification ─────────────────────────────────────
-const ESTACION_IDS = ["guarderia", "construccion", "hamburgueseria", "supermercado", "veterinaria", "cafeteria", "correo", "peluqueria", "decora-cupcake"];
+const ESTACION_IDS = ["guarderia", "construccion", "pizzeria", "supermercado", "veterinaria", "cafeteria", "correo", "peluqueria", "decora-cupcake"];
 const FIJO_IDS = ["spa", "pesca", "area_bebes", "inflable_bebes"];
-const TALLER_IDS = ["caballetes", "yesitos", "haz-pulsera", "foamy", "diamante"];
+const TALLER_IDS = ["caballetes", "yesitos", "pulseras", "foamy", "diamante"];
 
-// ─── Icon Map (service key → storage path) ──────────────────────
-const ICON_MAP: Record<string, string> = {
-  guarderia: "icons/Iconos-12.png",
-  construccion: "icons/Iconos-04.png",
-  hamburgueseria: "icons/Iconos-03.png",
-  supermercado: "icons/Iconos-05.png",
-  veterinaria: "icons/Iconos-07.png",
-  cafeteria: "icons/Iconos-06.png",
-  correo: "icons/Iconos-08.png",
-  peluqueria: "icons/Iconos-09.png",
-  "decora-cupcake": "icons/Iconos-10.png",
-  spa: "icons/Iconos-02.png",
-  pesca: "icons/Iconos-01.png",
-  area_bebes: "icons/Iconos-11.png",
-  inflable_bebes: "icons/Iconos-11.png",
-  caballetes: "icons/Iconos-16.png",
-  yesitos: "icons/Iconos-16.png",
-  "haz-pulsera": "icons/Iconos-16.png",
-  foamy: "icons/Iconos-16.png",
-  diamante: "icons/Iconos-16.png",
-};
-
-// ─── Catalog (visual presentation data) ─────────────────────────
+// ─── Catalog ────────────────────────────────────────────────────
 const CATALOGO_ESTACIONES: Record<string, { nombre: string; color: string; subtitulo: string; items: string[] }> = {
-  guarderia: { nombre: "Guardería", color: "blue", subtitulo: "Cuidado y juego para los más pequeños", items: ["Cunas y cambiadores", "Juguetes sensoriales", "Zona de juego segura", "Staff dedicado"] },
-  construccion: { nombre: "Construcción", color: "yellow", subtitulo: "Construye, imagina y crea", items: ["Bloques de construcción", "Herramientas de juguete", "Cascos y chalecos", "Material reutilizable"] },
-  hamburgueseria: { nombre: "Pizzería", color: "red", subtitulo: "Pizza artesanal de juguete", items: ["Horno de juguete", "Ingredientes de felpa", "Cajas de pizza", "Uniformes de chef"] },
-  supermercado: { nombre: "Supermercado", color: "green", subtitulo: "Compra, paga y diviértete", items: ["Carritos de compra", "Productos de juguete", "Cajas registradoras", "Bolsas de compra"] },
-  veterinaria: { nombre: "Veterinaria", color: "green", subtitulo: "Cuida a los animalitos", items: ["Peluches de animales", "Kit veterinario", "Certificados de salud", "Batas y estetoscopios"] },
-  cafeteria: { nombre: "Cafetería", color: "pink", subtitulo: "Barista por un día", items: ["Máquina de café de juguete", "Tazas y platos", "Postres de juguete", "Mandiles y gorros"] },
-  correo: { nombre: "Correo", color: "blue", subtitulo: "Envía cartas y paquetes", items: ["Buzón de correo", "Sobres y estampillas", "Paquetes de juguete", "Uniforme postal"] },
-  peluqueria: { nombre: "Peluquería", color: "purple", subtitulo: "Estilista por un día", items: ["Secadoras de juguete", "Peines y cepillos", "Accesorios para el pelo", "Espejo y silla"] },
-  "decora-cupcake": { nombre: "Decora tu Cupcake", color: "pink", subtitulo: "Decora y disfruta", items: ["Cupcakes", "Betún de colores", "Decoraciones", "Sprinkles"] },
+  guarderia:        { nombre: "Guardería",         color: "blue",   subtitulo: "Cuidado y juego para los más pequeños", items: ["Cunas y cambiadores", "Juguetes sensoriales", "Zona de juego segura", "Staff dedicado", "Material sanitizado"] },
+  construccion:     { nombre: "Construcción",      color: "yellow", subtitulo: "Construye, imagina y crea", items: ["Bloques de construcción", "Herramientas de juguete", "Cascos y chalecos", "Material reutilizable", "1 persona de apoyo dedicada"] },
+  pizzeria:         { nombre: "Pizzería",          color: "red",    subtitulo: "Pizza artesanal de juguete", items: ["Horno de juguete", "Ingredientes de felpa", "Cajas de pizza", "Uniformes de chef", "1 persona de apoyo dedicada"] },
+  supermercado:     { nombre: "Supermercado",      color: "green",  subtitulo: "Compra, paga y diviértete", items: ["Carritos de compra", "Productos de juguete", "Cajas registradoras", "Bolsas de compra", "1 persona de apoyo dedicada"] },
+  veterinaria:      { nombre: "Veterinaria",       color: "green",  subtitulo: "Cuida a los animalitos", items: ["Peluches de animales", "Kit veterinario", "Certificados de salud", "Batas y estetoscopios", "1 persona de apoyo dedicada"] },
+  cafeteria:        { nombre: "Cafetería",         color: "pink",   subtitulo: "Barista por un día", items: ["Máquina de café de juguete", "Tazas y platos", "Postres de juguete", "Mandiles y gorros", "1 persona de apoyo dedicada"] },
+  correo:           { nombre: "Correo",            color: "blue",   subtitulo: "Entrega cartas y paquetes", items: ["Buzón de juguete", "Sellos y etiquetas", "Paquetes para enviar", "Uniforme de cartero", "1 persona de apoyo dedicada"] },
+  peluqueria:       { nombre: "Peluquería",        color: "purple", subtitulo: "Estilista por un día", items: ["Silla de peluquería", "Secadoras y cepillos", "Accesorios para el pelo", "Capas y espejos", "1 persona de apoyo dedicada"] },
+  "decora-cupcake": { nombre: "Decora tu Cupcake", color: "pink",   subtitulo: "Decora y disfruta", items: ["Cupcakes", "Betún de colores", "Decoraciones", "Sprinkles", "1 persona de apoyo dedicada"] },
 };
 
-const CATALOGO_FIJOS: Record<string, { nombre: string; color: string; subtitulo: string; items: string[] }> = {
-  spa: { nombre: "SPA", color: "pink", subtitulo: "Relajación y cuidado personal", items: ["Mascarillas faciales", "Aplicación de esmalte", "Accesorios para el pelo", "Aromaterapia infantil"] },
-  pesca: { nombre: "Pesca y Boliche", color: "blue", subtitulo: "Diversión con cañas y pinos", items: ["Cañas de pescar magnéticas", "Peces de juguete", "Set de boliche completo", "Equipo reutilizable"] },
-  area_bebes: { nombre: "Área de Bebés", color: "blue", subtitulo: "Espacio seguro para los más pequeños", items: ["Toldo de protección solar", "Tapete acolchado", "Juguetes sensoriales", "Staff dedicado"] },
-  inflable_bebes: { nombre: "Inflable para Bebés", color: "green", subtitulo: "Brinca-brinca seguro para bebés", items: ["Inflable 2×2m", "Pelotas de colores", "Supervisión constante", "Montaje incluido"] },
+const CATALOGO_FIJOS: Record<string, { nombre: string; precio: number; horaExtra: number; color: string; subtitulo: string; items: string[] }> = {
+  spa:            { nombre: "SPA",                 precio: 2200, horaExtra: 1000, color: "pink",  subtitulo: "Relajación y cuidado personal", items: ["Mascarillas faciales", "Aplicación de esmalte", "Accesorios para el pelo", "Aromaterapia infantil", "1 persona de apoyo dedicada"] },
+  pesca:          { nombre: "Pesca y Boliche",     precio: 1200, horaExtra: 500,  color: "blue",  subtitulo: "Diversión con cañas y pinos", items: ["Cañas de pescar magnéticas", "Peces de juguete", "Set de boliche completo", "Equipo reutilizable", "1 persona de apoyo dedicada"] },
+  area_bebes:     { nombre: "Área de Bebés",       precio: 2500, horaExtra: 500,  color: "blue",  subtitulo: "Espacio seguro para los más pequeños", items: ["Toldo de protección solar", "Tapete acolchado", "Juguetes sensoriales", "Staff dedicado", "Material sanitizado"] },
+  inflable_bebes: { nombre: "Inflable para Bebés", precio: 1500, horaExtra: 500,  color: "green", subtitulo: "Brinca-brinca seguro para bebés", items: ["Inflable 2×2m", "Pelotas de colores", "Supervisión constante", "Montaje incluido", "1 persona de apoyo dedicada"] },
 };
 
-const CATALOGO_TALLERES: Record<string, { nombre: string; color: string; subtitulo: string; itemsFn: (n: number) => string[] }> = {
-  caballetes: { nombre: "Caballetes", color: "purple", subtitulo: "Pintura y arte para todos", itemsFn: (n) => [`${n} impresiones artísticas`, `Set de pintura para ${n} niños`, "Caballetes de madera", "Pinceles y paletas"] },
-  yesitos: { nombre: "Yesitos", color: "pink", subtitulo: "Pinta tus figuras de yeso", itemsFn: (n) => [`${n * 3} figuras de yeso (3 por niño)`, `Set de pintura para ${n} niños`, "Pinceles individuales", "Bolsas para llevar"] },
-  "haz-pulsera": { nombre: "Arma tu Pulsera", color: "green", subtitulo: "Diseña tu propia joyería", itemsFn: (n) => [`Kit de charms para ${n} niños`, "Hilo encerado y cuentas", "Dijes decorativos", "Bolsas de regalo"] },
-  foamy: { nombre: "Foami Moldeable", color: "yellow", subtitulo: "Moldea y crea figuras", itemsFn: (n) => [`Foami moldeable para ${n} niños`, "Moldes y cortadores", "Accesorios decorativos", "Bolsas para llevar"] },
-  diamante: { nombre: "Arte Diamante", color: "blue", subtitulo: "Brilla con arte de gemas", itemsFn: (n) => [`Kit de arte diamante para ${n} niños`, "Gemas de colores surtidos", "Plantillas temáticas", "Bolsas para llevar"] },
+const CATALOGO_TALLERES: Record<string, { nombre: string; precio: number; horaExtra: number; color: string; subtitulo: string; itemsFn: (n: number) => string[] }> = {
+  caballetes: { nombre: "Caballetes",       precio: 2000, horaExtra: 1000, color: "purple", subtitulo: "Pinturas y dibujos personalizados", itemsFn: (n) => [`${Math.ceil(n/6)} caballetes dobles (${Math.min(n, Math.ceil(n/6)*2*5)} niños simultáneos)`, `Hasta ${n} dibujos personalizados`, "Impresiones ilimitadas durante el servicio", "Mandiles para cada niño", "1 persona de apoyo dedicada"] },
+  yesitos:    { nombre: "Yesitos",          precio: 1500, horaExtra: 1000, color: "pink",   subtitulo: "Figuras de yeso para pintar", itemsFn: (n) => [`3 yesitos por niño (${n * 3} piezas total)`, "Pinceles individuales", "Pintura de colores surtidos", `${Math.ceil(n/6)} mesas para ${Math.min(6, n)} niños cada una`, "1 persona de apoyo dedicada"] },
+  pulseras:   { nombre: "Arma tu Pulsera",  precio: 1500, horaExtra: 1000, color: "green",  subtitulo: "Diseña tu propia joyería", itemsFn: (n) => [`Kit de charms para ${n} niños`, "Hilo encerado y cuentas", "Dijes decorativos", "Bolsas de regalo", "1 persona de apoyo dedicada"] },
+  foamy:      { nombre: "Foami Moldeable",  precio: 800,  horaExtra: 500,  color: "yellow", subtitulo: "Moldea y crea figuras", itemsFn: (n) => [`Foami moldeable para ${n} niños`, "Moldes y cortadores", "Accesorios decorativos", "Bolsas para llevar", "1 persona de apoyo dedicada"] },
+  diamante:   { nombre: "Arte Diamante",    precio: 800,  horaExtra: 500,  color: "blue",   subtitulo: "Brilla con arte de gemas", itemsFn: (n) => [`Kit de arte diamante para ${n} niños`, "Gemas de colores surtidos", "Plantillas temáticas", "Bolsas para llevar", "1 persona de apoyo dedicada"] },
 };
 
 // ─── Pricing ────────────────────────────────────────────────────
@@ -187,8 +293,9 @@ function precioEstaciones(n: number): number {
   return Math.floor(n / 2) * 3000 + (n % 2) * 1800;
 }
 
-function precioTaller(basePrice: number, nNinos: number): number {
-  return Math.round(basePrice * getMultiplicador(nNinos));
+function precioTaller(key: string, nNinos: number, dbPrice?: number): number {
+  const base = dbPrice ?? CATALOGO_TALLERES[key]?.precio ?? 0;
+  return Math.round(base * getMultiplicador(nNinos));
 }
 
 function calcularTotal(
@@ -198,7 +305,6 @@ function calcularTotal(
   let total = 0;
   const desglose: Record<string, number> = {};
 
-  // Estaciones (group pricing, minimum 2)
   const nEst = config.estaciones?.length ?? 0;
   if (nEst >= 2) {
     const p = precioEstaciones(nEst);
@@ -206,19 +312,15 @@ function calcularTotal(
     desglose.estaciones = p;
   }
 
-  // Fijos (fixed pricing from DB)
   for (const key of config.fijos ?? []) {
-    const svc = dbServices.get(key);
-    const p = svc?.base_price ?? 0;
+    const p = dbServices?.get(key)?.base_price ?? CATALOGO_FIJOS[key]?.precio ?? 0;
     total += p;
     desglose[key] = p;
   }
 
-  // Talleres (tiered pricing from DB)
   for (const key of config.talleres ?? []) {
-    const svc = dbServices.get(key);
-    const base = svc?.base_price ?? 0;
-    const p = precioTaller(base, config.n_ninos);
+    const dbPrice = dbServices?.get(key)?.base_price;
+    const p = precioTaller(key, config.n_ninos, dbPrice);
     total += p;
     desglose[key] = p;
   }
@@ -239,27 +341,29 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
 
   const cards: CardData[] = [];
   for (const key of fij) {
-    const svc = dbServices.get(key);
     const cat = CATALOGO_FIJOS[key];
+    const dbSvc = dbServices?.get(key);
     cards.push({
       tipo: "fijo", key,
-      nombre: cat?.nombre || svc?.title || key,
-      precio: svc?.base_price ?? 0,
+      nombre: cat?.nombre || dbSvc?.title || key,
+      precio: dbSvc?.base_price ?? cat?.precio ?? 0,
       subtitulo: cat?.subtitulo || "",
-      items: cat?.items || svc?.features || [],
+      items: cat?.items || dbSvc?.features || [],
       color: cat?.color || "blue",
     });
   }
+
   for (const key of tal) {
-    const svc = dbServices.get(key);
     const cat = CATALOGO_TALLERES[key];
-    const precio = precioTaller(svc?.base_price ?? 0, config.n_ninos);
+    const dbSvc = dbServices?.get(key);
+    const dbPrice = dbSvc?.base_price;
+    const precio = precioTaller(key, config.n_ninos, dbPrice);
     cards.push({
       tipo: "taller", key,
-      nombre: cat?.nombre || svc?.title || key,
+      nombre: cat?.nombre || dbSvc?.title || key,
       precio,
       subtitulo: cat?.subtitulo || "",
-      items: cat?.itemsFn?.(config.n_ninos) || svc?.features || [],
+      items: cat?.itemsFn?.(config.n_ninos) || dbSvc?.features || [],
       color: cat?.color || "blue",
     });
   }
@@ -276,8 +380,10 @@ function distribuirEnFilas(cards: CardData[]): CardData[][] {
   const n = cards.length;
   if (n === 0) return [];
   if (n <= 3) return [cards];
-  if (n <= 5) return [cards.slice(0, 2), cards.slice(2)];
-  if (n <= 6) return [cards.slice(0, 3), cards.slice(3)];
+  if (n === 4) return [cards.slice(0, 2), cards.slice(2)];
+  if (n === 5) return [cards.slice(0, 2), cards.slice(2)];
+  if (n === 6) return [cards.slice(0, 3), cards.slice(3)];
+  if (n <= 9) return [cards.slice(0, 3), cards.slice(3, 6), cards.slice(6)];
   return [cards.slice(0, 3), cards.slice(3, 6), cards.slice(6, 9)];
 }
 
@@ -288,23 +394,6 @@ function formatPrice(amount: number): string {
 
 function formatDate(d: Date): string {
   return d.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
-}
-
-function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const words = text.split(" ");
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (font.widthOfTextAtSize(test, size) <= maxWidth) {
-      current = test;
-    } else {
-      if (current) lines.push(current);
-      current = word;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
 }
 
 function resolveDefaults(config: QuoteRequest): QuoteRequest {
@@ -324,34 +413,33 @@ function resolveDefaults(config: QuoteRequest): QuoteRequest {
 }
 
 function generarSubtitulo(config: QuoteRequest): string {
-  const parts: string[] = [];
   const nEst = config.estaciones?.length ?? 0;
-  if (nEst > 0) parts.push(`${nEst} estacion${nEst > 1 ? "es" : ""}`);
   const nFij = config.fijos?.length ?? 0;
-  if (nFij > 0) parts.push(`${nFij} servicio${nFij > 1 ? "s" : ""} fijo${nFij > 1 ? "s" : ""}`);
   const nTal = config.talleres?.length ?? 0;
-  if (nTal > 0) parts.push(`${nTal} taller${nTal > 1 ? "es" : ""}`);
-  return parts.length > 0
-    ? `Propuesta personalizada con ${parts.join(", ")} para ${config.n_ninos} niños`
-    : `Propuesta personalizada para ${config.n_ninos} niños`;
+  if (nEst > 0 && nFij === 0 && nTal === 0) return "Estaciones de mini ciudad para evento infantil";
+  if (nTal > 0 && nEst === 0 && nFij === 0) return "Talleres creativos para evento infantil";
+  if (nFij > 0 && nEst === 0 && nTal === 0) return "Servicios especiales para evento infantil";
+  return "Propuesta personalizada para evento infantil";
 }
 
 function generarResumen(config: QuoteRequest): string {
   const parts: string[] = [];
   const nEst = config.estaciones?.length ?? 0;
-  if (nEst >= 1) parts.push(`${nEst} estación${nEst > 1 ? "es" : ""}`);
-  for (const key of config.fijos ?? []) parts.push(CATALOGO_FIJOS[key]?.nombre || key);
-  for (const key of config.talleres ?? []) parts.push(CATALOGO_TALLERES[key]?.nombre || key);
-  return parts.join(" · ");
+  if (nEst >= 2) parts.push(`${nEst} estaciones`);
+  const nFij = config.fijos?.length ?? 0;
+  if (nFij > 0) parts.push(`${nFij} ${nFij === 1 ? "servicio fijo" : "servicios fijos"}`);
+  const nTal = config.talleres?.length ?? 0;
+  if (nTal > 0) parts.push(`${nTal} ${nTal === 1 ? "taller creativo" : "talleres creativos"}`);
+  return parts.join(" · ") + ` · ${config.n_ninos} niños · ${config.horas} horas`;
 }
 
 function generarCondiciones(config: QuoteRequest): string[] {
   const conds = [
     `El servicio tiene una duración de ${config.horas} horas.`,
-    "Los precios incluyen personal operativo, material y equipo.",
-    `Se requiere un anticipo del ${config.anticipo_pct}% para confirmar la reserva.`,
-    `Esta cotización tiene una vigencia de ${config.vigencia}.`,
-    "Los precios pueden variar si cambia el número de niños.",
+    "Los precios incluyen personal operativo, material y montaje.",
+    `Se requiere un anticipo del ${config.anticipo_pct}% para confirmar la reserva de fecha y servicio.`,
+    `Cotización válida para evento de hasta ${config.n_ninos} niños.`,
+    `Vigencia de la cotización: ${config.vigencia}.`,
   ];
   if (config.cancelacion) {
     conds.push("Una vez confirmada la reserva, el anticipo no es reembolsable en caso de cancelación.");
@@ -362,20 +450,447 @@ function generarCondiciones(config: QuoteRequest): string[] {
 
 function generarNotaHoraExtra(config: QuoteRequest, dbServices: Map<string, DBService>): string {
   const parts: string[] = [];
-  if ((config.estaciones?.length ?? 0) >= 2) parts.push("$500/estación");
+  if ((config.estaciones?.length ?? 0) >= 2) parts.push("$500 por estación");
   const extras: Record<number, string[]> = {};
   for (const key of config.fijos ?? []) {
-    const p = dbServices.get(key)?.hora_extra ?? 500;
+    const p = dbServices?.get(key)?.hora_extra ?? CATALOGO_FIJOS[key]?.horaExtra ?? 500;
     (extras[p] ||= []).push(CATALOGO_FIJOS[key]?.nombre || key);
   }
   for (const key of config.talleres ?? []) {
-    const p = dbServices.get(key)?.hora_extra ?? 500;
+    const p = dbServices?.get(key)?.hora_extra ?? CATALOGO_TALLERES[key]?.horaExtra ?? 500;
     (extras[p] ||= []).push(CATALOGO_TALLERES[key]?.nombre || key);
   }
   for (const [precio, nombres] of Object.entries(extras).sort((a, b) => +b[0] - +a[0])) {
-    parts.push(`${formatPrice(Number(precio))} ${nombres.join(", ")}`);
+    parts.push(`$${Number(precio).toLocaleString("es-MX")} por ${nombres.length === 1 ? 'taller' : 'taller'}`);
   }
-  return parts.join(" · ");
+  if (parts.length === 0) return "";
+  return parts.join(" · ") + " · Sujeto a disponibilidad";
+}
+
+// ─── Drawing Helpers ────────────────────────────────────────────
+
+function drawRoundedRect(page: PDFPage, x: number, y: number, w: number, h: number, r: number, opts: any = {}) {
+  const { color, borderColor, borderWidth } = opts;
+  if (color) {
+    page.drawRectangle({ x: x + r, y: y, width: w - 2 * r, height: h, color });
+    page.drawRectangle({ x: x, y: y + r, width: w, height: h - 2 * r, color });
+    page.drawCircle({ x: x + r, y: y + r, size: r, color });
+    page.drawCircle({ x: x + w - r, y: y + r, size: r, color });
+    page.drawCircle({ x: x + r, y: y + h - r, size: r, color });
+    page.drawCircle({ x: x + w - r, y: y + h - r, size: r, color });
+  }
+  if (borderColor) {
+    const bw = borderWidth || 0.5;
+    page.drawLine({ start: { x: x + r, y: y + h }, end: { x: x + w - r, y: y + h }, color: borderColor, thickness: bw });
+    page.drawLine({ start: { x: x + r, y: y }, end: { x: x + w - r, y: y }, color: borderColor, thickness: bw });
+    page.drawLine({ start: { x: x, y: y + r }, end: { x: x, y: y + h - r }, color: borderColor, thickness: bw });
+    page.drawLine({ start: { x: x + w, y: y + r }, end: { x: x + w, y: y + h - r }, color: borderColor, thickness: bw });
+  }
+}
+
+function textW(font: PDFFont, text: string, size: number): number {
+  return font.widthOfTextAtSize(text, size);
+}
+
+// (Geometric icon placeholders removed — using PNG icons from Supabase Storage)
+
+// ─── Height Calculators ─────────────────────────────────────────
+
+function calcEstacionResumenH(nEstaciones: number): number {
+  const nPairs = Math.floor(nEstaciones / 2);
+  const nSingle = nEstaciones % 2;
+  const pairLines = nPairs + nSingle;
+  return 48 + 16 + 14 + (pairLines * 18) + 12;
+}
+
+function calcCardRowH(cards: CardData[]): number {
+  const n = cards.length;
+  const sizes = CARD_SIZES[n] || CARD_SIZES[3];
+  const maxItems = Math.max(...cards.map(c => Math.min(c.items.length, 5)));
+  return sizes.bandH + sizes.bodyPadTop + 12 + 10 + (maxItems * sizes.itemSpacing) + sizes.bodyPadBot;
+}
+
+// ─── Rendering Functions ────────────────────────────────────────
+
+function drawBackground(page: PDFPage) {
+  page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: C.bg });
+}
+
+function drawHeader(page: PDFPage, fonts: FontSet, y: number, fechaEmision: string): number {
+  const barH = 58;
+  const barY = y - barH;
+  page.drawRectangle({ x: 0, y: barY, width: W, height: barH, color: C.brown });
+
+  page.drawText("japitown", { x: ML + 12, y: barY + barH - 32, font: fonts.bold, size: 22, color: C.cream });
+  page.drawText("Eventos infantiles", { x: ML + 12, y: barY + barH - 47, font: fonts.light, size: 8, color: C.brown_lt });
+
+  const dateW = textW(fonts.regular, fechaEmision, 9);
+  page.drawText(fechaEmision, { x: W - MR - 12 - dateW, y: barY + barH - 26, font: fonts.regular, size: 9, color: C.cream });
+  const cotLabel = "COTIZACIÓN";
+  const cotW = textW(fonts.bold, cotLabel, 11);
+  page.drawText(cotLabel, { x: W - MR - 12 - cotW, y: barY + barH - 43, font: fonts.bold, size: 11, color: C.lcream });
+
+  return barY;
+}
+
+function drawTitleStrip(page: PDFPage, fonts: FontSet, y: number, titulo: string, subtitulo: string): number {
+  const stripH = 48;
+  const sY = y - stripH;
+  page.drawText(titulo, { x: ML + 6, y: sY + stripH - 22, font: fonts.bold, size: 16, color: C.dark });
+  page.drawText(subtitulo, { x: ML + 6, y: sY + stripH - 40, font: fonts.regular, size: 8.5, color: C.dlt });
+  return sY;
+}
+
+function drawEventCallout(page: PDFPage, fonts: FontSet, y: number, config: QuoteRequest): number {
+  const callH = 42;
+  const cY = y - callH;
+  const barW = 4;
+
+  drawRoundedRect(page, ML, cY, CW, callH, 5, { color: C.offwhite });
+  drawRoundedRect(page, ML, cY, CW, callH, 5, { borderColor: C.cream, borderWidth: 0.5 });
+
+  page.drawRectangle({ x: ML, y: cY + 4, width: barW, height: callH - 8, color: C.yellow });
+
+  const mainText = `Evento para ${config.n_ninos} niños · ${config.fecha} · ${config.horas} horas de servicio`;
+  page.drawText(mainText, { x: ML + 18, y: cY + callH - 16, font: fonts.medium, size: 8.5, color: C.dark });
+
+  const subText = "Todas las estaciones y talleres operan las " + config.horas + " horas completas · Incluye montaje y desmontaje";
+  page.drawText(subText, { x: ML + 18, y: cY + callH - 30, font: fonts.regular, size: 7.5, color: C.dlt });
+  return cY;
+}
+
+function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estaciones: string[], precio: number): number {
+  const nEst = estaciones.length;
+  const nPairs = Math.floor(nEst / 2);
+  const nSingle = nEst % 2;
+  const pairLines = nPairs + nSingle;
+
+  const headerH = 48;
+  const bodyH = 16 + 14 + (pairLines * 18) + 12;
+  const totalH = headerH + bodyH;
+  const bY = y - totalH;
+
+  drawRoundedRect(page, ML, bY, CW, totalH, 7, { color: C.offwhite });
+  drawRoundedRect(page, ML, bY, CW, totalH, 7, { borderColor: C.cream, borderWidth: 0.5 });
+
+  const darkBand = rgb(0.380, 0.380, 0.400);
+  drawRoundedRect(page, ML, bY + bodyH, CW, headerH, 7, { color: darkBand });
+  page.drawRectangle({ x: ML, y: bY + bodyH, width: CW, height: 7, color: darkBand });
+
+  page.drawText("Paquetes de Estaciones — Mini Ciudad", { x: ML + 16, y: bY + bodyH + headerH - 20, font: fonts.bold, size: 13, color: C.white });
+  const subText = `${nEst} estaciones temáticas · ${estaciones.length >= 2 ? '3' : '3'} horas · Juguetes, mobiliario, materiales y personal dedicado`;
+  page.drawText(subText, { x: ML + 16, y: bY + bodyH + headerH - 35, font: fonts.regular, size: 7, color: rgb(0.75, 0.75, 0.78) });
+
+  const priceText = formatPrice(precio);
+  const priceW = textW(fonts.bold, priceText, 20);
+  page.drawText(priceText, { x: ML + CW - 16 - priceW, y: bY + bodyH + headerH - 26, font: fonts.bold, size: 20, color: C.white });
+
+  let cy = bY + bodyH - 14;
+  page.drawText("Incluye por cada paquete: juguetes temáticos, mobiliario, materiales y 1 persona de staff por estación.", {
+    x: ML + 16, y: cy, font: fonts.regular, size: 7, color: C.dlt,
+  });
+  cy -= 18;
+
+  const pairPrice = 3000;
+  const singlePrice = 1800;
+  const rightMargin = ML + CW - 16;
+
+  for (let i = 0; i < nPairs; i++) {
+    const idx = i * 2;
+    const key1 = estaciones[idx];
+    const name1 = CATALOGO_ESTACIONES[key1]?.nombre || key1;
+    const name2 = CATALOGO_ESTACIONES[estaciones[idx + 1]]?.nombre || estaciones[idx + 1];
+    const color1 = BULLET_MAP[CATALOGO_ESTACIONES[key1]?.color as keyof typeof BULLET_MAP] || C.bullet_blue;
+    const pairLabel = `${name1} + ${name2}`;
+    const pairPriceStr = formatPrice(pairPrice);
+
+    page.drawCircle({ x: ML + 22, y: cy + 3, size: 3.5, color: color1 });
+
+    page.drawText(pairLabel, { x: ML + 34, y: cy, font: fonts.medium, size: 8, color: C.dark });
+    const labelW = textW(fonts.medium, pairLabel, 8);
+    const priceStrW = textW(fonts.regular, pairPriceStr, 8);
+
+    const dotStart = ML + 34 + labelW + 6;
+    const dotEnd = rightMargin - priceStrW - 6;
+    drawDottedLine(page, dotStart, cy + 2, dotEnd, cy + 2, C.dlt);
+
+    page.drawText(pairPriceStr, { x: rightMargin - priceStrW, y: cy, font: fonts.regular, size: 8, color: C.dark });
+
+    cy -= 18;
+  }
+
+  if (nSingle > 0) {
+    const idx = nEst - 1;
+    const key = estaciones[idx];
+    const name = CATALOGO_ESTACIONES[key]?.nombre || key;
+    const color = BULLET_MAP[CATALOGO_ESTACIONES[key]?.color as keyof typeof BULLET_MAP] || C.bullet_blue;
+    const singlePriceStr = formatPrice(singlePrice);
+
+    page.drawCircle({ x: ML + 22, y: cy + 3, size: 3.5, color });
+    page.drawText(name, { x: ML + 34, y: cy, font: fonts.medium, size: 8, color: C.dark });
+    const labelW = textW(fonts.medium, name, 8);
+    const priceStrW = textW(fonts.regular, singlePriceStr, 8);
+
+    const dotStart = ML + 34 + labelW + 6;
+    const dotEnd = rightMargin - priceStrW - 6;
+    drawDottedLine(page, dotStart, cy + 2, dotEnd, cy + 2, C.dlt);
+
+    page.drawText(singlePriceStr, { x: rightMargin - priceStrW, y: cy, font: fonts.regular, size: 8, color: C.dark });
+    cy -= 18;
+  }
+
+  return bY;
+}
+
+function drawDottedLine(page: PDFPage, x1: number, y1: number, x2: number, y2: number, color: any) {
+  const dotSpacing = 4;
+  const dotR = 0.5;
+  const dist = x2 - x1;
+  const nDots = Math.floor(dist / dotSpacing);
+  for (let i = 0; i < nDots; i++) {
+    const x = x1 + i * dotSpacing;
+    page.drawCircle({ x, y: y1, size: dotR, color });
+  }
+}
+
+function drawCard(page: PDFPage, fonts: FontSet, x: number, y: number, data: CardData, sizes: CardSizes): number {
+  const itemCount = Math.min(data.items.length, 5);
+  const bodyH = sizes.bodyPadTop + 12 + 10 + (itemCount * sizes.itemSpacing) + sizes.bodyPadBot;
+  const totalH = sizes.bandH + bodyH;
+  const bandColor = BAND_MAP[data.color as keyof typeof BAND_MAP] || C.band_blue;
+  const outlineColor = OUTLINE_MAP[data.color as keyof typeof OUTLINE_MAP] || C.outline_blue;
+  const bulletColor = BULLET_MAP[data.color as keyof typeof BULLET_MAP] || C.bullet_blue;
+  const cardY = y - totalH;
+
+  drawRoundedRect(page, x, cardY, sizes.width, totalH, 7, { color: C.white });
+  drawRoundedRect(page, x, cardY, sizes.width, totalH, 7, { borderColor: outlineColor, borderWidth: 0.8 });
+
+  drawRoundedRect(page, x, cardY + bodyH, sizes.width, sizes.bandH, 7, { color: bandColor });
+  page.drawRectangle({ x: x, y: cardY + bodyH, width: sizes.width, height: 7, color: bandColor });
+
+  const titleY = cardY + bodyH + sizes.bandH - 18;
+  page.drawText(data.nombre, { x: x + sizes.padX, y: titleY, font: fonts.bold, size: sizes.titleSz, color: C.white });
+
+  page.drawText(data.subtitulo, { x: x + sizes.padX, y: titleY - 13, font: fonts.light, size: sizes.subSz, color: rgb(1, 1, 0.95) });
+
+  const priceStr = formatPrice(data.precio);
+  const priceW = textW(fonts.bold, priceStr, sizes.priceSz);
+  page.drawText(priceStr, { x: x + sizes.width - sizes.padX - priceW, y: titleY, font: fonts.bold, size: sizes.priceSz, color: C.white });
+
+  let cy = cardY + bodyH - sizes.bodyPadTop;
+
+  page.drawText("Incluye:", { x: x + sizes.padX, y: cy, font: fonts.medium, size: sizes.itemSz, color: C.dark });
+  cy -= sizes.itemSpacing + 2;
+
+  for (let i = 0; i < itemCount; i++) {
+    page.drawCircle({ x: x + sizes.padX + sizes.bulletR, y: cy + 2, size: sizes.bulletR, color: bulletColor });
+    page.drawText(data.items[i], { x: x + sizes.padX + sizes.bulletR * 2 + 6, y: cy, font: fonts.regular, size: sizes.itemSz, color: C.dark });
+    cy -= sizes.itemSpacing;
+  }
+
+  return totalH;
+}
+
+function drawCardRow(page: PDFPage, fonts: FontSet, y: number, cards: CardData[]): number {
+  const n = cards.length;
+  const sizes = CARD_SIZES[n] || CARD_SIZES[3];
+  let maxH = 0;
+
+  for (let i = 0; i < cards.length; i++) {
+    let x: number;
+    if (n === 1) {
+      x = ML + (CW - sizes.width) / 2;
+    } else {
+      x = ML + i * (sizes.width + sizes.gap);
+    }
+    const h = drawCard(page, fonts, x, y, cards[i], sizes);
+    if (h > maxH) maxH = h;
+  }
+
+  return y - maxH;
+}
+
+function drawTotalBar(page: PDFPage, fonts: FontSet, y: number, total: number, resumen: string): number {
+  const barH = 52;
+  const bY = y - barH;
+  const midY = bY + barH / 2;
+  drawRoundedRect(page, ML, bY, CW, barH, 6, { color: C.brown });
+
+  page.drawText("INVERSIÓN TOTAL", { x: ML + 16, y: midY + 5, font: fonts.bold, size: 11, color: C.white });
+
+  if (resumen) {
+    page.drawText(resumen, { x: ML + 16, y: midY - 12, font: fonts.regular, size: 7.5, color: rgb(0.92, 0.88, 0.86) });
+  }
+
+  const priceText = formatPrice(total);
+  const priceW = textW(fonts.bold, priceText, 28);
+  page.drawText(priceText, { x: ML + CW - 16 - priceW, y: midY - 12, font: fonts.bold, size: 28, color: C.white });
+
+  const mxnW = textW(fonts.light, "MXN", 9);
+  page.drawText("MXN", { x: ML + CW - 16 - priceW - mxnW - 6, y: midY - 4, font: fonts.light, size: 9, color: rgb(0.92, 0.88, 0.86) });
+
+  return bY;
+}
+
+function drawExtraHourNote(page: PDFPage, fonts: FontSet, y: number, noteText: string): number {
+  if (!noteText) return y;
+  const noteH = 22;
+  const nY = y - noteH;
+  const barW = 4;
+
+  drawRoundedRect(page, ML, nY, CW, noteH, 4, { color: C.offwhite });
+  drawRoundedRect(page, ML, nY, CW, noteH, 4, { borderColor: C.cream, borderWidth: 0.5 });
+
+  page.drawRectangle({ x: ML, y: nY + 3, width: barW, height: noteH - 6, color: C.orange });
+
+  const label = "Hora adicional disponible: ";
+  page.drawText(label, { x: ML + 16, y: nY + 6, font: fonts.medium, size: 7, color: C.dark });
+  const labelW = textW(fonts.medium, label, 7);
+  page.drawText(noteText, { x: ML + 16 + labelW, y: nY + 6, font: fonts.regular, size: 7, color: C.dlt });
+  return nY;
+}
+
+function drawConditions(page: PDFPage, fonts: FontSet, y: number, condiciones: string[]): number {
+  const headerY = y - 12;
+  page.drawText("Condiciones", { x: ML + 6, y: headerY, font: fonts.bold, size: 8.5, color: C.dark });
+  const headerW = textW(fonts.bold, "Condiciones", 8.5);
+  page.drawLine({ start: { x: ML + 6, y: headerY - 2 }, end: { x: ML + 6 + headerW, y: headerY - 2 }, color: C.brown_lt, thickness: 0.5 });
+
+  const lineH = 10;
+  let cy = headerY - 14;
+  for (const cond of condiciones) {
+    page.drawText("•", { x: ML + 10, y: cy, font: fonts.regular, size: 6.5, color: C.brown });
+    page.drawText(cond, { x: ML + 22, y: cy, font: fonts.regular, size: 6.5, color: C.dlt });
+    cy -= lineH;
+  }
+  return cy - 4;
+}
+
+function drawPaymentInfo(page: PDFPage, fonts: FontSet, y: number): number {
+  const infoH = 30;
+  const pY = y - infoH;
+  const barW = 4;
+
+  drawRoundedRect(page, ML, pY, CW, infoH, 4, { color: C.offwhite });
+  drawRoundedRect(page, ML, pY, CW, infoH, 4, { borderColor: C.cream, borderWidth: 0.5 });
+
+  page.drawRectangle({ x: ML, y: pY + 3, width: barW, height: infoH - 6, color: C.orange });
+
+  page.drawText("Datos para depósito de anticipo", { x: ML + 16, y: pY + infoH - 11, font: fonts.bold, size: 7.5, color: C.dark });
+  page.drawText("BBVA · Frida Velásquez Hdez. · CLABE: 012 610 015493815314", {
+    x: ML + 16, y: pY + 5, font: fonts.regular, size: 7, color: C.dlt,
+  });
+  return pY;
+}
+
+// Simple geometric icon fallbacks for decorative elements (CPU-friendly)
+const DECO_COLORS = [C.ico_teal, C.ico_green, C.ico_red, C.ico_yellow, C.ico_orange, C.ico_green, C.ico_blue, C.ico_pink, C.ico_orange, C.ico_purple];
+
+function drawSimpleIcon(page: PDFPage, cx: number, cy: number, size: number, color: any, variant: number) {
+  const v = variant % 4;
+  if (v === 0) {
+    // Flower: center + 6 petals
+    const petalR = size * 0.3;
+    const dist = size * 0.4;
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI * 2) / 6;
+      page.drawCircle({ x: cx + Math.cos(a) * dist, y: cy + Math.sin(a) * dist, size: petalR, color });
+    }
+    page.drawCircle({ x: cx, y: cy, size: size * 0.2, color: C.yellow });
+  } else if (v === 1) {
+    // Star: cross shape
+    const arm = size * 0.45;
+    const thick = size * 0.16;
+    page.drawRectangle({ x: cx - arm, y: cy - thick, width: arm * 2, height: thick * 2, color });
+    page.drawRectangle({ x: cx - thick, y: cy - arm, width: thick * 2, height: arm * 2, color });
+  } else if (v === 2) {
+    // Cloud: 3 overlapping circles
+    const r = size * 0.28;
+    page.drawCircle({ x: cx - size * 0.2, y: cy, size: r, color });
+    page.drawCircle({ x: cx + size * 0.2, y: cy, size: r, color });
+    page.drawCircle({ x: cx, y: cy + size * 0.12, size: r * 1.1, color });
+  } else {
+    // Simple circle
+    page.drawCircle({ x: cx, y: cy, size: size * 0.4, color });
+  }
+}
+
+function drawIconBand(page: PDFPage, y: number, icons: IconCache): number {
+  const decoIcons = icons.decorative.filter(Boolean);
+  const numIcons = 10;
+  const totalW = W - ML - MR;
+  const spacing = totalW / numIcons;
+  const bandY = y;
+
+  for (let i = 0; i < numIcons; i++) {
+    const cx = ML + spacing * (i + 0.5);
+    if (decoIcons.length > 0) {
+      const img = decoIcons[i % decoIcons.length];
+      if (img) {
+        page.drawImage(img, { x: cx - 9, y: bandY + 5, width: 18, height: 18 });
+        continue;
+      }
+    }
+    // Geometric fallback
+    drawSimpleIcon(page, cx, bandY + 14, 14, DECO_COLORS[i % DECO_COLORS.length], i);
+  }
+
+  return bandY;
+}
+
+function drawRainbowStripe(page: PDFPage, y: number): number {
+  const stripeH = 4;
+  const sY = y;
+  const numColors = C.rainbow.length;
+  const segW = W / numColors;
+
+  for (let i = 0; i < numColors; i++) {
+    page.drawRectangle({ x: i * segW, y: sY, width: segW + 1, height: stripeH, color: C.rainbow[i] });
+  }
+
+  return sY;
+}
+
+function drawFooter(page: PDFPage, fonts: FontSet) {
+  const footerH = 42;
+  page.drawRectangle({ x: 0, y: 0, width: W, height: footerH, color: C.brown });
+
+  page.drawText("@japitown", { x: ML + 12, y: 18, font: fonts.medium, size: 8, color: C.cream });
+
+  const rightText = "japitown · Eventos infantiles";
+  const rightW = textW(fonts.regular, rightText, 8);
+  page.drawText(rightText, { x: W - MR - 12 - rightW, y: 18, font: fonts.regular, size: 8, color: C.cream });
+}
+
+function drawScatteredIcons(page: PDFPage, y: number, contentBottom: number, icons: IconCache) {
+  const decoIcons = icons.decorative.filter(Boolean);
+  const positions = [
+    { x: W - MR - 18, y: y - 18, size: 12 },
+    { x: ML - 6, y: (y + contentBottom) / 2, size: 10 },
+    { x: W - MR + 5, y: (y + contentBottom) / 2 + 30, size: 9 },
+    { x: ML - 5, y: contentBottom + 30, size: 10 },
+    { x: ML + 15, y: contentBottom + 10, size: 8 },
+    { x: W - MR + 5, y: contentBottom + 20, size: 10 },
+  ];
+  const colors = [C.ico_yellow, C.ico_pink, C.ico_yellow, C.ico_pink, C.ico_teal, C.ico_blue];
+
+  for (let i = 0; i < positions.length; i++) {
+    const p = positions[i];
+    if (decoIcons.length > 0 && decoIcons[i % decoIcons.length]) {
+      page.drawImage(decoIcons[i % decoIcons.length], { x: p.x - p.size / 2, y: p.y - p.size / 2, width: p.size, height: p.size });
+    } else {
+      drawSimpleIcon(page, p.x, p.y, p.size, colors[i], i);
+    }
+  }
+}
+
+// ─── Font Loading ───────────────────────────────────────────────
+// Using standard PDF fonts (Helvetica) to avoid CPU-heavy fontkit parsing.
+// Standard fonts are built into every PDF reader — zero download, zero embed cost.
+async function loadFonts(pdfDoc: InstanceType<typeof PDFDocument>): Promise<FontSet> {
+  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  return { bold: helveticaBold, medium: helveticaBold, regular: helvetica, light: helvetica };
 }
 
 // ─── Validation ─────────────────────────────────────────────────
@@ -388,347 +903,14 @@ function validate(req: QuoteRequest): string[] {
   if ((req.estaciones?.length ?? 0) === 1) errors.push("Mínimo 2 estaciones");
   const total = (req.estaciones?.length || 0) + (req.fijos?.length || 0) + (req.talleres?.length || 0);
   if (total === 0) errors.push("Debe incluir al menos 1 servicio");
-
-  // Validate service keys exist in catalog
-  req.estaciones?.forEach(k => {
-    if (!ESTACION_IDS.includes(k)) errors.push(`Estación inválida: ${k}`);
-  });
-  req.fijos?.forEach(k => {
-    if (!FIJO_IDS.includes(k)) errors.push(`Servicio fijo inválido: ${k}`);
-  });
-  req.talleres?.forEach(k => {
-    if (!TALLER_IDS.includes(k)) errors.push(`Taller inválido: ${k}`);
-  });
-
+  req.estaciones?.forEach(k => { if (!ESTACION_IDS.includes(k)) errors.push(`Estación inválida: ${k}`); });
+  req.fijos?.forEach(k => { if (!FIJO_IDS.includes(k)) errors.push(`Servicio fijo inválido: ${k}`); });
+  req.talleres?.forEach(k => { if (!TALLER_IDS.includes(k)) errors.push(`Taller inválido: ${k}`); });
   return errors;
 }
 
-// ─── Font Loading (Helvetica only — custom fonts disabled to stay within CPU limits) ─
-let fontCache: FontSet | null = null;
-
-async function loadFonts(pdfDoc: InstanceType<typeof PDFDocument>): Promise<FontSet> {
-  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  return { bold: helveticaBold, medium: helveticaBold, regular: helvetica, light: helvetica };
-}
-
-async function fetchAsset(baseUrl: string, path: string): Promise<Uint8Array> {
-  const res = await fetch(`${baseUrl}/${path}`);
-  if (!res.ok) throw new Error(`Failed to fetch asset: ${path} (${res.status})`);
-  return new Uint8Array(await res.arrayBuffer());
-}
-
-// ─── Icon Loading (disabled to avoid CPU timeout) ───────────────
-type EmbeddedIconCache = Map<string, any>;
-
-async function loadIcons(
-  _pdfDoc: InstanceType<typeof PDFDocument>,
-  _serviceKeys: string[]
-): Promise<EmbeddedIconCache> {
-  // Icon embedding via embedPng is too CPU-intensive for edge functions.
-  // Return empty cache — drawing functions already have bullet-point fallback.
-  return new Map();
-}
-
-function getIcon(_cache: EmbeddedIconCache, _serviceKey: string): any | null {
-  return null;
-}
-
-// ─── Rounded Rectangle Helper ───────────────────────────────────
-function drawRoundedRect(
-  page: PDFPage,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-  options: { color?: ReturnType<typeof rgb>; borderColor?: ReturnType<typeof rgb>; borderWidth?: number }
-) {
-  const { color, borderColor, borderWidth } = options;
-  r = Math.min(r, w / 2, h / 2);
-
-  if (color) {
-    // Horizontal rect (full width, reduced height)
-    page.drawRectangle({ x: x, y: y + r, width: w, height: h - 2 * r, color });
-    // Vertical rect (full height, reduced width)
-    page.drawRectangle({ x: x + r, y: y, width: w - 2 * r, height: h, color });
-    // 4 corner circles
-    page.drawCircle({ x: x + r, y: y + r, size: r, color });           // bottom-left
-    page.drawCircle({ x: x + w - r, y: y + r, size: r, color });       // bottom-right
-    page.drawCircle({ x: x + r, y: y + h - r, size: r, color });       // top-left
-    page.drawCircle({ x: x + w - r, y: y + h - r, size: r, color });   // top-right
-  }
-
-  if (borderColor && borderWidth) {
-    // Draw border as 4 lines approximation using thin rectangles
-    const bw = borderWidth;
-    // Bottom
-    page.drawRectangle({ x: x + r, y: y, width: w - 2 * r, height: bw, color: borderColor });
-    // Top
-    page.drawRectangle({ x: x + r, y: y + h - bw, width: w - 2 * r, height: bw, color: borderColor });
-    // Left
-    page.drawRectangle({ x: x, y: y + r, width: bw, height: h - 2 * r, color: borderColor });
-    // Right
-    page.drawRectangle({ x: x + w - bw, y: y + r, width: bw, height: h - 2 * r, color: borderColor });
-  }
-}
-
-/** Draw rounded rect with only top corners rounded */
-function drawRoundedRectTop(
-  page: PDFPage,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-  color: ReturnType<typeof rgb>
-) {
-  r = Math.min(r, w / 2, h / 2);
-  // Main body (full width, from bottom to h - r)
-  page.drawRectangle({ x, y, width: w, height: h - r, color });
-  // Top strip (reduced width)
-  page.drawRectangle({ x: x + r, y: y + h - r, width: w - 2 * r, height: r, color });
-  // Top-left corner
-  page.drawCircle({ x: x + r, y: y + h - r, size: r, color });
-  // Top-right corner
-  page.drawCircle({ x: x + w - r, y: y + h - r, size: r, color });
-}
-
-// ─── Rendering Functions ────────────────────────────────────────
-
-function drawBackground(page: PDFPage) {
-  page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: C.cream });
-}
-
-function drawHeader(page: PDFPage, fonts: FontSet, y: number, fechaEmision: string): number {
-  const barH = 55;
-  page.drawRectangle({ x: 0, y: y - barH, width: W, height: barH, color: C.brown });
-  page.drawText("japitown", { x: ML + 10, y: y - 32, font: fonts.bold, size: 19, color: C.cream });
-  page.drawText("Eventos infantiles", { x: ML + 10, y: y - 46, font: fonts.light, size: 7.5, color: C.brown_lt });
-  const dateW = fonts.regular.widthOfTextAtSize(fechaEmision, 8.5);
-  page.drawText(fechaEmision, { x: W - MR - 10 - dateW, y: y - 26, font: fonts.regular, size: 8.5, color: C.cream });
-  const cotLabel = "COTIZACIÓN";
-  const cotW = fonts.bold.widthOfTextAtSize(cotLabel, 10);
-  page.drawText(cotLabel, { x: W - MR - 10 - cotW, y: y - 42, font: fonts.bold, size: 10, color: C.lcream });
-  return y - barH;
-}
-
-function drawTitleStrip(page: PDFPage, fonts: FontSet, y: number, titulo: string, subtitulo: string): number {
-  const stripH = 40;
-  drawRoundedRect(page, ML, y - stripH, CW, stripH, 4, { color: C.offwhite });
-  page.drawText(titulo, { x: ML + 14, y: y - 18, font: fonts.bold, size: 13, color: C.dark });
-  page.drawText(subtitulo, { x: ML + 14, y: y - 32, font: fonts.regular, size: 7.5, color: C.dlt });
-  return y - stripH;
-}
-
-function drawEventCallout(page: PDFPage, fonts: FontSet, y: number, config: QuoteRequest): number {
-  const callH = 38;
-  drawRoundedRect(page, ML, y - callH, CW, callH, 4, { color: C.lcream });
-  drawRoundedRect(page, ML, y - callH, CW, callH, 4, { borderColor: C.brown_lt, borderWidth: 1 });
-  const mainText = `Evento para ${config.n_ninos} niños · ${config.horas} horas de diversión`;
-  page.drawText(mainText, { x: ML + 14, y: y - 16, font: fonts.medium, size: 8, color: C.dark });
-  let subText = config.fecha;
-  if (config.hora_evento) subText += ` · ${config.hora_evento}`;
-  page.drawText(subText, { x: ML + 14, y: y - 30, font: fonts.regular, size: 7.2, color: C.dlt });
-  return y - callH;
-}
-
-function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estaciones: string[], precio: number, icons: EmbeddedIconCache): number {
-  const headerH = 34;
-  const listH = estaciones.length * 14;
-  const totalH = headerH + 12 + listH + 10;
-
-  // Background with rounded corners
-  drawRoundedRect(page, ML, y - totalH, CW, totalH, 6, { color: C.offwhite });
-  // Header band with rounded top corners
-  drawRoundedRectTop(page, ML, y - headerH, CW, headerH, 6, C.brown);
-
-  page.drawText("Estaciones — Mini Ciudad", { x: ML + 14, y: y - 22, font: fonts.bold, size: 12, color: C.white });
-  const priceText = formatPrice(precio);
-  const priceW = fonts.bold.widthOfTextAtSize(priceText, 16);
-  page.drawText(priceText, { x: ML + CW - 14 - priceW, y: y - 24, font: fonts.bold, size: 16, color: C.white });
-
-  let cy = y - headerH - 14;
-  for (const key of estaciones) {
-    const nombre = CATALOGO_ESTACIONES[key]?.nombre || key;
-    const color = COLOR_MAP[CATALOGO_ESTACIONES[key]?.color || "blue"] || C.blue;
-    
-    // Draw icon if available
-    const icon = getIcon(icons, key);
-    if (icon) {
-      const iconSize = 14;
-      page.drawImage(icon, { x: ML + 14, y: cy - 2, width: iconSize, height: iconSize });
-      page.drawText(nombre, { x: ML + 14 + iconSize + 4, y: cy, font: fonts.regular, size: 8, color: C.dark });
-    } else {
-      page.drawCircle({ x: ML + 20, y: cy + 3, size: 3, color });
-      page.drawText(nombre, { x: ML + 30, y: cy, font: fonts.regular, size: 8, color: C.dark });
-    }
-    cy -= 14;
-  }
-
-  return y - totalH;
-}
-
-function drawCard(page: PDFPage, fonts: FontSet, x: number, y: number, data: CardData, sizes: CardSizes, icons: EmbeddedIconCache): number {
-  const itemCount = Math.min(data.items.length, 4);
-  // Price is now inside band, so card body only has subtitle + incluye + items
-  const totalH = sizes.bandH + 8 + 14 + (itemCount * sizes.itemSpacing) + 10;
-  const bandColor = COLOR_MAP[data.color] || C.blue;
-  const r = 6;
-
-  // White card background with rounded corners
-  drawRoundedRect(page, x, y - totalH, sizes.width, totalH, r, { color: C.white });
-  // Colored top band with rounded top corners
-  drawRoundedRectTop(page, x, y - sizes.bandH, sizes.width, sizes.bandH, r, bandColor);
-
-  // Icon in band (left side)
-  const icon = getIcon(icons, data.key);
-  const iconOffset = icon ? 24 : 0;
-  if (icon) {
-    const iconSize = 22;
-    const bandBottom = y - sizes.bandH;
-    const iconY = bandBottom + (sizes.bandH - iconSize) / 2;
-    page.drawImage(icon, { x: x + sizes.padX, y: iconY, width: iconSize, height: iconSize });
-  }
-
-  // Title (left, after icon) and Price (right) both vertically centered in band
-  const bandBottom = y - sizes.bandH;
-  const titleCenterY = bandBottom + sizes.bandH / 2 - sizes.titleSz / 2;
-  page.drawText(data.nombre, { x: x + sizes.padX + iconOffset, y: titleCenterY, font: fonts.bold, size: sizes.titleSz, color: C.white });
-
-  const priceStr = formatPrice(data.precio);
-  const priceW = fonts.bold.widthOfTextAtSize(priceStr, sizes.priceSz);
-  const priceCenterY = bandBottom + sizes.bandH / 2 - sizes.priceSz / 2;
-  page.drawText(priceStr, { x: x + sizes.width - sizes.padX - priceW, y: priceCenterY, font: fonts.bold, size: sizes.priceSz, color: C.white });
-
-  let cy = y - sizes.bandH - 8;
-  // Subtitle
-  page.drawText(data.subtitulo, { x: x + sizes.padX, y: cy, font: fonts.light, size: sizes.subSz, color: C.dlt });
-  cy -= 12;
-
-  // "Incluye:" label
-  page.drawText("Incluye:", { x: x + sizes.padX, y: cy, font: fonts.medium, size: sizes.itemSz, color: C.dlt });
-  cy -= sizes.itemSpacing;
-
-  // Items
-  for (let i = 0; i < itemCount; i++) {
-    page.drawCircle({ x: x + sizes.padX + sizes.bulletR, y: cy + 2, size: sizes.bulletR, color: bandColor });
-    page.drawText(data.items[i], { x: x + sizes.padX + sizes.bulletR * 2 + 4, y: cy, font: fonts.regular, size: sizes.itemSz, color: C.dark });
-    cy -= sizes.itemSpacing;
-  }
-
-  return totalH;
-}
-
-function drawCardRow(page: PDFPage, fonts: FontSet, y: number, cards: CardData[], icons: EmbeddedIconCache): number {
-  const n = cards.length as 1 | 2 | 3;
-  const sizes = CARD_SIZES[n] || CARD_SIZES[3];
-  let maxH = 0;
-
-  for (let i = 0; i < cards.length; i++) {
-    let x: number;
-    if (n === 1) {
-      x = ML + (CW - sizes.width) / 2;
-    } else {
-      x = ML + i * (sizes.width + sizes.gap);
-    }
-    const h = drawCard(page, fonts, x, y, cards[i], sizes, icons);
-    if (h > maxH) maxH = h;
-  }
-
-  return y - maxH;
-}
-
-function drawTotalBar(page: PDFPage, fonts: FontSet, y: number, total: number, resumen: string): number {
-  const barH = 42;
-  page.drawRectangle({ x: ML, y: y - barH, width: CW, height: barH, color: C.brown });
-
-  page.drawText("INVERSIÓN TOTAL", { x: ML + 14, y: y - 14, font: fonts.medium, size: 6.2, color: C.brown_lt });
-
-  const priceText = formatPrice(total);
-  page.drawText(priceText, { x: ML + 14, y: y - 34, font: fonts.bold, size: 22, color: C.white });
-  const priceW = fonts.bold.widthOfTextAtSize(priceText, 22);
-  page.drawText("MXN", { x: ML + 14 + priceW + 6, y: y - 34, font: fonts.light, size: 10, color: C.brown_lt });
-
-  if (resumen) {
-    const lines = wrapText(resumen, fonts.regular, 6.5, CW * 0.4);
-    let ry = y - 14;
-    for (const line of lines) {
-      const lw = fonts.regular.widthOfTextAtSize(line, 6.5);
-      page.drawText(line, { x: ML + CW - 14 - lw, y: ry, font: fonts.regular, size: 6.5, color: C.cream });
-      ry -= 9;
-    }
-  }
-
-  return y - barH;
-}
-
-function drawExtraHourNote(page: PDFPage, fonts: FontSet, y: number, noteText: string): number {
-  if (!noteText) return y;
-  const noteH = 18;
-  drawRoundedRect(page, ML, y - noteH, CW, noteH, 4, { color: C.offwhite });
-  drawRoundedRect(page, ML, y - noteH, CW, noteH, 4, { borderColor: C.brown_lt, borderWidth: 0.5 });
-  const label = "Hora adicional disponible:  ";
-  page.drawText(label, { x: ML + 14, y: y - 12, font: fonts.medium, size: 6.5, color: C.dark });
-  const labelW = fonts.medium.widthOfTextAtSize(label, 6.5);
-  page.drawText(noteText, { x: ML + 14 + labelW, y: y - 12, font: fonts.regular, size: 6.5, color: C.dlt });
-  return y - noteH;
-}
-
-function drawConditions(page: PDFPage, fonts: FontSet, y: number, condiciones: string[]): number {
-  const lineH = 8;
-  let cy = y;
-  for (const cond of condiciones) {
-    cy -= lineH;
-    page.drawText("•", { x: ML + 10, y: cy, font: fonts.regular, size: 6, color: C.brown });
-    page.drawText(cond, { x: ML + 20, y: cy, font: fonts.regular, size: 6, color: C.dlt });
-  }
-  return cy - 4;
-}
-
-function drawPaymentInfo(page: PDFPage, fonts: FontSet, y: number): number {
-  const infoH = 28;
-  drawRoundedRect(page, ML, y - infoH, CW, infoH, 4, { color: C.lcream });
-  drawRoundedRect(page, ML, y - infoH, CW, infoH, 4, { borderColor: C.brown_lt, borderWidth: 0.5 });
-  page.drawText("Datos para depósito:", { x: ML + 14, y: y - 10, font: fonts.bold, size: 7, color: C.dark });
-  page.drawText("BBVA · Frida Velásquez Hdez. · CLABE: 012 610 015493815314", {
-    x: ML + 14, y: y - 22, font: fonts.regular, size: 6.5, color: C.dlt,
-  });
-  return y - infoH;
-}
-
-function drawFooter(page: PDFPage, fonts: FontSet): void {
-  const footerH = 55;
-  const stripeH = 3.5;
-  // Stripe above footer
-  page.drawRectangle({ x: 0, y: footerH, width: W, height: stripeH, color: C.brown });
-  // Footer background
-  page.drawRectangle({ x: 0, y: 0, width: W, height: footerH, color: C.brown });
-  // Logo
-  page.drawText("japitown", { x: ML + 10, y: 32, font: fonts.bold, size: 12, color: C.cream });
-  page.drawText("Eventos infantiles", { x: ML + 10, y: 18, font: fonts.light, size: 7, color: C.brown_lt });
-  // Contact
-  const email = "cotizaciones@japitown.com";
-  const emailW = fonts.regular.widthOfTextAtSize(email, 7);
-  page.drawText(email, { x: W - MR - 10 - emailW, y: 28, font: fonts.regular, size: 7, color: C.cream });
-}
-
-// ─── Height Estimation (for adaptive spacing) ───────────────────
-function estimateBlockHeight(bloque: LayoutBlock, sizes?: CardSizes): number {
-  if (bloque.tipo === "estacion_resumen") {
-    const headerH = 34;
-    const listH = bloque.estaciones.length * 14;
-    return headerH + 12 + listH + 10;
-  } else {
-    const n = bloque.cardsPerRow as 1 | 2 | 3;
-    const s = CARD_SIZES[n] || CARD_SIZES[3];
-    const itemCount = 4; // max items
-    return s.bandH + 8 + 14 + (itemCount * s.itemSpacing) + 10;
-  }
-}
-
 // ─── Main Pipeline ──────────────────────────────────────────────
-async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DBService>): Promise<Uint8Array> {
+async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DBService>, supabase?: any): Promise<Uint8Array> {
   const resolved = resolveDefaults(config);
   const { total } = calcularTotal(resolved, dbServices);
   const bloques = calcularLayout(resolved, dbServices);
@@ -736,89 +918,108 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   const pdfDoc = await PDFDocument.create();
   const fonts = await loadFonts(pdfDoc);
 
-  // Load icons from storage
-  const allServiceKeys = [
-    ...(resolved.estaciones || []),
-    ...(resolved.fijos || []),
-    ...(resolved.talleres || []),
-  ];
-  const icons = await loadIcons(pdfDoc, allServiceKeys);
+  // Load decorative icons (13-19) for band and scattered placement
+  const icons = await loadAllIcons(pdfDoc);
 
   const page = pdfDoc.addPage([W, H]);
 
-  // Background
-  drawBackground(page);
-
-  // ─── Calculate adaptive spacing ───
-  const headerH = 55;
-  const titleStripH = 40;
-  const calloutH = 38;
-  const totalBarH = 42;
-  const footerH = 55 + 3.5; // footer + stripe
-
-  // Estimate conditions height
   const condiciones = generarCondiciones(resolved);
-  const conditionsH = condiciones.length * 8 + 4;
-
-  // Extra hour note
   const horaExtraText = generarNotaHoraExtra(resolved, dbServices);
-  const extraHourH = horaExtraText ? 18 : 0;
+  const resumen = generarResumen(resolved);
 
-  // Payment info
-  const paymentH = 28;
+  const HEADER_H = 58;
+  const TITLE_H = 48;
+  const CALLOUT_H = 42;
+  const TOTAL_BAR_H = 52;
+  const EXTRA_HOUR_H = horaExtraText ? 22 : 0;
+  const COND_HEADER_H = 14;
+  const COND_H = COND_HEADER_H + condiciones.length * 10 + 4;
+  const PAYMENT_H = 30;
+  const ICON_BAND_H = 32;
+  const RAINBOW_H = 4;
+  const FOOTER_H = 42;
 
-  // Dynamic blocks height
-  let dynamicH = 0;
-  for (const b of bloques) {
-    dynamicH += estimateBlockHeight(b);
-  }
-
-  // Fixed gaps
-  const fixedGaps = 5 + 10 + 16; // after header, after title, after callout
-  const numGaps = bloques.length + 3; // gaps between dynamic blocks + total + extra + conditions
-
-  const totalContentH = headerH + titleStripH + calloutH + dynamicH + totalBarH + extraHourH + conditionsH + paymentH + footerH + fixedGaps;
-  const availableSpace = H - totalContentH;
-  const gapExtra = Math.max(0, Math.min(availableSpace / numGaps, 20)); // cap at 20pt max
-
-  // ─── Draw everything ───
-  let y = H;
-  y = drawHeader(page, fonts, y, resolved.fecha_emision!);
-  y -= 5 + gapExtra * 0.3;
-  y = drawTitleStrip(page, fonts, y, resolved.titulo!, resolved.subtitulo!);
-  y -= 10 + gapExtra * 0.5;
-  y = drawEventCallout(page, fonts, y, resolved);
-  y -= 16 + gapExtra;
-
-  // Dynamic content blocks
+  const blockHeights: number[] = [];
   for (const bloque of bloques) {
     if (bloque.tipo === "estacion_resumen") {
-      y = drawEstacionResumen(page, fonts, y, bloque.estaciones, bloque.precio, icons);
-    } else if (bloque.tipo === "fila_cards") {
-      y = drawCardRow(page, fonts, y, bloque.cards, icons);
+      blockHeights.push(calcEstacionResumenH(bloque.estaciones.length));
+    } else {
+      blockHeights.push(calcCardRowH(bloque.cards));
     }
-    y -= 12 + gapExtra;
   }
+  const contentH = blockHeights.reduce((a, b) => a + b, 0);
 
-  // Total bar
-  const resumen = generarResumen(resolved);
+  const totalStuffH = HEADER_H + TITLE_H + CALLOUT_H + contentH +
+    TOTAL_BAR_H + EXTRA_HOUR_H + COND_H + PAYMENT_H + ICON_BAND_H + RAINBOW_H + FOOTER_H;
+
+  const numContentGaps = Math.max(blockHeights.length - 1, 0);
+  const MIN_GAP_HEADER = 6;
+  const MIN_GAP_TITLE = 6;
+  const MIN_GAP_CALLOUT = 12;
+  const MIN_GAP_BEFORE_CONTENT = 10;
+  const MIN_GAP_BETWEEN_BLOCKS = 12;
+  const MIN_GAP_AFTER_CONTENT = 12;
+  const MIN_GAP_AFTER_TOTAL = 8;
+  const MIN_GAP_AFTER_EXTRAHOUR = 6;
+  const MIN_GAP_AFTER_CONDITIONS = 6;
+  const MIN_GAP_AFTER_PAYMENT = 6;
+  const MIN_GAP_BEFORE_ICONS = 4;
+
+  const minGapsTotal = MIN_GAP_HEADER + MIN_GAP_TITLE + MIN_GAP_CALLOUT +
+    MIN_GAP_BEFORE_CONTENT + (numContentGaps * MIN_GAP_BETWEEN_BLOCKS) + MIN_GAP_AFTER_CONTENT +
+    MIN_GAP_AFTER_TOTAL + (horaExtraText ? MIN_GAP_AFTER_EXTRAHOUR : 0) +
+    MIN_GAP_AFTER_CONDITIONS + MIN_GAP_AFTER_PAYMENT + MIN_GAP_BEFORE_ICONS;
+
+  const extraSpace = Math.max(0, H - totalStuffH - minGapsTotal);
+  const numDistribGaps = 3 + numContentGaps;
+  const bonusPerGap = numDistribGaps > 0 ? extraSpace / numDistribGaps : 0;
+  const cappedBonus = Math.min(bonusPerGap, 25);
+
+  drawBackground(page);
+
+  let y = H;
+
+  y = drawHeader(page, fonts, y, resolved.fecha_emision!);
+  y -= MIN_GAP_HEADER;
+  y = drawTitleStrip(page, fonts, y, resolved.titulo!, resolved.subtitulo!);
+  y -= MIN_GAP_TITLE;
+  y = drawEventCallout(page, fonts, y, resolved);
+  y -= MIN_GAP_CALLOUT + MIN_GAP_BEFORE_CONTENT + cappedBonus;
+
+  for (let i = 0; i < bloques.length; i++) {
+    const bloque = bloques[i];
+    if (bloque.tipo === "estacion_resumen") {
+      y = drawEstacionResumen(page, fonts, y, bloque.estaciones, bloque.precio);
+    } else {
+      y = drawCardRow(page, fonts, y, bloque.cards);
+    }
+    if (i < bloques.length - 1) y -= MIN_GAP_BETWEEN_BLOCKS + cappedBonus;
+  }
+  y -= MIN_GAP_AFTER_CONTENT + cappedBonus;
+
+  const contentBottom = y;
+
   y = drawTotalBar(page, fonts, y, total, resumen);
-  y -= 10 + gapExtra * 0.5;
+  y -= MIN_GAP_AFTER_TOTAL;
 
-  // Extra hour note
   if (horaExtraText) {
     y = drawExtraHourNote(page, fonts, y, horaExtraText);
-    y -= 10 + gapExtra * 0.3;
+    y -= MIN_GAP_AFTER_EXTRAHOUR;
   }
 
-  // Conditions
   y = drawConditions(page, fonts, y, condiciones);
-  y -= 4 + gapExtra * 0.3;
+  y -= MIN_GAP_AFTER_CONDITIONS;
 
-  // Payment info
-  drawPaymentInfo(page, fonts, y);
+  y = drawPaymentInfo(page, fonts, y);
+  y -= MIN_GAP_AFTER_PAYMENT;
 
-  // Footer (fixed position at bottom)
+  drawScatteredIcons(page, H - HEADER_H - MIN_GAP_HEADER, contentBottom, icons);
+
+  const iconBandY = FOOTER_H + RAINBOW_H;
+  drawIconBand(page, iconBandY, icons);
+
+  drawRainbowStripe(page, FOOTER_H);
+
   drawFooter(page, fonts);
 
   return await pdfDoc.save();
@@ -830,25 +1031,19 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     .from("quotes").select("*").eq("id", quoteId).single();
   if (qErr || !quote) throw new Error("Quote not found: " + (qErr?.message || quoteId));
 
-  const { data: qServices, error: qsErr } = await supabase
+  const { data: qServices } = await supabase
     .from("quote_services").select("service_id, quantity").eq("quote_id", quoteId);
-  console.log("[mapQuoteToConfig] quoteId:", quoteId);
-  console.log("[mapQuoteToConfig] qServices query error:", qsErr);
-  console.log("[mapQuoteToConfig] qServices returned:", JSON.stringify(qServices));
 
   const estaciones: string[] = [];
   const fijos: string[] = [];
   const talleres: string[] = [];
-  const unclassified: string[] = [];
 
   for (const qs of qServices || []) {
     const sid = qs.service_id;
     if (ESTACION_IDS.includes(sid)) estaciones.push(sid);
     else if (FIJO_IDS.includes(sid)) fijos.push(sid);
     else if (TALLER_IDS.includes(sid)) talleres.push(sid);
-    else unclassified.push(sid);
   }
-  console.log("[mapQuoteToConfig] estaciones:", estaciones, "fijos:", fijos, "talleres:", talleres, "unclassified:", unclassified);
 
   let fecha = "";
   if (quote.event_date) {
@@ -860,7 +1055,7 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     } catch { fecha = quote.event_date; }
   }
 
-  const config: QuoteRequest = {
+  return {
     cliente: quote.customer_name,
     n_ninos: quote.children_count || 15,
     horas: 3,
@@ -869,8 +1064,6 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     fijos,
     talleres,
   };
-  console.log("[mapQuoteToConfig] final config:", JSON.stringify(config));
-  return config;
 }
 
 // ─── Entry Point ────────────────────────────────────────────────
@@ -891,7 +1084,6 @@ serve(async (req: Request) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Fetch all active services from DB for pricing
     const { data: dbServicesRaw } = await supabase
       .from("services").select("id, title, category, base_price, hora_extra, features").eq("is_active", true);
     const dbServices = new Map<string, DBService>();
@@ -903,11 +1095,9 @@ serve(async (req: Request) => {
     let quoteId: string | null = null;
 
     if (body.quoteId) {
-      // Mode: generate from existing quote
       quoteId = body.quoteId;
       config = await mapQuoteToConfig(supabase, quoteId);
     } else if (body.cliente) {
-      // Mode: direct QuoteRequest
       config = body as QuoteRequest;
       const errors = validate(config);
       if (errors.length > 0) {
@@ -921,15 +1111,13 @@ serve(async (req: Request) => {
       });
     }
 
-    // Generate PDF
-    const pdfBytes = await generateQuotePDF(config, dbServices);
+    const pdfBytes = await generateQuotePDF(config, dbServices, supabase);
 
-    // Determine output mode
     const url = new URL(req.url);
     const output = url.searchParams.get("output") ?? (quoteId ? "storage" : "binary");
 
     if (output === "storage") {
-      const safeName = config.cliente.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "").trim().replace(/\s+/g, "-");
+      const safeName = config.cliente.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s0-9]/g, "").trim();
       const fileName = `cotizacion-${safeName}-${Date.now()}.pdf`;
 
       const { error: uploadError } = await supabase.storage
@@ -946,7 +1134,6 @@ serve(async (req: Request) => {
       const { data: urlData } = supabase.storage.from("quote-pdfs").getPublicUrl(fileName);
       const pdfUrl = urlData.publicUrl;
 
-      // Update quote record if we have a quoteId
       if (quoteId) {
         await supabase.from("quotes").update({ pdf_url: pdfUrl }).eq("id", quoteId);
       }
@@ -956,7 +1143,6 @@ serve(async (req: Request) => {
       });
     }
 
-    // Binary response
     const safeName = config.cliente.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, "").trim();
     return new Response(pdfBytes, {
       headers: {
