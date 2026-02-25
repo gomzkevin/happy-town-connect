@@ -240,10 +240,29 @@ const CARD_SIZES: Record<number, CardSizes> = {
   3: { width: (CW - 24) / 3, gap: 12, bandH: 38, titleSz: 11, subSz: 6, priceSz: 13, itemSz: 6.5, itemSpacing: 10, padX: 12, bulletR: 1.8, bodyPadTop: 10, bodyPadBot: 8 },
 };
 
-// ─── Service Classification ─────────────────────────────────────
-const ESTACION_IDS = ["guarderia", "construccion", "pizzeria", "supermercado", "veterinaria", "cafeteria", "correo", "peluqueria"];
-const FIJO_IDS = ["spa", "pesca", "area_bebes", "inflable_bebes"];
-const TALLER_IDS = ["caballetes", "yesitos", "pulseras", "haz-pulsera", "foamy", "diamante", "decora-cupcake"];
+// ─── Service Classification (dynamic from DB) ──────────────────
+// Categories are derived from the `services` table at runtime.
+// No hardcoded lists — the DB is the single source of truth.
+function deriveServiceSets(dbServices: Map<string, DBService>): {
+  estacionIds: Set<string>;
+  fijoIds: Set<string>;
+  tallerIds: Set<string>;
+} {
+  const estacionIds = new Set<string>();
+  const fijoIds = new Set<string>();
+  const tallerIds = new Set<string>();
+  for (const [id, svc] of dbServices) {
+    const cat = svc.category?.toLowerCase() || "";
+    if (cat.includes("estacion") || cat.includes("juego")) {
+      estacionIds.add(id);
+    } else if (cat.includes("taller") || cat.includes("creativ")) {
+      tallerIds.add(id);
+    } else {
+      fijoIds.add(id);
+    }
+  }
+  return { estacionIds, fijoIds, tallerIds };
+}
 
 // ─── Catalog ────────────────────────────────────────────────────
 const CATALOGO_ESTACIONES: Record<string, { nombre: string; color: string; subtitulo: string; items: string[] }> = {
@@ -919,7 +938,10 @@ async function loadFonts(pdfDoc: InstanceType<typeof PDFDocument>): Promise<Font
 }
 
 // ─── Validation ─────────────────────────────────────────────────
-function validate(req: QuoteRequest): string[] {
+function validate(
+  req: QuoteRequest,
+  sets: { estacionIds: Set<string>; fijoIds: Set<string>; tallerIds: Set<string> }
+): string[] {
   const errors: string[] = [];
   if (!req.cliente?.trim()) errors.push("cliente es requerido");
   if (!req.n_ninos || req.n_ninos < 1) errors.push("n_ninos debe ser >= 1");
@@ -928,9 +950,9 @@ function validate(req: QuoteRequest): string[] {
   if ((req.estaciones?.length ?? 0) === 1) errors.push("Mínimo 2 estaciones");
   const total = (req.estaciones?.length || 0) + (req.fijos?.length || 0) + (req.talleres?.length || 0);
   if (total === 0) errors.push("Debe incluir al menos 1 servicio");
-  req.estaciones?.forEach(k => { if (!ESTACION_IDS.includes(k)) errors.push(`Estación inválida: ${k}`); });
-  req.fijos?.forEach(k => { if (!FIJO_IDS.includes(k)) errors.push(`Servicio fijo inválido: ${k}`); });
-  req.talleres?.forEach(k => { if (!TALLER_IDS.includes(k)) errors.push(`Taller inválido: ${k}`); });
+  req.estaciones?.forEach(k => { if (!sets.estacionIds.has(k)) errors.push(`Estación inválida: ${k}`); });
+  req.fijos?.forEach(k => { if (!sets.fijoIds.has(k)) errors.push(`Servicio fijo inválido: ${k}`); });
+  req.talleres?.forEach(k => { if (!sets.tallerIds.has(k)) errors.push(`Taller inválido: ${k}`); });
   return errors;
 }
 
@@ -1077,12 +1099,8 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
 
   for (const qs of qServices || []) {
     const sid = qs.service_id;
-    // 1) Try hardcoded lists first (legacy compatibility)
-    if (ESTACION_IDS.includes(sid)) { estaciones.push(sid); continue; }
-    if (FIJO_IDS.includes(sid)) { fijos.push(sid); continue; }
-    if (TALLER_IDS.includes(sid)) { talleres.push(sid); continue; }
 
-    // 2) Fallback: classify by DB category
+    // Classify by DB category (single source of truth)
     const dbSvc = dbServices.get(sid);
     if (dbSvc) {
       const cat = dbSvc.category?.toLowerCase() || "";
@@ -1176,7 +1194,8 @@ serve(async (req: Request) => {
       config = await mapQuoteToConfig(supabase, quoteId);
     } else if (body.cliente) {
       config = body as QuoteRequest;
-      const errors = validate(config);
+      const serviceSets = deriveServiceSets(dbServices);
+      const errors = validate(config, serviceSets);
       if (errors.length > 0) {
         return new Response(JSON.stringify({ error: "Validation failed", details: errors }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
