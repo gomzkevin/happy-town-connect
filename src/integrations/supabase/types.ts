@@ -115,6 +115,7 @@ export type Database = {
       company_settings: {
         Row: {
           address: string | null
+          bank_info: string | null
           company_name: string
           created_at: string
           email: string
@@ -128,6 +129,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          bank_info?: string | null
           company_name?: string
           created_at?: string
           email?: string
@@ -141,6 +143,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          bank_info?: string | null
           company_name?: string
           created_at?: string
           email?: string
@@ -682,6 +685,8 @@ export type Database = {
           is_active: boolean
           max_participants: number | null
           min_participants: number | null
+          pdf_color: string
+          pdf_subtitle: string | null
           price: string
           price_per_child: number | null
           pricing_type: string
@@ -703,6 +708,8 @@ export type Database = {
           is_active?: boolean
           max_participants?: number | null
           min_participants?: number | null
+          pdf_color?: string
+          pdf_subtitle?: string | null
           price: string
           price_per_child?: number | null
           pricing_type?: string
@@ -724,6 +731,8 @@ export type Database = {
           is_active?: boolean
           max_participants?: number | null
           min_participants?: number | null
+          pdf_color?: string
+          pdf_subtitle?: string | null
           price?: string
           price_per_child?: number | null
           pricing_type?: string
