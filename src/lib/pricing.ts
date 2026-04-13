@@ -10,6 +10,10 @@
  *
  * Multiplicadores por tramo de niños:
  *   ≤15 → 1.0 | ≤30 → 1.3 | ≤50 → 1.5 | >50 → 1.8
+ *
+ * Horas extra:
+ *   Cada servicio tiene un campo hora_extra ($/hr adicional).
+ *   Se suma hora_extra * extraHours al precio base de cada servicio.
  */
 
 const TIERS = [
@@ -30,15 +34,17 @@ export interface ServiceForPricing {
   id: string;
   base_price: number;
   category: string;
+  hora_extra?: number;
 }
 
 /**
  * Calculate the total price for a set of selected services,
- * applying station-pair and taller-multiplier logic.
+ * applying station-pair, taller-multiplier, and extra hours logic.
  */
 export function calcularPreciosCotizacion(
   services: ServiceForPricing[],
-  nNinos: number
+  nNinos: number,
+  extraHours: number = 0
 ): { perService: Map<string, number>; total: number } {
   const estaciones = services.filter(s => s.category === 'Estaciones de Juego');
   const talleres = services.filter(s => s.category === 'Talleres Creativos');
@@ -72,6 +78,15 @@ export function calcularPreciosCotizacion(
   otros.forEach(s => {
     perService.set(s.id, s.base_price);
   });
+
+  // Add extra hours cost to each service
+  if (extraHours > 0) {
+    for (const s of services) {
+      const currentPrice = perService.get(s.id) ?? 0;
+      const horaExtra = s.hora_extra ?? 0;
+      perService.set(s.id, currentPrice + horaExtra * extraHours);
+    }
+  }
 
   let total = 0;
   perService.forEach(v => (total += v));

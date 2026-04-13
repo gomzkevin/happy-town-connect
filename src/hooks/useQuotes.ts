@@ -15,6 +15,7 @@ export interface QuoteData {
   preferences?: string[];
   location?: string;
   source: 'onboarding' | 'services';
+  extraHours?: number;
 }
 
 export const useQuotes = () => {
@@ -27,14 +28,17 @@ export const useQuotes = () => {
     
     try {
       // Calculate total using business pricing logic
+      const extraHours = quoteData.extraHours ?? 0;
       const svcsForPricing = selectedServices.map(item => ({
         id: item.service.id,
         base_price: item.service.base_price ?? parseInt(item.service.price.replace(/[^\d]/g, '')),
         category: item.service.category,
+        hora_extra: (item.service as any).hora_extra ?? 0,
       }));
       const { perService: priceMap, total: totalEstimate } = calcularPreciosCotizacion(
         svcsForPricing,
-        quoteData.childrenCount || 15
+        quoteData.childrenCount || 15,
+        extraHours
       );
 
       // Create the quote
@@ -51,6 +55,7 @@ export const useQuotes = () => {
           preferences: quoteData.preferences,
           location: quoteData.location,
           total_estimate: totalEstimate,
+          extra_hours: extraHours,
           source: quoteData.source,
           status: 'pending'
         })
