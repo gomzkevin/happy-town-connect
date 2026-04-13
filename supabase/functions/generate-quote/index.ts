@@ -331,6 +331,12 @@ function calcularTotal(
     desglose[key] = p;
   }
 
+  // Add logistics fee if present
+  if (config.logistics_fee && config.logistics_fee > 0) {
+    total += config.logistics_fee;
+    desglose['logistics_fee'] = config.logistics_fee;
+  }
+
   return { total, desglose };
 }
 
