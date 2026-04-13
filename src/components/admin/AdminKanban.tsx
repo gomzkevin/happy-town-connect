@@ -407,6 +407,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
     notes: '',
     source_channel: 'whatsapp' as 'whatsapp' | 'facebook' | 'instagram' | 'otro',
   });
+  const [logisticsFeeEnabled, setLogisticsFeeEnabled] = useState(false);
+  const [logisticsFee, setLogisticsFee] = useState('');
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [dateConflicts, setDateConflicts] = useState<{ customer_name: string; status: string }[]>([]);
 
