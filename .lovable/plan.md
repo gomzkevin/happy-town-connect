@@ -1,28 +1,34 @@
 
 
-# Cambiar categoría de "Inflable para Bebés" a "Extras"
+# Fusionar "Arte Diamante" + "Foami Moldeable" en un solo servicio
 
-## Problema
-El servicio `inflable_bebes` tiene `category = 'Estaciones de Juego'` en la BD, lo que hace que entre en la logica de parejas a $3,000. Debe cobrar siempre su precio fijo de $1,000.
+## Situacion actual
+- `diamante` — Arte Diamante, $1,200 base, Talleres Creativos, per_child
+- `foamy` — Foami Moldeable, $1,200 base, Talleres Creativos, per_child
 
-## Solucion
+## Cambios necesarios (solo datos, sin cambios de codigo)
 
-### Paso 1 — Actualizar la BD
-Ejecutar un UPDATE para cambiar la categoria:
-```sql
-UPDATE services SET category = 'Extras' WHERE id = 'inflable_bebes';
-```
+### 1. Actualizar el servicio `diamante`
+- Renombrar titulo a **"Arte Diamante + Foami Moldeable"** (o el nombre que prefieras)
+- Cambiar `base_price` de 1200 a **1000**
+- Actualizar la descripcion para reflejar que incluye ambas actividades
+- Ajustar features si es necesario
 
-Esto hace que la logica de pricing en `src/lib/pricing.ts`, `send-quote-email/index.ts` y `generate-quote/index.ts` lo trate como "otros" y use su `base_price` directo ($1,000), sin entrar en la formula de parejas.
+### 2. Desactivar el servicio `foamy`
+- Cambiar `is_active = false` para que deje de aparecer en la landing y el onboarding
 
-### Paso 2 — Verificar
-No se requieren cambios de codigo. Las tres funciones de pricing ya manejan correctamente la categoria "Extras" como precio fijo.
+### 3. Verificar cotizaciones existentes
+Las cotizaciones ya generadas en `quote_services` conservan el nombre y precio con el que fueron creadas, asi que no se ven afectadas.
+
+## Resultado
+El servicio combinado quedara como Taller Creativo con base $1,000, sujeto a los multiplicadores por numero de ninos (x1.0 hasta 15, x1.3 hasta 30, x1.5 hasta 50, x1.8 mas de 50). No se requieren cambios de codigo.
 
 ## Archivos a modificar
 Ninguno.
 
 ## Datos a actualizar
-| Tabla | Cambio |
-|---|---|
-| `services` | `category = 'Extras'` para `inflable_bebes` |
+| Tabla | Registro | Cambio |
+|---|---|---|
+| `services` | `diamante` | `title`, `base_price = 1000`, `description` |
+| `services` | `foamy` | `is_active = false` |
 
