@@ -50,6 +50,7 @@ interface OnboardingData {
   email: string;
   phone: string;
   comments: string;
+  totalHours: number;
 }
 
 const preferenceOptions = [
@@ -87,6 +88,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
     email: "",
     phone: "",
     comments: "",
+    totalHours: 3,
   });
 
   const [recommendations, setRecommendations] = useState<Service[]>([]);
@@ -136,6 +138,7 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
         childName: data.childName,
         preferences: data.preferences,
         location: data.location,
+        extraHours: Math.max(0, data.totalHours - 3),
         source: 'onboarding'
       });
       onClose();
