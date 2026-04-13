@@ -679,6 +679,27 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
             )}
           </div>
 
+          {/* Logistics fee toggle */}
+          <div className="border rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-medium">Gastos de operación / arrastre</Label>
+              <Switch checked={logisticsFeeEnabled} onCheckedChange={setLogisticsFeeEnabled} />
+            </div>
+            {logisticsFeeEnabled && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Monto</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={logisticsFee}
+                  onChange={e => setLogisticsFee(e.target.value)}
+                  placeholder="Ej. 500"
+                  className="h-9"
+                />
+              </div>
+            )}
+          </div>
+
           <Separator />
 
           {/* Notes */}
