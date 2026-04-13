@@ -492,6 +492,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
           age_range: form.age_range.trim() || null,
           notes: form.notes.trim() || null,
           total_estimate: totalEstimate,
+          logistics_fee_enabled: logisticsFeeEnabled,
+          logistics_fee: logisticsFeeAmount,
           source: getSourceValue(),
           quote_type: 'manual',
           status: 'pending',
