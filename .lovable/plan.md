@@ -1,33 +1,46 @@
 
 
-# Fix: Hora Extra duplicada en el PDF
+# Simplificar hora extra a solo 2 categorías
 
-## Problemas encontrados
+## Situación actual
+La función `generarNotaHoraExtra` genera una línea por cada combinación precio+tipo, resultando en texto largo como:
+> $500 por estación · $500 por servicio · $1,000 por taller · $500 por Arte + Foami
 
-### Problema 1 — El renglón de hora extra se renderiza en AMBAS páginas
-En `generateQuotePDF`, `drawExtraHourNote` se llama dos veces:
-- Línea 1142-1144: en la **página 1** (después del total)
-- Línea 1170-1173: en la **página 2** (antes de condiciones)
+Esto ocurre porque:
+1. Hay 3 categorías internas (estaciones, fijos, talleres) con sub-agrupación por precio
+2. Los valores de `hora_extra` en BD no son uniformes dentro de cada categoría (Arte+Foami tiene $800 vs los demás talleres $1,000; Pesca tiene $802 vs $800)
 
-Esto causa que el renglón completo aparezca duplicado.
+## Solución propuesta
 
-### Problema 2 — Dentro del renglón, "taller" aparece duplicado con valores distintos
-En `generarNotaHoraExtra` (líneas 482-495), los servicios `fijos` y `talleres` se agrupan por precio en el mismo `extras` map. Si tienen `hora_extra` diferente, se generan múltiples entradas todas etiquetadas `"por taller"` (línea 494: `nombres.length === 1 ? 'taller' : 'taller'` — ambas ramas dicen lo mismo). Debería distinguir entre "servicio fijo" y "taller", o simplemente usar el nombre del servicio.
+### Paso 1 — Homologar `hora_extra` en la BD
+Corregir los valores inconsistentes para que cada grupo tenga un solo precio:
 
-## Correcciones
+| Servicio | hora_extra actual | hora_extra corregido |
+|---|---|---|
+| Pesca y Boliche | 802 | 800 |
+| Arte + Foami (diamante) | 800 | 1,000 |
 
-### Archivo: `supabase/functions/generate-quote/index.ts`
+Esto deja:
+- **Estaciones + Extras**: todos a $800
+- **Talleres Creativos**: todos a $1,000
 
-1. **Eliminar la llamada duplicada en página 2** (líneas 1170-1173): Quitar `drawExtraHourNote` de la página 2. Solo debe aparecer en la página 1 debajo del total.
+### Paso 2 — Simplificar `generarNotaHoraExtra` en la Edge Function
+Reescribir la función para generar solo 2 líneas:
+- `$800 por estación` (si hay estaciones/extras/fijos)
+- `$1,000 por taller` (si hay talleres creativos)
 
-2. **Corregir `generarNotaHoraExtra`** (líneas 482-495):
-   - Separar la lógica de `fijos` y `talleres` para que se etiqueten correctamente ("por servicio fijo" vs "por taller")
-   - O mejor: agrupar por precio y usar la etiqueta genérica correcta según el tipo, evitando duplicados del mismo concepto
+La lógica sería: tomar el `hora_extra` del primer servicio de cada grupo (ya que son uniformes) y usar etiqueta genérica. Resultado:
+> Hora adicional disponible: $800 por estación · $1,000 por taller · Sujeto a disponibilidad
 
-3. **Redesplegar** la Edge Function.
+### Paso 3 — Redesplegar la Edge Function
 
 ## Archivos a modificar
-| Archivo | Cambio |
+| Recurso | Cambio |
 |---|---|
-| `supabase/functions/generate-quote/index.ts` | Quitar `drawExtraHourNote` duplicado en pág. 2; corregir etiquetas en `generarNotaHoraExtra` |
+| BD tabla `services` | UPDATE hora_extra de `pesca` a 800 y `diamante` a 1000 |
+| `supabase/functions/generate-quote/index.ts` | Reescribir `generarNotaHoraExtra` con solo 2 buckets |
+
+## Pregunta de confirmación
+- ¿Los valores $800/estación y $1,000/taller son correctos, o prefieres otros montos?
+- ¿"Kit yesitos personalizados" (categoría `talleres-creativos` con minúscula y hora_extra=800) debería también ser $1,000? Parece un servicio duplicado o legacy.
 
