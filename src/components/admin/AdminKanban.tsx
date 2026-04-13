@@ -801,6 +801,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     // Pre-select current services by service_id
     const currentIds = new Set(services.map((s: any) => s.service_id).filter(Boolean));
     setEditSelectedServices(currentIds);
+    setEditLogisticsFeeEnabled(quote.logistics_fee_enabled || false);
+    setEditLogisticsFee(quote.logistics_fee ? String(quote.logistics_fee) : '');
     setIsEditing(true);
   };
 
@@ -821,7 +823,9 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   const editSvcsForPricing = Array.from(editSelectedServices)
     .map(id => availableServices.find(s => s.id === id))
     .filter(Boolean) as ServiceForPricing[];
-  const { perService: editPriceMap, total: editTotalEstimate } = calcularPreciosCotizacion(editSvcsForPricing, editNNinos);
+  const { perService: editPriceMap, total: editServicesTotalEstimate } = calcularPreciosCotizacion(editSvcsForPricing, editNNinos);
+  const editLogisticsFeeAmount = editLogisticsFeeEnabled && editLogisticsFee ? parseInt(editLogisticsFee) || 0 : 0;
+  const editTotalEstimate = editServicesTotalEstimate + editLogisticsFeeAmount;
 
   const editServicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
     const cat = svc.category || 'Otros';
