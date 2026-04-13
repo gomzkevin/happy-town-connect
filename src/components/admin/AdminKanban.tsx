@@ -443,7 +443,9 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
   const selectedSvcsForPricing = Array.from(selectedServices)
     .map(id => availableServices.find(s => s.id === id))
     .filter(Boolean) as ServiceForPricing[];
-  const { perService: priceMap, total: totalEstimate } = calcularPreciosCotizacion(selectedSvcsForPricing, nNinos);
+  const { perService: priceMap, total: servicesTotalEstimate } = calcularPreciosCotizacion(selectedSvcsForPricing, nNinos);
+  const logisticsFeeAmount = logisticsFeeEnabled && logisticsFee ? parseInt(logisticsFee) || 0 : 0;
+  const totalEstimate = servicesTotalEstimate + logisticsFeeAmount;
 
   // Group services by category
   const servicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
