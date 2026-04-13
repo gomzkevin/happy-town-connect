@@ -548,6 +548,7 @@ export type Database = {
           email: string
           event_date: string | null
           expires_at: string | null
+          extra_hours: number
           followed_up_count: number
           id: string
           location: string | null
@@ -579,6 +580,7 @@ export type Database = {
           email: string
           event_date?: string | null
           expires_at?: string | null
+          extra_hours?: number
           followed_up_count?: number
           id?: string
           location?: string | null
@@ -610,6 +612,7 @@ export type Database = {
           email?: string
           event_date?: string | null
           expires_at?: string | null
+          extra_hours?: number
           followed_up_count?: number
           id?: string
           location?: string | null

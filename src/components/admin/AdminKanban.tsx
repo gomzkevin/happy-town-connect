@@ -60,6 +60,7 @@ interface ServiceOption {
   base_price: number;
   is_active: boolean;
   category: string;
+  hora_extra: number;
 }
 
 type StageKey = 'pending' | 'contacted' | 'confirmed' | 'upcoming' | 'completed' | 'cancelled';
@@ -406,6 +407,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
     age_range: '',
     notes: '',
     source_channel: 'whatsapp' as 'whatsapp' | 'facebook' | 'instagram' | 'otro',
+    total_hours: '3',
   });
   const [logisticsFeeEnabled, setLogisticsFeeEnabled] = useState(false);
   const [logisticsFee, setLogisticsFee] = useState('');
@@ -414,8 +416,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
 
   useEffect(() => {
     if (!open) return;
-    supabase.from('services').select('id, title, price, base_price, is_active, category').eq('is_active', true).order('category').then(({ data }) => {
-      setAvailableServices((data || []) as ServiceOption[]);
+    supabase.from('services').select('id, title, price, base_price, is_active, category, hora_extra').eq('is_active', true).order('category').then(({ data }) => {
+      setAvailableServices((data || []).map((s: any) => ({ ...s, hora_extra: s.hora_extra ?? 0 })) as ServiceOption[]);
     });
   }, [open]);
 
@@ -440,10 +442,11 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
   };
 
   const nNinos = form.children_count ? parseInt(form.children_count) : 15;
+  const extraHours = Math.max(0, (parseInt(form.total_hours) || 3) - 3);
   const selectedSvcsForPricing = Array.from(selectedServices)
     .map(id => availableServices.find(s => s.id === id))
     .filter(Boolean) as ServiceForPricing[];
-  const { perService: priceMap, total: servicesTotalEstimate } = calcularPreciosCotizacion(selectedSvcsForPricing, nNinos);
+  const { perService: priceMap, total: servicesTotalEstimate } = calcularPreciosCotizacion(selectedSvcsForPricing, nNinos, extraHours);
   const logisticsFeeAmount = logisticsFeeEnabled && logisticsFee ? parseInt(logisticsFee) || 0 : 0;
   const totalEstimate = servicesTotalEstimate + logisticsFeeAmount;
 
@@ -494,6 +497,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
           total_estimate: totalEstimate,
           logistics_fee_enabled: logisticsFeeEnabled,
           logistics_fee: logisticsFeeAmount,
+          extra_hours: extraHours,
           source: getSourceValue(),
           quote_type: 'manual',
           status: 'pending',
@@ -522,7 +526,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
       }
 
       toast({ title: 'Cotización creada', description: `Se creó la cotización para ${form.customer_name}.` });
-      setForm({ customer_name: '', email: '', phone: '', location: '', event_date: '', child_name: '', children_count: '', age_range: '', notes: '', source_channel: 'whatsapp' });
+      setForm({ customer_name: '', email: '', phone: '', location: '', event_date: '', child_name: '', children_count: '', age_range: '', notes: '', source_channel: 'whatsapp', total_hours: '3' });
       setSelectedServices(new Set());
       setLogisticsFeeEnabled(false);
       setLogisticsFee('');
@@ -608,6 +612,11 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
               <div>
                 <Label className="text-xs">Número de niños *</Label>
                 <Input type="number" min={1} value={form.children_count} onChange={e => setForm(f => ({ ...f, children_count: e.target.value }))} className="h-9" />
+              </div>
+              <div>
+                <Label className="text-xs">Horas totales</Label>
+                <Input type="number" min={3} value={form.total_hours} onChange={e => setForm(f => ({ ...f, total_hours: e.target.value }))} className="h-9" />
+                {extraHours > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{extraHours} hora{extraHours > 1 ? 's' : ''} extra</p>}
               </div>
               <div>
                 <Label className="text-xs">Rango de edad</Label>
@@ -756,6 +765,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     children_count: '',
     age_range: '',
     notes: '',
+    total_hours: '3',
   });
   const [editSelectedServices, setEditSelectedServices] = useState<Set<string>>(new Set());
   const [editLogisticsFeeEnabled, setEditLogisticsFeeEnabled] = useState(false);
@@ -781,8 +791,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   // Load available services when entering edit mode
   useEffect(() => {
     if (!isEditing) return;
-    supabase.from('services').select('id, title, price, base_price, is_active, category').eq('is_active', true).order('category').then(({ data }) => {
-      setAvailableServices((data || []) as ServiceOption[]);
+    supabase.from('services').select('id, title, price, base_price, is_active, category, hora_extra').eq('is_active', true).order('category').then(({ data }) => {
+      setAvailableServices((data || []).map((s: any) => ({ ...s, hora_extra: s.hora_extra ?? 0 })) as ServiceOption[]);
     });
   }, [isEditing]);
 
@@ -798,6 +808,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
       children_count: quote.children_count ? String(quote.children_count) : '',
       age_range: quote.age_range || '',
       notes: quote.notes || '',
+      total_hours: String(3 + ((quote as any).extra_hours || 0)),
     });
     // Pre-select current services by service_id
     const currentIds = new Set(services.map((s: any) => s.service_id).filter(Boolean));
@@ -821,10 +832,11 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   };
 
   const editNNinos = editForm.children_count ? parseInt(editForm.children_count) : 15;
+  const editExtraHours = Math.max(0, (parseInt(editForm.total_hours) || 3) - 3);
   const editSvcsForPricing = Array.from(editSelectedServices)
     .map(id => availableServices.find(s => s.id === id))
     .filter(Boolean) as ServiceForPricing[];
-  const { perService: editPriceMap, total: editServicesTotalEstimate } = calcularPreciosCotizacion(editSvcsForPricing, editNNinos);
+  const { perService: editPriceMap, total: editServicesTotalEstimate } = calcularPreciosCotizacion(editSvcsForPricing, editNNinos, editExtraHours);
   const editLogisticsFeeAmount = editLogisticsFeeEnabled && editLogisticsFee ? parseInt(editLogisticsFee) || 0 : 0;
   const editTotalEstimate = editServicesTotalEstimate + editLogisticsFeeAmount;
 
@@ -865,6 +877,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
         total_estimate: editTotalEstimate,
         logistics_fee_enabled: editLogisticsFeeEnabled,
         logistics_fee: editLogisticsFeeAmount,
+        extra_hours: editExtraHours,
         updated_at: new Date().toISOString(),
       };
 
@@ -1016,6 +1029,11 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                   <div>
                     <Label className="text-xs">Número de niños</Label>
                     <Input type="number" min={1} value={editForm.children_count} onChange={e => setEditForm(f => ({ ...f, children_count: e.target.value }))} className="h-9" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Horas totales</Label>
+                    <Input type="number" min={3} value={editForm.total_hours} onChange={e => setEditForm(f => ({ ...f, total_hours: e.target.value }))} className="h-9" />
+                    {editExtraHours > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{editExtraHours} hora{editExtraHours > 1 ? 's' : ''} extra</p>}
                   </div>
                   <div>
                     <Label className="text-xs">Rango de edad</Label>
