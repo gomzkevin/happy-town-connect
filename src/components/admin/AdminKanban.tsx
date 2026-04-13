@@ -877,6 +877,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
         total_estimate: editTotalEstimate,
         logistics_fee_enabled: editLogisticsFeeEnabled,
         logistics_fee: editLogisticsFeeAmount,
+        extra_hours: editExtraHours,
         updated_at: new Date().toISOString(),
       };
 
@@ -1028,6 +1029,11 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                   <div>
                     <Label className="text-xs">Número de niños</Label>
                     <Input type="number" min={1} value={editForm.children_count} onChange={e => setEditForm(f => ({ ...f, children_count: e.target.value }))} className="h-9" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Horas totales</Label>
+                    <Input type="number" min={3} value={editForm.total_hours} onChange={e => setEditForm(f => ({ ...f, total_hours: e.target.value }))} className="h-9" />
+                    {editExtraHours > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{editExtraHours} hora{editExtraHours > 1 ? 's' : ''} extra</p>}
                   </div>
                   <div>
                     <Label className="text-xs">Rango de edad</Label>
