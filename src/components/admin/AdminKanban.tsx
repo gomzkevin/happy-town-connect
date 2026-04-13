@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
@@ -41,6 +41,8 @@ interface Quote {
   total_paid: number | null;
   quote_type: string;
   pdf_url: string | null;
+  logistics_fee_enabled?: boolean;
+  logistics_fee?: number;
 }
 
 interface QuoteService {
@@ -405,6 +407,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
     notes: '',
     source_channel: 'whatsapp' as 'whatsapp' | 'facebook' | 'instagram' | 'otro',
   });
+  const [logisticsFeeEnabled, setLogisticsFeeEnabled] = useState(false);
+  const [logisticsFee, setLogisticsFee] = useState('');
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [dateConflicts, setDateConflicts] = useState<{ customer_name: string; status: string }[]>([]);
 
@@ -439,7 +443,9 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
   const selectedSvcsForPricing = Array.from(selectedServices)
     .map(id => availableServices.find(s => s.id === id))
     .filter(Boolean) as ServiceForPricing[];
-  const { perService: priceMap, total: totalEstimate } = calcularPreciosCotizacion(selectedSvcsForPricing, nNinos);
+  const { perService: priceMap, total: servicesTotalEstimate } = calcularPreciosCotizacion(selectedSvcsForPricing, nNinos);
+  const logisticsFeeAmount = logisticsFeeEnabled && logisticsFee ? parseInt(logisticsFee) || 0 : 0;
+  const totalEstimate = servicesTotalEstimate + logisticsFeeAmount;
 
   // Group services by category
   const servicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
@@ -486,6 +492,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
           age_range: form.age_range.trim() || null,
           notes: form.notes.trim() || null,
           total_estimate: totalEstimate,
+          logistics_fee_enabled: logisticsFeeEnabled,
+          logistics_fee: logisticsFeeAmount,
           source: getSourceValue(),
           quote_type: 'manual',
           status: 'pending',
@@ -515,6 +523,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
       toast({ title: 'Cotización creada', description: `Se creó la cotización para ${form.customer_name}.` });
       setForm({ customer_name: '', email: '', phone: '', location: '', event_date: '', child_name: '', children_count: '', age_range: '', notes: '', source_channel: 'whatsapp' });
       setSelectedServices(new Set());
+      setLogisticsFeeEnabled(false);
+      setLogisticsFee('');
       onCreated();
       onClose();
     } catch (err) {
@@ -669,6 +679,27 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
             )}
           </div>
 
+          {/* Logistics fee toggle */}
+          <div className="border rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-medium">Gastos de operación / arrastre</Label>
+              <Switch checked={logisticsFeeEnabled} onCheckedChange={setLogisticsFeeEnabled} />
+            </div>
+            {logisticsFeeEnabled && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Monto</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={logisticsFee}
+                  onChange={e => setLogisticsFee(e.target.value)}
+                  placeholder="Ej. 500"
+                  className="h-9"
+                />
+              </div>
+            )}
+          </div>
+
           <Separator />
 
           {/* Notes */}
@@ -726,6 +757,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     notes: '',
   });
   const [editSelectedServices, setEditSelectedServices] = useState<Set<string>>(new Set());
+  const [editLogisticsFeeEnabled, setEditLogisticsFeeEnabled] = useState(false);
+  const [editLogisticsFee, setEditLogisticsFee] = useState('');
 
   useEffect(() => {
     if (!quote) return;
@@ -768,6 +801,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     // Pre-select current services by service_id
     const currentIds = new Set(services.map((s: any) => s.service_id).filter(Boolean));
     setEditSelectedServices(currentIds);
+    setEditLogisticsFeeEnabled(quote.logistics_fee_enabled || false);
+    setEditLogisticsFee(quote.logistics_fee ? String(quote.logistics_fee) : '');
     setIsEditing(true);
   };
 
@@ -788,7 +823,9 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   const editSvcsForPricing = Array.from(editSelectedServices)
     .map(id => availableServices.find(s => s.id === id))
     .filter(Boolean) as ServiceForPricing[];
-  const { perService: editPriceMap, total: editTotalEstimate } = calcularPreciosCotizacion(editSvcsForPricing, editNNinos);
+  const { perService: editPriceMap, total: editServicesTotalEstimate } = calcularPreciosCotizacion(editSvcsForPricing, editNNinos);
+  const editLogisticsFeeAmount = editLogisticsFeeEnabled && editLogisticsFee ? parseInt(editLogisticsFee) || 0 : 0;
+  const editTotalEstimate = editServicesTotalEstimate + editLogisticsFeeAmount;
 
   const editServicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
     const cat = svc.category || 'Otros';
@@ -814,7 +851,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     }
     setSaving(true);
     try {
-      const updates = {
+      const updates: Record<string, any> = {
         customer_name: editForm.customer_name.trim(),
         email: editForm.email.trim(),
         phone: editForm.phone.trim() || null,
@@ -825,6 +862,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
         age_range: editForm.age_range.trim() || null,
         notes: editForm.notes.trim() || null,
         total_estimate: editTotalEstimate,
+        logistics_fee_enabled: editLogisticsFeeEnabled,
+        logistics_fee: editLogisticsFeeAmount,
         updated_at: new Date().toISOString(),
       };
 
@@ -1032,6 +1071,27 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                 )}
               </div>
 
+              {/* Logistics fee toggle - edit mode */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium">Gastos de operación / arrastre</Label>
+                  <Switch checked={editLogisticsFeeEnabled} onCheckedChange={setEditLogisticsFeeEnabled} />
+                </div>
+                {editLogisticsFeeEnabled && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Monto</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={editLogisticsFee}
+                      onChange={e => setEditLogisticsFee(e.target.value)}
+                      placeholder="Ej. 500"
+                      className="h-9"
+                    />
+                  </div>
+                )}
+              </div>
+
               <Separator />
 
               {/* Editable notes */}
@@ -1109,6 +1169,12 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                         <span className="font-medium">${(s.service_price * s.quantity).toLocaleString()}</span>
                       </div>
                     ))}
+                    {quote.logistics_fee_enabled && (quote.logistics_fee ?? 0) > 0 && (
+                      <div className="flex justify-between text-sm bg-japitown-orange/10 rounded-md px-3 py-1.5">
+                        <span>Gastos de operación / arrastre</span>
+                        <span className="font-medium">${(quote.logistics_fee ?? 0).toLocaleString()}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm font-bold px-3 pt-1">
                       <span>Total estimado</span>
                       <span>${totalEstimate.toLocaleString()}</span>

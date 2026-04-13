@@ -551,6 +551,8 @@ export type Database = {
           followed_up_count: number
           id: string
           location: string | null
+          logistics_fee: number
+          logistics_fee_enabled: boolean
           next_follow_up_at: string | null
           notes: string | null
           pdf_url: string | null
@@ -580,6 +582,8 @@ export type Database = {
           followed_up_count?: number
           id?: string
           location?: string | null
+          logistics_fee?: number
+          logistics_fee_enabled?: boolean
           next_follow_up_at?: string | null
           notes?: string | null
           pdf_url?: string | null
@@ -609,6 +613,8 @@ export type Database = {
           followed_up_count?: number
           id?: string
           location?: string | null
+          logistics_fee?: number
+          logistics_fee_enabled?: boolean
           next_follow_up_at?: string | null
           notes?: string | null
           pdf_url?: string | null
