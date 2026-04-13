@@ -31,6 +31,7 @@ interface QuoteRequest {
   cancelacion?: boolean;
   titulo?: string;
   subtitulo?: string;
+  logistics_fee?: number;
 }
 
 interface FontSet {
