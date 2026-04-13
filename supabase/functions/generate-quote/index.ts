@@ -625,7 +625,7 @@ function drawEventCallout(page: PDFPage, fonts: FontSet, y: number, config: Quot
   return cY;
 }
 
-function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estaciones: string[], precio: number, dbServices: Map<string, DBService>): number {
+function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estaciones: string[], precio: number, dbServices: Map<string, DBService>, extraHours: number = 0): number {
   const nEst = estaciones.length;
   const nPairs = Math.floor(nEst / 2);
   const nSingle = nEst % 2;
@@ -644,7 +644,8 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
   page.drawRectangle({ x: ML, y: bY + bodyH, width: CW, height: 7, color: darkBand });
 
   page.drawText("Paquetes de Estaciones — Mini Ciudad", { x: ML + 16, y: bY + bodyH + headerH - 20, font: fonts.bold, size: 13, color: C.white });
-  const subText = `${nEst} estaciones temáticas · 3 horas · Juguetes, mobiliario, materiales y personal dedicado`;
+  const horasText = 3 + extraHours;
+  const subText = `${nEst} estaciones temáticas · ${horasText} horas · Juguetes, mobiliario, materiales y personal dedicado`;
   page.drawText(subText, { x: ML + 16, y: bY + bodyH + headerH - 35, font: fonts.regular, size: 7, color: rgb(0.75, 0.75, 0.78) });
 
   const priceText = formatPrice(precio);
@@ -657,8 +658,7 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
   });
   cy -= 18;
 
-  const pairPrice = 3000;
-  const singlePrice = 1800;
+  // Prices are no longer hardcoded — calculated dynamically with extra hours
   const rightMargin = ML + CW - 16;
 
   for (let i = 0; i < nPairs; i++) {
@@ -671,6 +671,7 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
     const name2 = svc2?.title || key2;
     const color1 = BULLET_MAP[(svc1?.pdf_color || "blue") as keyof typeof BULLET_MAP] || C.bullet_blue;
     const pairLabel = `${name1} + ${name2}`;
+    const pairPrice = 3000 + ((svc1?.hora_extra || 800) + (svc2?.hora_extra || 800)) * extraHours;
     const pairPriceStr = formatPrice(pairPrice);
 
     page.drawCircle({ x: ML + 22, y: cy + 3, size: 3.5, color: color1 });
@@ -694,6 +695,7 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
     const svc = dbServices?.get(key);
     const name = svc?.title || key;
     const color = BULLET_MAP[(svc?.pdf_color || "blue") as keyof typeof BULLET_MAP] || C.bullet_blue;
+    const singlePrice = 1800 + (svc?.hora_extra || 800) * extraHours;
     const singlePriceStr = formatPrice(singlePrice);
 
     page.drawCircle({ x: ML + 22, y: cy + 3, size: 3.5, color });
@@ -1139,7 +1141,7 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   for (let i = 0; i < bloques.length; i++) {
     const bloque = bloques[i];
     if (bloque.tipo === "estacion_resumen") {
-      y = drawEstacionResumen(page1, fonts, y, bloque.estaciones, bloque.precio, dbServices);
+      y = drawEstacionResumen(page1, fonts, y, bloque.estaciones, bloque.precio, dbServices, (config.horas || 3) - 3);
     } else {
       y = drawCardRow(page1, fonts, y, bloque.cards);
     }
