@@ -832,10 +832,11 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   };
 
   const editNNinos = editForm.children_count ? parseInt(editForm.children_count) : 15;
+  const editExtraHours = Math.max(0, (parseInt(editForm.total_hours) || 3) - 3);
   const editSvcsForPricing = Array.from(editSelectedServices)
     .map(id => availableServices.find(s => s.id === id))
     .filter(Boolean) as ServiceForPricing[];
-  const { perService: editPriceMap, total: editServicesTotalEstimate } = calcularPreciosCotizacion(editSvcsForPricing, editNNinos);
+  const { perService: editPriceMap, total: editServicesTotalEstimate } = calcularPreciosCotizacion(editSvcsForPricing, editNNinos, editExtraHours);
   const editLogisticsFeeAmount = editLogisticsFeeEnabled && editLogisticsFee ? parseInt(editLogisticsFee) || 0 : 0;
   const editTotalEstimate = editServicesTotalEstimate + editLogisticsFeeAmount;
 
