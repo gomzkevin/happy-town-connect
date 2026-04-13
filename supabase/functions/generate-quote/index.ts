@@ -360,15 +360,23 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
   const est = config.estaciones || [];
   const fij = config.fijos || [];
   const tal = config.talleres || [];
+  const extraHours = Math.max(0, (config.horas || 3) - 3);
 
   const cards: CardData[] = [];
 
   if (est.length >= 2) {
-    bloques.push({ tipo: "estacion_resumen", estaciones: est, precio: precioEstaciones(est.length, dbServices, est) });
+    let estPrecio = precioEstaciones(est.length, dbServices, est);
+    if (extraHours > 0) {
+      for (const key of est) {
+        estPrecio += (dbServices?.get(key)?.hora_extra ?? 0) * extraHours;
+      }
+    }
+    bloques.push({ tipo: "estacion_resumen", estaciones: est, precio: estPrecio });
   } else if (est.length === 1) {
     const key = est[0];
     const dbSvc = dbServices?.get(key);
-    const precio = precioEstaciones(1, dbServices, est);
+    let precio = precioEstaciones(1, dbServices, est);
+    if (extraHours > 0) precio += (dbSvc?.hora_extra ?? 0) * extraHours;
     cards.push({
       tipo: "fijo", key,
       nombre: dbSvc?.title || key,
@@ -380,10 +388,12 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
   }
   for (const key of fij) {
     const dbSvc = dbServices?.get(key);
+    let precio = dbSvc?.base_price ?? 0;
+    if (extraHours > 0) precio += (dbSvc?.hora_extra ?? 0) * extraHours;
     cards.push({
       tipo: "fijo", key,
       nombre: dbSvc?.title || key,
-      precio: dbSvc?.base_price ?? 0,
+      precio,
       subtitulo: dbSvc?.pdf_subtitle || "",
       items: dbSvc?.features || [],
       color: dbSvc?.pdf_color || "blue",
@@ -392,7 +402,8 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
 
   for (const key of tal) {
     const dbSvc = dbServices?.get(key);
-    const precio = precioTaller(dbSvc?.base_price ?? 0, config.n_ninos);
+    let precio = precioTaller(dbSvc?.base_price ?? 0, config.n_ninos);
+    if (extraHours > 0) precio += (dbSvc?.hora_extra ?? 0) * extraHours;
     cards.push({
       tipo: "taller", key,
       nombre: dbSvc?.title || key,
@@ -486,6 +497,14 @@ function generarCondiciones(config: QuoteRequest): string[] {
 }
 
 function generarNotaHoraExtra(config: QuoteRequest, dbServices: Map<string, DBService>): string {
+  const extraHours = Math.max(0, (config.horas || 3) - 3);
+
+  // If extra hours are already included in prices, show a note about it
+  if (extraHours > 0) {
+    return `Incluye ${extraHours} hora${extraHours > 1 ? 's' : ''} adicional${extraHours > 1 ? 'es' : ''} · Los precios reflejan el total por ${config.horas} horas de servicio`;
+  }
+
+  // If no extra hours selected, show available rates
   const parts: string[] = [];
 
   // Bucket 1: Estaciones + Extras + Fijos → "por estación"
@@ -500,14 +519,14 @@ function generarNotaHoraExtra(config: QuoteRequest, dbServices: Map<string, DBSe
   }
 
   // Bucket 2: Talleres Creativos → "por taller"
-  let precioTaller: number | null = null;
+  let precioTallerExtra: number | null = null;
   for (const key of config.talleres ?? []) {
     const dbSvc = dbServices?.get(key);
     const p = dbSvc?.hora_extra ?? 0;
-    if (p > 0 && precioTaller === null) precioTaller = p;
+    if (p > 0 && precioTallerExtra === null) precioTallerExtra = p;
   }
-  if (precioTaller !== null) {
-    parts.push(`$${precioTaller.toLocaleString("es-MX")} por taller`);
+  if (precioTallerExtra !== null) {
+    parts.push(`$${precioTallerExtra.toLocaleString("es-MX")} por taller`);
   }
 
   if (parts.length === 0) return "";
@@ -1263,7 +1282,7 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
   return {
     cliente: quote.customer_name,
     n_ninos: quote.children_count || 15,
-    horas: 3,
+    horas: 3 + (quote.extra_hours || 0),
     fecha: fecha || "Por confirmar",
     estaciones,
     fijos,
