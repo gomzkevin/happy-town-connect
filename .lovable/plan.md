@@ -1,41 +1,61 @@
 
 
-# PDF multi-página: Página 1 = Cotización, Página 2 = Condiciones y Pago
+# Agregar "Gastos de Operación / Arrastre" a cotizaciones
 
-## Problema
-La Edge Function `generate-quote` renderiza todo en una sola página PDF (612x792 pts). Con cotizaciones largas (muchos servicios), las condiciones y datos de pago se cortan o salen del área visible.
+## Resumen
+Agregar un toggle en el creador/editor de cotizaciones del dashboard para incluir opcionalmente un monto de "Gastos de Operación o Arrastre". Este monto se muestra en el PDF antes de la barra de INVERSIÓN TOTAL y se suma al total.
 
-## Solución
-Siempre generar 2 páginas:
-- **Página 1**: Header, título, datos del evento, tarjetas de servicios, barra de total, nota de hora extra
-- **Página 2**: Condiciones, datos bancarios/pago, vigencia de la cotización, footer decorativo
+## Cambios necesarios
 
-## Cambios técnicos
+### 1. Base de datos — nueva columna en `quotes`
+Agregar dos columnas:
+- `logistics_fee_enabled` (boolean, default false) — indica si se activan los gastos de arrastre
+- `logistics_fee` (integer, default 0) — monto capturado manualmente
 
-### Archivo: `supabase/functions/generate-quote/index.ts`
+### 2. Frontend — `AdminKanban.tsx`
 
-1. **Modificar `generateQuotePDF`** (líneas ~943-1057):
-   - Página 1: Renderizar header, título, callout, bloques de servicios, barra de total y nota de hora extra. Footer decorativo al fondo.
-   - Crear una segunda página con `pdfDoc.addPage([W, H])`.
-   - Página 2: Renderizar header simplificado (logo + "Condiciones y forma de pago"), condiciones completas, datos bancarios/pago, vigencia, iconos decorativos y footer.
+**NewQuoteDialog** (~línea 396-696):
+- Agregar un toggle (Switch) "Con gastos de operación/arrastre" debajo de la sección de servicios
+- Si está activo, mostrar un Input numérico para capturar el monto
+- Sumar ese monto al `totalEstimate` mostrado
+- Incluir `logistics_fee_enabled` y `logistics_fee` en el INSERT a `quotes`
 
-2. **Beneficio en página 1**: Al liberar el espacio de condiciones y pago (~100pts), las tarjetas de servicios tienen más espacio y mejor distribución vertical, incluso con 6+ servicios.
+**QuoteDetailDialog — modo edición** (~línea 698+):
+- Agregar el mismo toggle y campo en el formulario de edición
+- Pre-cargar los valores actuales de la cotización
+- Incluir los campos en el UPDATE
 
-3. **Página 2 — Contenido**:
-   - Encabezado con logo y referencia al cliente
-   - Sección "Condiciones del servicio" (todas las condiciones generadas por `generarCondiciones`)
-   - Sección "Forma de pago" con datos bancarios de `company_settings.bank_info`
-   - Sección "Vigencia" con la vigencia de la cotización
-   - Nota de hora extra (si aplica)
-   - Footer decorativo (rainbow stripe + iconos + footer bar)
+**QuoteDetailDialog — modo lectura**:
+- Mostrar el monto de arrastre si está habilitado, antes del total
 
-### Archivos a modificar
+### 3. Edge Function — `generate-quote/index.ts`
+
+**`mapQuoteToConfig`** (~línea 1164):
+- Leer `logistics_fee` y `logistics_fee_enabled` del quote en BD
+- Pasar estos valores en el `QuoteRequest`
+
+**`QuoteRequest` interface** (~línea 18):
+- Agregar `logistics_fee?: number`
+
+**`calcularTotal`** (~línea 306):
+- Sumar `logistics_fee` al total si existe
+
+**`generateQuotePDF`** (~línea 1106):
+- Antes de `drawTotalBar`, dibujar un recuadro/fila para "Gastos de operación y arrastre" con el monto, usando un estilo similar a `drawExtraHourNote`
+- El `total` pasado a `drawTotalBar` ya incluirá el monto de arrastre
+
+### 4. `useQuotes.ts` (onboarding flow)
+- No requiere cambios — el onboarding público no incluye esta opción, solo aplica para cotizaciones manuales del staff
+
+## Archivos a modificar
 | Archivo | Cambio |
 |---|---|
-| `supabase/functions/generate-quote/index.ts` | Refactorizar `generateQuotePDF` para 2 páginas |
+| BD (`quotes`) | Agregar `logistics_fee_enabled` y `logistics_fee` |
+| `src/components/admin/AdminKanban.tsx` | Toggle + input en NewQuoteDialog y QuoteDetailDialog |
+| `supabase/functions/generate-quote/index.ts` | Leer fee de BD, sumarlo al total, renderizar fila en PDF |
 
-### Sin cambios en
-- Base de datos
-- Frontend (el PDF se descarga igual, solo ahora tiene 2 páginas)
-- Otras Edge Functions
+## Sin cambios en
+- `src/lib/pricing.ts` — el fee es un monto fijo manual, no afecta la lógica de pricing por servicio
+- `useQuotes.ts` — solo cotizaciones manuales del admin
+- Otras tablas
 
