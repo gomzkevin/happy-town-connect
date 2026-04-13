@@ -60,6 +60,7 @@ interface ServiceOption {
   base_price: number;
   is_active: boolean;
   category: string;
+  hora_extra: number;
 }
 
 type StageKey = 'pending' | 'contacted' | 'confirmed' | 'upcoming' | 'completed' | 'cancelled';
@@ -406,6 +407,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
     age_range: '',
     notes: '',
     source_channel: 'whatsapp' as 'whatsapp' | 'facebook' | 'instagram' | 'otro',
+    total_hours: '3',
   });
   const [logisticsFeeEnabled, setLogisticsFeeEnabled] = useState(false);
   const [logisticsFee, setLogisticsFee] = useState('');
@@ -414,8 +416,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
 
   useEffect(() => {
     if (!open) return;
-    supabase.from('services').select('id, title, price, base_price, is_active, category').eq('is_active', true).order('category').then(({ data }) => {
-      setAvailableServices((data || []) as ServiceOption[]);
+    supabase.from('services').select('id, title, price, base_price, is_active, category, hora_extra').eq('is_active', true).order('category').then(({ data }) => {
+      setAvailableServices((data || []).map((s: any) => ({ ...s, hora_extra: s.hora_extra ?? 0 })) as ServiceOption[]);
     });
   }, [open]);
 
@@ -440,10 +442,11 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
   };
 
   const nNinos = form.children_count ? parseInt(form.children_count) : 15;
+  const extraHours = Math.max(0, (parseInt(form.total_hours) || 3) - 3);
   const selectedSvcsForPricing = Array.from(selectedServices)
     .map(id => availableServices.find(s => s.id === id))
     .filter(Boolean) as ServiceForPricing[];
-  const { perService: priceMap, total: servicesTotalEstimate } = calcularPreciosCotizacion(selectedSvcsForPricing, nNinos);
+  const { perService: priceMap, total: servicesTotalEstimate } = calcularPreciosCotizacion(selectedSvcsForPricing, nNinos, extraHours);
   const logisticsFeeAmount = logisticsFeeEnabled && logisticsFee ? parseInt(logisticsFee) || 0 : 0;
   const totalEstimate = servicesTotalEstimate + logisticsFeeAmount;
 
@@ -494,6 +497,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
           total_estimate: totalEstimate,
           logistics_fee_enabled: logisticsFeeEnabled,
           logistics_fee: logisticsFeeAmount,
+          extra_hours: extraHours,
           source: getSourceValue(),
           quote_type: 'manual',
           status: 'pending',
@@ -522,7 +526,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
       }
 
       toast({ title: 'Cotización creada', description: `Se creó la cotización para ${form.customer_name}.` });
-      setForm({ customer_name: '', email: '', phone: '', location: '', event_date: '', child_name: '', children_count: '', age_range: '', notes: '', source_channel: 'whatsapp' });
+      setForm({ customer_name: '', email: '', phone: '', location: '', event_date: '', child_name: '', children_count: '', age_range: '', notes: '', source_channel: 'whatsapp', total_hours: '3' });
       setSelectedServices(new Set());
       setLogisticsFeeEnabled(false);
       setLogisticsFee('');
