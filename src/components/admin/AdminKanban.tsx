@@ -1071,6 +1071,27 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                 )}
               </div>
 
+              {/* Logistics fee toggle - edit mode */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium">Gastos de operación / arrastre</Label>
+                  <Switch checked={editLogisticsFeeEnabled} onCheckedChange={setEditLogisticsFeeEnabled} />
+                </div>
+                {editLogisticsFeeEnabled && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Monto</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={editLogisticsFee}
+                      onChange={e => setEditLogisticsFee(e.target.value)}
+                      placeholder="Ej. 500"
+                      className="h-9"
+                    />
+                  </div>
+                )}
+              </div>
+
               <Separator />
 
               {/* Editable notes */}
