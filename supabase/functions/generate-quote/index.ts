@@ -1231,6 +1231,7 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     estaciones,
     fijos,
     talleres,
+    logistics_fee: quote.logistics_fee_enabled ? (quote.logistics_fee || 0) : 0,
   };
 }
 
