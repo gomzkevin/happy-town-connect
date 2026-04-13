@@ -757,6 +757,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     notes: '',
   });
   const [editSelectedServices, setEditSelectedServices] = useState<Set<string>>(new Set());
+  const [editLogisticsFeeEnabled, setEditLogisticsFeeEnabled] = useState(false);
+  const [editLogisticsFee, setEditLogisticsFee] = useState('');
 
   useEffect(() => {
     if (!quote) return;
