@@ -791,8 +791,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   // Load available services when entering edit mode
   useEffect(() => {
     if (!isEditing) return;
-    supabase.from('services').select('id, title, price, base_price, is_active, category').eq('is_active', true).order('category').then(({ data }) => {
-      setAvailableServices((data || []) as ServiceOption[]);
+    supabase.from('services').select('id, title, price, base_price, is_active, category, hora_extra').eq('is_active', true).order('category').then(({ data }) => {
+      setAvailableServices((data || []).map((s: any) => ({ ...s, hora_extra: s.hora_extra ?? 0 })) as ServiceOption[]);
     });
   }, [isEditing]);
 
@@ -808,6 +808,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
       children_count: quote.children_count ? String(quote.children_count) : '',
       age_range: quote.age_range || '',
       notes: quote.notes || '',
+      total_hours: String(3 + ((quote as any).extra_hours || 0)),
     });
     // Pre-select current services by service_id
     const currentIds = new Set(services.map((s: any) => s.service_id).filter(Boolean));
