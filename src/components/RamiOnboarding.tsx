@@ -437,6 +437,26 @@ export const RamiOnboarding: React.FC<RamiOnboardingProps> = ({ isOpen, onClose 
                     className="mt-1.5 rounded-xl bg-card"
                   />
                 </div>
+                <div>
+                  <Label htmlFor="totalHours" className="text-sm font-medium">Horas de servicio</Label>
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setData(d => ({ ...d, totalHours: Math.max(3, d.totalHours - 1) }))}
+                      className="w-10 h-10 rounded-xl border-2 border-border bg-card flex items-center justify-center text-lg font-bold hover:border-secondary/40 transition-colors"
+                      disabled={data.totalHours <= 3}
+                    >−</button>
+                    <span className="text-2xl font-display font-bold w-8 text-center">{data.totalHours}</span>
+                    <button
+                      type="button"
+                      onClick={() => setData(d => ({ ...d, totalHours: d.totalHours + 1 }))}
+                      className="w-10 h-10 rounded-xl border-2 border-border bg-card flex items-center justify-center text-lg font-bold hover:border-secondary/40 transition-colors"
+                    >+</button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {data.totalHours === 3 ? 'Paquete base de 3 horas' : `3 horas base + ${data.totalHours - 3} hora${data.totalHours - 3 > 1 ? 's' : ''} extra`}
+                  </p>
+                </div>
               </div>
             </div>
           )}
