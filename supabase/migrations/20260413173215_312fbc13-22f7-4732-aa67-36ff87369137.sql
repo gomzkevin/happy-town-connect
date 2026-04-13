@@ -1,0 +1,1 @@
+UPDATE services SET category = 'Extras' WHERE id = 'inflable_bebes';
