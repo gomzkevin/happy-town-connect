@@ -614,6 +614,11 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
                 <Input type="number" min={1} value={form.children_count} onChange={e => setForm(f => ({ ...f, children_count: e.target.value }))} className="h-9" />
               </div>
               <div>
+                <Label className="text-xs">Horas totales</Label>
+                <Input type="number" min={3} value={form.total_hours} onChange={e => setForm(f => ({ ...f, total_hours: e.target.value }))} className="h-9" />
+                {extraHours > 0 && <p className="text-[10px] text-muted-foreground mt-0.5">{extraHours} hora{extraHours > 1 ? 's' : ''} extra</p>}
+              </div>
+              <div>
                 <Label className="text-xs">Rango de edad</Label>
                 <Input value={form.age_range} onChange={e => setForm(f => ({ ...f, age_range: e.target.value }))} placeholder="4-8 años" className="h-9" />
               </div>
