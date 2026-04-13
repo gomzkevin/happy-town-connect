@@ -241,7 +241,20 @@ const ServiceCart = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="location">Ubicación del evento</Label>
+                    <Label htmlFor="totalHours">Horas de servicio</Label>
+                    <Input
+                      id="totalHours"
+                      type="number"
+                      min="3"
+                      value={formData.totalHours}
+                      onChange={(e) => handleInputChange('totalHours', Math.max(3, parseInt(e.target.value) || 3))}
+                    />
+                    {formData.totalHours > 3 && (
+                      <p className="text-xs text-muted-foreground mt-1">{formData.totalHours - 3} hora{formData.totalHours - 3 > 1 ? 's' : ''} extra</p>
+                    )}
+                  </div>
+
+                  <div>
                     <Input
                       id="location"
                       value={formData.location}
