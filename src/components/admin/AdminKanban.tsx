@@ -851,7 +851,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     }
     setSaving(true);
     try {
-      const updates = {
+      const updates: Record<string, any> = {
         customer_name: editForm.customer_name.trim(),
         email: editForm.email.trim(),
         phone: editForm.phone.trim() || null,
@@ -862,6 +862,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
         age_range: editForm.age_range.trim() || null,
         notes: editForm.notes.trim() || null,
         total_estimate: editTotalEstimate,
+        logistics_fee_enabled: editLogisticsFeeEnabled,
+        logistics_fee: editLogisticsFeeAmount,
         updated_at: new Date().toISOString(),
       };
 
