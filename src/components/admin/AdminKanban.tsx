@@ -523,6 +523,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
       toast({ title: 'Cotización creada', description: `Se creó la cotización para ${form.customer_name}.` });
       setForm({ customer_name: '', email: '', phone: '', location: '', event_date: '', child_name: '', children_count: '', age_range: '', notes: '', source_channel: 'whatsapp' });
       setSelectedServices(new Set());
+      setLogisticsFeeEnabled(false);
+      setLogisticsFee('');
       onCreated();
       onClose();
     } catch (err) {
