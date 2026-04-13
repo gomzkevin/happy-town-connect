@@ -1112,6 +1112,29 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
 
   const contentBottom = y;
 
+  // Draw logistics fee row before total if present
+  if (config.logistics_fee && config.logistics_fee > 0) {
+    const LOGISTICS_H = 28;
+    const lx = M;
+    const lw = W - 2 * M;
+    // Draw rounded rect background
+    page1.drawRectangle({
+      x: lx, y: y - LOGISTICS_H, width: lw, height: LOGISTICS_H,
+      color: rgb(1, 0.95, 0.88), // light orange bg
+      borderColor: rgb(0.9, 0.7, 0.4),
+      borderWidth: 0.5,
+    });
+    page1.drawText("Gastos de operación y arrastre", {
+      x: lx + 10, y: y - 18, size: 9, font: fonts.medium, color: rgb(0.35, 0.25, 0.1),
+    });
+    const feeText = `$${config.logistics_fee.toLocaleString("es-MX")}`;
+    const feeW = fonts.bold.widthOfTextAtSize(feeText, 10);
+    page1.drawText(feeText, {
+      x: lx + lw - 10 - feeW, y: y - 18, size: 10, font: fonts.bold, color: rgb(0.35, 0.25, 0.1),
+    });
+    y -= LOGISTICS_H + 8;
+  }
+
   y = drawTotalBar(page1, fonts, y, total, resumen);
   y -= MIN_GAP_AFTER_TOTAL;
 
