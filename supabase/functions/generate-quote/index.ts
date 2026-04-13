@@ -1116,8 +1116,8 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   // Draw logistics fee row before total if present
   if (config.logistics_fee && config.logistics_fee > 0) {
     const LOGISTICS_H = 28;
-    const lx = M;
-    const lw = W - 2 * M;
+    const lx = ML;
+    const lw = W - 2 * ML;
     // Draw rounded rect background
     page1.drawRectangle({
       x: lx, y: y - LOGISTICS_H, width: lw, height: LOGISTICS_H,

@@ -506,8 +506,9 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
       // Insert selected services
       const serviceIds = Array.from(selectedServices);
       if (serviceIds.length > 0 && quote) {
-        const quoteServices = serviceIds.map(serviceId => {
-          const svc = availableServices.find(s => s.id === serviceId)!;
+      const quoteServices = serviceIds.map(serviceId => {
+          const svc = availableServices.find(s => s.id === serviceId);
+          if (!svc) return null;
           return {
             quote_id: quote.id,
             service_id: serviceId,
@@ -515,7 +516,7 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
             service_price: priceMap.get(serviceId) ?? svc.base_price,
             quantity: 1,
           };
-        });
+        }).filter(Boolean);
         const { error: svcError } = await supabase.from('quote_services').insert(quoteServices);
         if (svcError) console.error('Error inserting services:', svcError);
       }
@@ -877,7 +878,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
       const serviceIds = Array.from(editSelectedServices);
       if (serviceIds.length > 0) {
         const quoteServices = serviceIds.map(serviceId => {
-          const svc = availableServices.find(s => s.id === serviceId)!;
+          const svc = availableServices.find(s => s.id === serviceId);
+          if (!svc) return null;
           return {
             quote_id: quote.id,
             service_id: serviceId,
@@ -885,7 +887,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
             service_price: editPriceMap.get(serviceId) ?? svc.base_price,
             quantity: 1,
           };
-        });
+        }).filter(Boolean);
         const { error: insertError } = await supabase.from('quote_services').insert(quoteServices);
         if (insertError) throw insertError;
       }
