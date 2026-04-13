@@ -41,6 +41,8 @@ interface Quote {
   total_paid: number | null;
   quote_type: string;
   pdf_url: string | null;
+  logistics_fee_enabled?: boolean;
+  logistics_fee?: number;
 }
 
 interface QuoteService {
