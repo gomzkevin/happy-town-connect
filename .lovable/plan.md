@@ -1,61 +1,39 @@
 
 
-# Agregar "Gastos de Operación / Arrastre" a cotizaciones
+# Fix: PDF generation crash and save edit error
 
-## Resumen
-Agregar un toggle en el creador/editor de cotizaciones del dashboard para incluir opcionalmente un monto de "Gastos de Operación o Arrastre". Este monto se muestra en el PDF antes de la barra de INVERSIÓN TOTAL y se suma al total.
+## Root Causes
 
-## Cambios necesarios
+### Error 1: `ReferenceError: M is not defined` (Edge Function crash)
+In `supabase/functions/generate-quote/index.ts`, the logistics fee rendering code (lines 1119-1120) uses `M` as margin variable, but the actual constant is `ML` (line 152). This causes every PDF generation to crash.
 
-### 1. Base de datos — nueva columna en `quotes`
-Agregar dos columnas:
-- `logistics_fee_enabled` (boolean, default false) — indica si se activan los gastos de arrastre
-- `logistics_fee` (integer, default 0) — monto capturado manualmente
+### Error 2: `Cannot read properties of undefined (reading 'title')` (AdminKanban save)
+In `src/components/admin/AdminKanban.tsx` line 880, `availableServices.find(s => s.id === serviceId)!` can return `undefined` if a previously selected service was deactivated (e.g., the old `foamy` service). The non-null assertion `!` then causes a crash on `.title`.
 
-### 2. Frontend — `AdminKanban.tsx`
+## Fixes
 
-**NewQuoteDialog** (~línea 396-696):
-- Agregar un toggle (Switch) "Con gastos de operación/arrastre" debajo de la sección de servicios
-- Si está activo, mostrar un Input numérico para capturar el monto
-- Sumar ese monto al `totalEstimate` mostrado
-- Incluir `logistics_fee_enabled` y `logistics_fee` en el INSERT a `quotes`
+### File 1: `supabase/functions/generate-quote/index.ts`
+- Lines 1119-1120: Replace `M` with `ML` (two occurrences)
 
-**QuoteDetailDialog — modo edición** (~línea 698+):
-- Agregar el mismo toggle y campo en el formulario de edición
-- Pre-cargar los valores actuales de la cotización
-- Incluir los campos en el UPDATE
+### File 2: `src/components/admin/AdminKanban.tsx`
+- Line 880: Add a guard — skip services not found in `availableServices` instead of crashing:
+  ```ts
+  const quoteServices = serviceIds
+    .map(serviceId => {
+      const svc = availableServices.find(s => s.id === serviceId);
+      if (!svc) return null;
+      return { quote_id: quote.id, service_id: serviceId, service_name: svc.title, service_price: editPriceMap.get(serviceId) ?? svc.base_price, quantity: 1 };
+    })
+    .filter(Boolean);
+  ```
+- Apply same fix at line 510 in `NewQuoteDialog`
 
-**QuoteDetailDialog — modo lectura**:
-- Mostrar el monto de arrastre si está habilitado, antes del total
+### Deployment
+- Redeploy `generate-quote` Edge Function after fix
 
-### 3. Edge Function — `generate-quote/index.ts`
-
-**`mapQuoteToConfig`** (~línea 1164):
-- Leer `logistics_fee` y `logistics_fee_enabled` del quote en BD
-- Pasar estos valores en el `QuoteRequest`
-
-**`QuoteRequest` interface** (~línea 18):
-- Agregar `logistics_fee?: number`
-
-**`calcularTotal`** (~línea 306):
-- Sumar `logistics_fee` al total si existe
-
-**`generateQuotePDF`** (~línea 1106):
-- Antes de `drawTotalBar`, dibujar un recuadro/fila para "Gastos de operación y arrastre" con el monto, usando un estilo similar a `drawExtraHourNote`
-- El `total` pasado a `drawTotalBar` ya incluirá el monto de arrastre
-
-### 4. `useQuotes.ts` (onboarding flow)
-- No requiere cambios — el onboarding público no incluye esta opción, solo aplica para cotizaciones manuales del staff
-
-## Archivos a modificar
-| Archivo | Cambio |
+## Files to modify
+| File | Change |
 |---|---|
-| BD (`quotes`) | Agregar `logistics_fee_enabled` y `logistics_fee` |
-| `src/components/admin/AdminKanban.tsx` | Toggle + input en NewQuoteDialog y QuoteDetailDialog |
-| `supabase/functions/generate-quote/index.ts` | Leer fee de BD, sumarlo al total, renderizar fila en PDF |
-
-## Sin cambios en
-- `src/lib/pricing.ts` — el fee es un monto fijo manual, no afecta la lógica de pricing por servicio
-- `useQuotes.ts` — solo cotizaciones manuales del admin
-- Otras tablas
+| `supabase/functions/generate-quote/index.ts` | `M` → `ML` on lines 1119-1120 |
+| `src/components/admin/AdminKanban.tsx` | Guard against undefined service in save handlers (lines 510, 880) |
 
