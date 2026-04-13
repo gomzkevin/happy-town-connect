@@ -1,36 +1,28 @@
 
 
-# Desactivar servicios "Peluqueria" y "Correo"
+# Cambiar categoría de "Inflable para Bebés" a "Extras"
 
 ## Problema
-Los servicios "Peluqueria" y "Correo" ya no se ofrecen pero siguen apareciendo en la landing y el admin porque:
-1. Ambos tienen `is_active = true` en la BD
-2. El hook `useServices` no filtra por `is_active`, asi que la landing muestra todos los servicios
+El servicio `inflable_bebes` tiene `category = 'Estaciones de Juego'` en la BD, lo que hace que entre en la logica de parejas a $3,000. Debe cobrar siempre su precio fijo de $1,000.
 
 ## Solucion
 
-### Paso 1 — Desactivar en la BD
-Ejecutar un UPDATE para poner `is_active = false` en ambos servicios. Esto es mas seguro que eliminarlos porque preserva datos historicos (cotizaciones que los referencian).
-
+### Paso 1 — Actualizar la BD
+Ejecutar un UPDATE para cambiar la categoria:
 ```sql
-UPDATE services SET is_active = false WHERE id IN ('peluqueria', 'correo');
+UPDATE services SET category = 'Extras' WHERE id = 'inflable_bebes';
 ```
 
-### Paso 2 — Filtrar por `is_active` en el hook `useServices`
-Agregar `.eq('is_active', true)` a la query en `src/hooks/useServices.ts` (linea 32). Esto hace que la landing y cualquier otro componente que use este hook solo muestre servicios activos.
+Esto hace que la logica de pricing en `src/lib/pricing.ts`, `send-quote-email/index.ts` y `generate-quote/index.ts` lo trate como "otros" y use su `base_price` directo ($1,000), sin entrar en la formula de parejas.
 
-### Paso 3 — Verificar el admin
-El admin Kanban ya filtra por `is_active = true` (lineas 413 y 750 de `AdminKanban.tsx`), asi que no requiere cambios.
-
----
+### Paso 2 — Verificar
+No se requieren cambios de codigo. Las tres funciones de pricing ya manejan correctamente la categoria "Extras" como precio fijo.
 
 ## Archivos a modificar
-| Archivo | Cambio |
-|---|---|
-| `src/hooks/useServices.ts` | Agregar filtro `.eq('is_active', true)` |
+Ninguno.
 
 ## Datos a actualizar
 | Tabla | Cambio |
 |---|---|
-| `services` | `is_active = false` para `peluqueria` y `correo` |
+| `services` | `category = 'Extras'` para `inflable_bebes` |
 
