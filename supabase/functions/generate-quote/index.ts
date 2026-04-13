@@ -939,6 +939,82 @@ function validate(
   return errors;
 }
 
+// ─── Page 2 Drawing Helpers ─────────────────────────────────────
+
+function drawPage2Header(page: PDFPage, fonts: FontSet, y: number, cliente: string): number {
+  const barH = 48;
+  const barY = y - barH;
+  page.drawRectangle({ x: 0, y: barY, width: W, height: barH, color: C.brown });
+
+  page.drawText("japitown", { x: ML + 12, y: barY + barH - 28, font: fonts.bold, size: 18, color: C.cream });
+  page.drawText("Eventos infantiles", { x: ML + 12, y: barY + barH - 40, font: fonts.light, size: 7, color: C.brown_lt });
+
+  const rightLabel = `Condiciones — ${cliente}`;
+  const rightW = textW(fonts.regular, rightLabel, 9);
+  page.drawText(rightLabel, { x: W - MR - 12 - rightW, y: barY + barH - 30, font: fonts.regular, size: 9, color: C.cream });
+
+  return barY;
+}
+
+function drawConditionsPage2(page: PDFPage, fonts: FontSet, y: number, condiciones: string[]): number {
+  const headerY = y - 16;
+  const sectionTitle = "Condiciones del servicio";
+  page.drawText(sectionTitle, { x: ML + 6, y: headerY, font: fonts.bold, size: 11, color: C.dark });
+  const titleW = textW(fonts.bold, sectionTitle, 11);
+  page.drawLine({ start: { x: ML + 6, y: headerY - 3 }, end: { x: ML + 6 + titleW, y: headerY - 3 }, color: C.brown_lt, thickness: 0.7 });
+
+  const lineH = 14;
+  let cy = headerY - 20;
+  for (const cond of condiciones) {
+    page.drawCircle({ x: ML + 14, y: cy + 3, size: 2, color: C.brown });
+    page.drawText(cond, { x: ML + 24, y: cy, font: fonts.regular, size: 8, color: C.dlt });
+    cy -= lineH;
+  }
+  return cy - 8;
+}
+
+function drawPaymentInfoPage2(page: PDFPage, fonts: FontSet, y: number, bankInfo?: string): number {
+  const sectionTitle = "Forma de pago";
+  page.drawText(sectionTitle, { x: ML + 6, y: y, font: fonts.bold, size: 11, color: C.dark });
+  const titleW = textW(fonts.bold, sectionTitle, 11);
+  page.drawLine({ start: { x: ML + 6, y: y - 3 }, end: { x: ML + 6 + titleW, y: y - 3 }, color: C.brown_lt, thickness: 0.7 });
+
+  const boxY = y - 18;
+  const bankText = bankInfo || "Contactar para datos de pago";
+  // Split bank info by newlines for multi-line display
+  const lines = bankText.split(/\n|\\n/).filter(l => l.trim());
+  const boxH = Math.max(40, 16 + lines.length * 13 + 10);
+  const bY = boxY - boxH;
+
+  drawRoundedRect(page, ML, bY, CW, boxH, 5, { color: C.offwhite });
+  drawRoundedRect(page, ML, bY, CW, boxH, 5, { borderColor: C.cream, borderWidth: 0.5 });
+  page.drawRectangle({ x: ML, y: bY + 4, width: 4, height: boxH - 8, color: C.orange });
+
+  page.drawText("Datos para depósito / transferencia:", { x: ML + 16, y: bY + boxH - 14, font: fonts.medium, size: 8, color: C.dark });
+
+  let ly = bY + boxH - 28;
+  for (const line of lines) {
+    page.drawText(line.trim(), { x: ML + 16, y: ly, font: fonts.regular, size: 7.5, color: C.dlt });
+    ly -= 13;
+  }
+
+  return bY;
+}
+
+function drawVigencia(page: PDFPage, fonts: FontSet, y: number, vigencia: string): number {
+  const boxH = 32;
+  const bY = y - boxH;
+
+  drawRoundedRect(page, ML, bY, CW, boxH, 5, { color: C.offwhite });
+  drawRoundedRect(page, ML, bY, CW, boxH, 5, { borderColor: C.cream, borderWidth: 0.5 });
+  page.drawRectangle({ x: ML, y: bY + 4, width: 4, height: boxH - 8, color: C.yellow });
+
+  page.drawText("Vigencia de la cotización", { x: ML + 16, y: bY + boxH - 13, font: fonts.medium, size: 8.5, color: C.dark });
+  page.drawText(vigencia, { x: ML + 16, y: bY + 7, font: fonts.regular, size: 8, color: C.dlt });
+
+  return bY;
+}
+
 // ─── Main Pipeline ──────────────────────────────────────────────
 async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DBService>, supabase?: any, bankInfo?: string): Promise<Uint8Array> {
   const resolved = resolveDefaults(config);
@@ -952,20 +1028,20 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   // Load decorative icons (13-19) for band and scattered placement
   const icons = await loadAllIcons(pdfDoc);
 
-  const page = pdfDoc.addPage([W, H]);
-
   const condiciones = generarCondiciones(resolved);
   const horaExtraText = generarNotaHoraExtra(resolved, dbServices);
   const resumen = generarResumen(resolved);
+
+  // ═══════════════════════════════════════════════════════════════
+  // PAGE 1 — Cotización (servicios + total)
+  // ═══════════════════════════════════════════════════════════════
+  const page1 = pdfDoc.addPage([W, H]);
 
   const HEADER_H = 58;
   const TITLE_H = 48;
   const CALLOUT_H = 42;
   const TOTAL_BAR_H = 52;
   const EXTRA_HOUR_H = horaExtraText ? 22 : 0;
-  const COND_HEADER_H = 14;
-  const COND_H = COND_HEADER_H + condiciones.length * 10 + 4;
-  const PAYMENT_H = 30;
   const ICON_BAND_H = 32;
   const RAINBOW_H = 4;
   const FOOTER_H = 42;
@@ -980,8 +1056,9 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   }
   const contentH = blockHeights.reduce((a, b) => a + b, 0);
 
-  const totalStuffH = HEADER_H + TITLE_H + CALLOUT_H + contentH +
-    TOTAL_BAR_H + EXTRA_HOUR_H + COND_H + PAYMENT_H + ICON_BAND_H + RAINBOW_H + FOOTER_H;
+  // Page 1 no longer includes conditions/payment — more space for cards
+  const totalStuffH_p1 = HEADER_H + TITLE_H + CALLOUT_H + contentH +
+    TOTAL_BAR_H + EXTRA_HOUR_H + ICON_BAND_H + RAINBOW_H + FOOTER_H;
 
   const numContentGaps = Math.max(blockHeights.length - 1, 0);
   const MIN_GAP_HEADER = 6;
@@ -992,37 +1069,35 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   const MIN_GAP_AFTER_CONTENT = 12;
   const MIN_GAP_AFTER_TOTAL = 8;
   const MIN_GAP_AFTER_EXTRAHOUR = 6;
-  const MIN_GAP_AFTER_CONDITIONS = 6;
-  const MIN_GAP_AFTER_PAYMENT = 6;
   const MIN_GAP_BEFORE_ICONS = 4;
 
-  const minGapsTotal = MIN_GAP_HEADER + MIN_GAP_TITLE + MIN_GAP_CALLOUT +
+  const minGapsTotal_p1 = MIN_GAP_HEADER + MIN_GAP_TITLE + MIN_GAP_CALLOUT +
     MIN_GAP_BEFORE_CONTENT + (numContentGaps * MIN_GAP_BETWEEN_BLOCKS) + MIN_GAP_AFTER_CONTENT +
     MIN_GAP_AFTER_TOTAL + (horaExtraText ? MIN_GAP_AFTER_EXTRAHOUR : 0) +
-    MIN_GAP_AFTER_CONDITIONS + MIN_GAP_AFTER_PAYMENT + MIN_GAP_BEFORE_ICONS;
+    MIN_GAP_BEFORE_ICONS;
 
-  const extraSpace = Math.max(0, H - totalStuffH - minGapsTotal);
-  const numDistribGaps = 3 + numContentGaps;
-  const bonusPerGap = numDistribGaps > 0 ? extraSpace / numDistribGaps : 0;
-  const cappedBonus = Math.min(bonusPerGap, 25);
+  const extraSpace_p1 = Math.max(0, H - totalStuffH_p1 - minGapsTotal_p1);
+  const numDistribGaps_p1 = 3 + numContentGaps;
+  const bonusPerGap_p1 = numDistribGaps_p1 > 0 ? extraSpace_p1 / numDistribGaps_p1 : 0;
+  const cappedBonus = Math.min(bonusPerGap_p1, 30);
 
-  drawBackground(page);
+  drawBackground(page1);
 
   let y = H;
 
-  y = drawHeader(page, fonts, y, resolved.fecha_emision!);
+  y = drawHeader(page1, fonts, y, resolved.fecha_emision!);
   y -= MIN_GAP_HEADER;
-  y = drawTitleStrip(page, fonts, y, resolved.titulo!, resolved.subtitulo!);
+  y = drawTitleStrip(page1, fonts, y, resolved.titulo!, resolved.subtitulo!);
   y -= MIN_GAP_TITLE;
-  y = drawEventCallout(page, fonts, y, resolved);
+  y = drawEventCallout(page1, fonts, y, resolved);
   y -= MIN_GAP_CALLOUT + MIN_GAP_BEFORE_CONTENT + cappedBonus;
 
   for (let i = 0; i < bloques.length; i++) {
     const bloque = bloques[i];
     if (bloque.tipo === "estacion_resumen") {
-      y = drawEstacionResumen(page, fonts, y, bloque.estaciones, bloque.precio, dbServices);
+      y = drawEstacionResumen(page1, fonts, y, bloque.estaciones, bloque.precio, dbServices);
     } else {
-      y = drawCardRow(page, fonts, y, bloque.cards);
+      y = drawCardRow(page1, fonts, y, bloque.cards);
     }
     if (i < bloques.length - 1) y -= MIN_GAP_BETWEEN_BLOCKS + cappedBonus;
   }
@@ -1030,28 +1105,57 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
 
   const contentBottom = y;
 
-  y = drawTotalBar(page, fonts, y, total, resumen);
+  y = drawTotalBar(page1, fonts, y, total, resumen);
   y -= MIN_GAP_AFTER_TOTAL;
 
   if (horaExtraText) {
-    y = drawExtraHourNote(page, fonts, y, horaExtraText);
+    y = drawExtraHourNote(page1, fonts, y, horaExtraText);
     y -= MIN_GAP_AFTER_EXTRAHOUR;
   }
 
-  y = drawConditions(page, fonts, y, condiciones);
-  y -= MIN_GAP_AFTER_CONDITIONS;
+  drawScatteredIcons(page1, H - HEADER_H - MIN_GAP_HEADER, contentBottom, icons);
 
-  y = drawPaymentInfo(page, fonts, y, bankInfo);
-  y -= MIN_GAP_AFTER_PAYMENT;
+  const iconBandY_p1 = FOOTER_H + RAINBOW_H;
+  drawIconBand(page1, iconBandY_p1, icons);
+  drawRainbowStripe(page1, FOOTER_H);
+  drawFooter(page1, fonts);
 
-  drawScatteredIcons(page, H - HEADER_H - MIN_GAP_HEADER, contentBottom, icons);
+  // ═══════════════════════════════════════════════════════════════
+  // PAGE 2 — Condiciones y forma de pago
+  // ═══════════════════════════════════════════════════════════════
+  const page2 = pdfDoc.addPage([W, H]);
+  drawBackground(page2);
 
-  const iconBandY = FOOTER_H + RAINBOW_H;
-  drawIconBand(page, iconBandY, icons);
+  let y2 = H;
 
-  drawRainbowStripe(page, FOOTER_H);
+  // Simplified header with client reference
+  y2 = drawPage2Header(page2, fonts, y2, resolved.cliente);
+  y2 -= 16;
 
-  drawFooter(page, fonts);
+  // Conditions section (larger, more readable)
+  y2 = drawConditionsPage2(page2, fonts, y2, condiciones);
+  y2 -= 16;
+
+  // Extra hour note on page 2 as well
+  if (horaExtraText) {
+    y2 = drawExtraHourNote(page2, fonts, y2, horaExtraText);
+    y2 -= 16;
+  }
+
+  // Payment info with full bank details
+  y2 = drawPaymentInfoPage2(page2, fonts, y2, bankInfo);
+  y2 -= 16;
+
+  // Vigencia
+  y2 = drawVigencia(page2, fonts, y2, resolved.vigencia || "15 días naturales");
+
+  // Decorative elements on page 2
+  drawScatteredIcons(page2, H - 48 - 16, y2, icons);
+
+  const iconBandY_p2 = FOOTER_H + RAINBOW_H;
+  drawIconBand(page2, iconBandY_p2, icons);
+  drawRainbowStripe(page2, FOOTER_H);
+  drawFooter(page2, fonts);
 
   return await pdfDoc.save();
 }
