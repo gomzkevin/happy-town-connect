@@ -1169,6 +1169,12 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                         <span className="font-medium">${(s.service_price * s.quantity).toLocaleString()}</span>
                       </div>
                     ))}
+                    {quote.logistics_fee_enabled && (quote.logistics_fee ?? 0) > 0 && (
+                      <div className="flex justify-between text-sm bg-japitown-orange/10 rounded-md px-3 py-1.5">
+                        <span>Gastos de operación / arrastre</span>
+                        <span className="font-medium">${(quote.logistics_fee ?? 0).toLocaleString()}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm font-bold px-3 pt-1">
                       <span>Total estimado</span>
                       <span>${totalEstimate.toLocaleString()}</span>
