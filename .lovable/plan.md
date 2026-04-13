@@ -1,34 +1,41 @@
 
 
-# Fusionar "Arte Diamante" + "Foami Moldeable" en un solo servicio
+# PDF multi-página: Página 1 = Cotización, Página 2 = Condiciones y Pago
 
-## Situacion actual
-- `diamante` — Arte Diamante, $1,200 base, Talleres Creativos, per_child
-- `foamy` — Foami Moldeable, $1,200 base, Talleres Creativos, per_child
+## Problema
+La Edge Function `generate-quote` renderiza todo en una sola página PDF (612x792 pts). Con cotizaciones largas (muchos servicios), las condiciones y datos de pago se cortan o salen del área visible.
 
-## Cambios necesarios (solo datos, sin cambios de codigo)
+## Solución
+Siempre generar 2 páginas:
+- **Página 1**: Header, título, datos del evento, tarjetas de servicios, barra de total, nota de hora extra
+- **Página 2**: Condiciones, datos bancarios/pago, vigencia de la cotización, footer decorativo
 
-### 1. Actualizar el servicio `diamante`
-- Renombrar titulo a **"Arte Diamante + Foami Moldeable"** (o el nombre que prefieras)
-- Cambiar `base_price` de 1200 a **1000**
-- Actualizar la descripcion para reflejar que incluye ambas actividades
-- Ajustar features si es necesario
+## Cambios técnicos
 
-### 2. Desactivar el servicio `foamy`
-- Cambiar `is_active = false` para que deje de aparecer en la landing y el onboarding
+### Archivo: `supabase/functions/generate-quote/index.ts`
 
-### 3. Verificar cotizaciones existentes
-Las cotizaciones ya generadas en `quote_services` conservan el nombre y precio con el que fueron creadas, asi que no se ven afectadas.
+1. **Modificar `generateQuotePDF`** (líneas ~943-1057):
+   - Página 1: Renderizar header, título, callout, bloques de servicios, barra de total y nota de hora extra. Footer decorativo al fondo.
+   - Crear una segunda página con `pdfDoc.addPage([W, H])`.
+   - Página 2: Renderizar header simplificado (logo + "Condiciones y forma de pago"), condiciones completas, datos bancarios/pago, vigencia, iconos decorativos y footer.
 
-## Resultado
-El servicio combinado quedara como Taller Creativo con base $1,000, sujeto a los multiplicadores por numero de ninos (x1.0 hasta 15, x1.3 hasta 30, x1.5 hasta 50, x1.8 mas de 50). No se requieren cambios de codigo.
+2. **Beneficio en página 1**: Al liberar el espacio de condiciones y pago (~100pts), las tarjetas de servicios tienen más espacio y mejor distribución vertical, incluso con 6+ servicios.
 
-## Archivos a modificar
-Ninguno.
+3. **Página 2 — Contenido**:
+   - Encabezado con logo y referencia al cliente
+   - Sección "Condiciones del servicio" (todas las condiciones generadas por `generarCondiciones`)
+   - Sección "Forma de pago" con datos bancarios de `company_settings.bank_info`
+   - Sección "Vigencia" con la vigencia de la cotización
+   - Nota de hora extra (si aplica)
+   - Footer decorativo (rainbow stripe + iconos + footer bar)
 
-## Datos a actualizar
-| Tabla | Registro | Cambio |
-|---|---|---|
-| `services` | `diamante` | `title`, `base_price = 1000`, `description` |
-| `services` | `foamy` | `is_active = false` |
+### Archivos a modificar
+| Archivo | Cambio |
+|---|---|
+| `supabase/functions/generate-quote/index.ts` | Refactorizar `generateQuotePDF` para 2 páginas |
+
+### Sin cambios en
+- Base de datos
+- Frontend (el PDF se descarga igual, solo ahora tiene 2 páginas)
+- Otras Edge Functions
 
