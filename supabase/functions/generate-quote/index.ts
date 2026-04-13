@@ -1064,8 +1064,9 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   const contentH = blockHeights.reduce((a, b) => a + b, 0);
 
   // Page 1 no longer includes conditions/payment — more space for cards
+  const LOGISTICS_FEE_H = (config.logistics_fee && config.logistics_fee > 0) ? 36 : 0; // 28 + 8 gap
   const totalStuffH_p1 = HEADER_H + TITLE_H + CALLOUT_H + contentH +
-    TOTAL_BAR_H + EXTRA_HOUR_H + ICON_BAND_H + RAINBOW_H + FOOTER_H;
+    LOGISTICS_FEE_H + TOTAL_BAR_H + EXTRA_HOUR_H + ICON_BAND_H + RAINBOW_H + FOOTER_H;
 
   const numContentGaps = Math.max(blockHeights.length - 1, 0);
   const MIN_GAP_HEADER = 6;
