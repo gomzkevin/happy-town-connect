@@ -765,6 +765,7 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     children_count: '',
     age_range: '',
     notes: '',
+    total_hours: '3',
   });
   const [editSelectedServices, setEditSelectedServices] = useState<Set<string>>(new Set());
   const [editLogisticsFeeEnabled, setEditLogisticsFeeEnabled] = useState(false);
