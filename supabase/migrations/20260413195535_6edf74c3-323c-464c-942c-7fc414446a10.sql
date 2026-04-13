@@ -1,0 +1,1 @@
+ALTER TABLE public.quotes ADD COLUMN extra_hours integer NOT NULL DEFAULT 0;
