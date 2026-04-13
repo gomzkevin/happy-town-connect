@@ -473,32 +473,29 @@ function generarCondiciones(config: QuoteRequest): string[] {
 
 function generarNotaHoraExtra(config: QuoteRequest, dbServices: Map<string, DBService>): string {
   const parts: string[] = [];
-  if ((config.estaciones?.length ?? 0) >= 1) {
-    // Use hora_extra from first station, or default 500
-    const firstSvc = dbServices?.get(config.estaciones![0]);
-    const horaEst = firstSvc?.hora_extra ?? 500;
-    parts.push(`$${horaEst.toLocaleString("es-MX")} por estación`);
-  }
-  const fijoExtras: Record<number, string[]> = {};
-  for (const key of config.fijos ?? []) {
+
+  // Bucket 1: Estaciones + Extras + Fijos → "por estación"
+  let precioEstacion: number | null = null;
+  for (const key of [...(config.estaciones ?? []), ...(config.fijos ?? [])]) {
     const dbSvc = dbServices?.get(key);
-    const p = dbSvc?.hora_extra ?? 500;
-    (fijoExtras[p] ||= []).push(dbSvc?.title || key);
+    const p = dbSvc?.hora_extra ?? 0;
+    if (p > 0 && precioEstacion === null) precioEstacion = p;
   }
-  for (const [precio, nombres] of Object.entries(fijoExtras).sort((a, b) => +b[0] - +a[0])) {
-    const label = nombres.length === 1 ? `por ${nombres[0]}` : `por servicio`;
-    parts.push(`$${Number(precio).toLocaleString("es-MX")} ${label}`);
+  if (precioEstacion !== null) {
+    parts.push(`$${precioEstacion.toLocaleString("es-MX")} por estación`);
   }
-  const tallerExtras: Record<number, string[]> = {};
+
+  // Bucket 2: Talleres Creativos → "por taller"
+  let precioTaller: number | null = null;
   for (const key of config.talleres ?? []) {
     const dbSvc = dbServices?.get(key);
-    const p = dbSvc?.hora_extra ?? 500;
-    (tallerExtras[p] ||= []).push(dbSvc?.title || key);
+    const p = dbSvc?.hora_extra ?? 0;
+    if (p > 0 && precioTaller === null) precioTaller = p;
   }
-  for (const [precio, nombres] of Object.entries(tallerExtras).sort((a, b) => +b[0] - +a[0])) {
-    const label = nombres.length === 1 ? `por ${nombres[0]}` : `por taller`;
-    parts.push(`$${Number(precio).toLocaleString("es-MX")} ${label}`);
+  if (precioTaller !== null) {
+    parts.push(`$${precioTaller.toLocaleString("es-MX")} por taller`);
   }
+
   if (parts.length === 0) return "";
   return parts.join(" · ") + " · Sujeto a disponibilidad";
 }
