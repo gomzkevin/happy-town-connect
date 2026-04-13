@@ -479,19 +479,25 @@ function generarNotaHoraExtra(config: QuoteRequest, dbServices: Map<string, DBSe
     const horaEst = firstSvc?.hora_extra ?? 500;
     parts.push(`$${horaEst.toLocaleString("es-MX")} por estación`);
   }
-  const extras: Record<number, string[]> = {};
+  const fijoExtras: Record<number, string[]> = {};
   for (const key of config.fijos ?? []) {
     const dbSvc = dbServices?.get(key);
     const p = dbSvc?.hora_extra ?? 500;
-    (extras[p] ||= []).push(dbSvc?.title || key);
+    (fijoExtras[p] ||= []).push(dbSvc?.title || key);
   }
+  for (const [precio, nombres] of Object.entries(fijoExtras).sort((a, b) => +b[0] - +a[0])) {
+    const label = nombres.length === 1 ? `por ${nombres[0]}` : `por servicio`;
+    parts.push(`$${Number(precio).toLocaleString("es-MX")} ${label}`);
+  }
+  const tallerExtras: Record<number, string[]> = {};
   for (const key of config.talleres ?? []) {
     const dbSvc = dbServices?.get(key);
     const p = dbSvc?.hora_extra ?? 500;
-    (extras[p] ||= []).push(dbSvc?.title || key);
+    (tallerExtras[p] ||= []).push(dbSvc?.title || key);
   }
-  for (const [precio, nombres] of Object.entries(extras).sort((a, b) => +b[0] - +a[0])) {
-    parts.push(`$${Number(precio).toLocaleString("es-MX")} por ${nombres.length === 1 ? 'taller' : 'taller'}`);
+  for (const [precio, nombres] of Object.entries(tallerExtras).sort((a, b) => +b[0] - +a[0])) {
+    const label = nombres.length === 1 ? `por ${nombres[0]}` : `por taller`;
+    parts.push(`$${Number(precio).toLocaleString("es-MX")} ${label}`);
   }
   if (parts.length === 0) return "";
   return parts.join(" · ") + " · Sujeto a disponibilidad";
@@ -1167,11 +1173,7 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
   y2 = drawConditionsPage2(page2, fonts, y2, condiciones);
   y2 -= 16;
 
-  // Extra hour note on page 2 as well
-  if (horaExtraText) {
-    y2 = drawExtraHourNote(page2, fonts, y2, horaExtraText);
-    y2 -= 16;
-  }
+  // Extra hour note removed from page 2 — only shown on page 1
 
   // Payment info with full bank details
   y2 = drawPaymentInfoPage2(page2, fonts, y2, bankInfo);
