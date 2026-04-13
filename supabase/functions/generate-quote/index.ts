@@ -310,23 +310,37 @@ function calcularTotal(
 ): { total: number; desglose: Record<string, number> } {
   let total = 0;
   const desglose: Record<string, number> = {};
+  const extraHours = Math.max(0, (config.horas || 3) - 3);
 
   const nEst = config.estaciones?.length ?? 0;
   if (nEst >= 1) {
-    const p = precioEstaciones(nEst, dbServices, config.estaciones);
+    let p = precioEstaciones(nEst, dbServices, config.estaciones);
+    // Add extra hours for each station
+    if (extraHours > 0) {
+      for (const key of config.estaciones!) {
+        const svc = dbServices?.get(key);
+        p += (svc?.hora_extra ?? 0) * extraHours;
+      }
+    }
     total += p;
     desglose.estaciones = p;
   }
 
   for (const key of config.fijos ?? []) {
-    const p = dbServices?.get(key)?.base_price ?? 0;
+    let p = dbServices?.get(key)?.base_price ?? 0;
+    if (extraHours > 0) {
+      p += (dbServices?.get(key)?.hora_extra ?? 0) * extraHours;
+    }
     total += p;
     desglose[key] = p;
   }
 
   for (const key of config.talleres ?? []) {
     const dbSvc = dbServices?.get(key);
-    const p = precioTaller(dbSvc?.base_price ?? 0, config.n_ninos);
+    let p = precioTaller(dbSvc?.base_price ?? 0, config.n_ninos);
+    if (extraHours > 0) {
+      p += (dbSvc?.hora_extra ?? 0) * extraHours;
+    }
     total += p;
     desglose[key] = p;
   }
