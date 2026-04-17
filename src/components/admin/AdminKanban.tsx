@@ -1156,6 +1156,34 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                 )}
               </div>
 
+              {/* Discount toggle - edit mode */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium">Descuento</Label>
+                  <Switch checked={editDiscountEnabled} onCheckedChange={setEditDiscountEnabled} />
+                </div>
+                {editDiscountEnabled && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Porcentaje (%)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={editDiscountPercentage}
+                      onChange={e => setEditDiscountPercentage(e.target.value)}
+                      placeholder="Ej. 10"
+                      className="h-9"
+                    />
+                    {editDiscountAmount > 0 && (
+                      <p className="text-[11px] text-japitown-green-tag font-medium">
+                        -${editDiscountAmount.toLocaleString()} MXN sobre subtotal de servicios
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <Separator />
 
               {/* Editable notes */}
