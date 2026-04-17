@@ -1074,7 +1074,7 @@ function drawVigencia(page: PDFPage, fonts: FontSet, y: number, vigencia: string
 // ─── Main Pipeline ──────────────────────────────────────────────
 async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DBService>, supabase?: any, bankInfo?: string): Promise<Uint8Array> {
   const resolved = resolveDefaults(config);
-  const { total } = calcularTotal(resolved, dbServices);
+  const { total, discountAmount } = calcularTotal(resolved, dbServices);
   const bloques = calcularLayout(resolved, dbServices);
   console.log(`[DIAG generateQuotePDF] total=${total}, bloques=${bloques.length}, config.estaciones=${JSON.stringify(resolved.estaciones)} config.talleres=${JSON.stringify(resolved.talleres)}`);
 
