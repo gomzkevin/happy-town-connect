@@ -95,6 +95,19 @@ export function calcularPreciosCotizacion(
 }
 
 /**
+ * Apply a percentage discount to a subtotal.
+ * Returns both the discount amount (rounded) and the resulting total.
+ */
+export function aplicarDescuento(
+  subtotal: number,
+  percentage: number
+): { discountAmount: number; totalConDescuento: number } {
+  const pct = Math.max(0, Math.min(100, percentage || 0));
+  const discountAmount = Math.round((subtotal * pct) / 100);
+  return { discountAmount, totalConDescuento: subtotal - discountAmount };
+}
+
+/**
  * Convenience: get the total price for stations using the pair formula.
  */
 export function precioEstaciones(n: number, singleBasePrice?: number): number {
