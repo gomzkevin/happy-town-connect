@@ -16,7 +16,7 @@ import { format, differenceInDays, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
 import { useQuotePayments } from '@/hooks/useQuotePayments';
-import { calcularPreciosCotizacion, type ServiceForPricing } from '@/lib/pricing';
+import { calcularPreciosCotizacion, aplicarDescuento, type ServiceForPricing } from '@/lib/pricing';
 
 // Types
 interface Quote {
@@ -43,6 +43,8 @@ interface Quote {
   pdf_url: string | null;
   logistics_fee_enabled?: boolean;
   logistics_fee?: number;
+  discount_enabled?: boolean;
+  discount_percentage?: number;
 }
 
 interface QuoteService {
@@ -411,6 +413,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
   });
   const [logisticsFeeEnabled, setLogisticsFeeEnabled] = useState(false);
   const [logisticsFee, setLogisticsFee] = useState('');
+  const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [discountPercentage, setDiscountPercentage] = useState('');
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [dateConflicts, setDateConflicts] = useState<{ customer_name: string; status: string }[]>([]);
 
@@ -448,7 +452,9 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
     .filter(Boolean) as ServiceForPricing[];
   const { perService: priceMap, total: servicesTotalEstimate } = calcularPreciosCotizacion(selectedSvcsForPricing, nNinos, extraHours);
   const logisticsFeeAmount = logisticsFeeEnabled && logisticsFee ? parseInt(logisticsFee) || 0 : 0;
-  const totalEstimate = servicesTotalEstimate + logisticsFeeAmount;
+  const discountPctNum = discountEnabled ? Math.max(0, Math.min(100, parseFloat(discountPercentage) || 0)) : 0;
+  const { discountAmount, totalConDescuento: servicesAfterDiscount } = aplicarDescuento(servicesTotalEstimate, discountPctNum);
+  const totalEstimate = servicesAfterDiscount + logisticsFeeAmount;
 
   // Group services by category
   const servicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
@@ -497,6 +503,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
           total_estimate: totalEstimate,
           logistics_fee_enabled: logisticsFeeEnabled,
           logistics_fee: logisticsFeeAmount,
+          discount_enabled: discountEnabled,
+          discount_percentage: discountPctNum,
           extra_hours: extraHours,
           source: getSourceValue(),
           quote_type: 'manual',
