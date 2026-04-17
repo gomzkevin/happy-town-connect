@@ -1114,8 +1114,9 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
 
   // Page 1 no longer includes conditions/payment — more space for cards
   const LOGISTICS_FEE_H = (config.logistics_fee && config.logistics_fee > 0) ? 36 : 0; // 28 + 8 gap
+  const DISCOUNT_H = (discountAmount > 0) ? 36 : 0; // 28 + 8 gap
   const totalStuffH_p1 = HEADER_H + TITLE_H + CALLOUT_H + contentH +
-    LOGISTICS_FEE_H + TOTAL_BAR_H + EXTRA_HOUR_H + ICON_BAND_H + RAINBOW_H + FOOTER_H;
+    LOGISTICS_FEE_H + DISCOUNT_H + TOTAL_BAR_H + EXTRA_HOUR_H + ICON_BAND_H + RAINBOW_H + FOOTER_H;
 
   const numContentGaps = Math.max(blockHeights.length - 1, 0);
   const MIN_GAP_HEADER = 6;
@@ -1183,6 +1184,29 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
       x: lx + lw - 10 - feeW, y: y - 18, size: 10, font: fonts.bold, color: rgb(0.35, 0.25, 0.1),
     });
     y -= LOGISTICS_H + 8;
+  }
+
+  // Draw discount row before total if present (green styling)
+  if (discountAmount > 0) {
+    const DISC_H = 28;
+    const dx = ML;
+    const dw = W - 2 * ML;
+    page1.drawRectangle({
+      x: dx, y: y - DISC_H, width: dw, height: DISC_H,
+      color: rgb(0.88, 0.96, 0.88), // light green bg
+      borderColor: rgb(0.4, 0.7, 0.4),
+      borderWidth: 0.5,
+    });
+    const pctLabel = `Descuento (${(config.discount_percentage ?? 0).toLocaleString("es-MX", { maximumFractionDigits: 2 })}%)`;
+    page1.drawText(pctLabel, {
+      x: dx + 10, y: y - 18, size: 9, font: fonts.medium, color: rgb(0.1, 0.4, 0.15),
+    });
+    const dText = `-$${discountAmount.toLocaleString("es-MX")}`;
+    const dW = fonts.bold.widthOfTextAtSize(dText, 10);
+    page1.drawText(dText, {
+      x: dx + dw - 10 - dW, y: y - 18, size: 10, font: fonts.bold, color: rgb(0.1, 0.4, 0.15),
+    });
+    y -= DISC_H + 8;
   }
 
   y = drawTotalBar(page1, fonts, y, total, resumen);
