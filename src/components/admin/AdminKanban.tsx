@@ -806,6 +806,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   const [editSelectedServices, setEditSelectedServices] = useState<Set<string>>(new Set());
   const [editLogisticsFeeEnabled, setEditLogisticsFeeEnabled] = useState(false);
   const [editLogisticsFee, setEditLogisticsFee] = useState('');
+  const [editDiscountEnabled, setEditDiscountEnabled] = useState(false);
+  const [editDiscountPercentage, setEditDiscountPercentage] = useState('');
 
   useEffect(() => {
     if (!quote) return;
@@ -851,6 +853,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     setEditSelectedServices(currentIds);
     setEditLogisticsFeeEnabled(quote.logistics_fee_enabled || false);
     setEditLogisticsFee(quote.logistics_fee ? String(quote.logistics_fee) : '');
+    setEditDiscountEnabled(quote.discount_enabled || false);
+    setEditDiscountPercentage(quote.discount_percentage ? String(quote.discount_percentage) : '');
     setIsEditing(true);
   };
 
@@ -874,7 +878,9 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     .filter(Boolean) as ServiceForPricing[];
   const { perService: editPriceMap, total: editServicesTotalEstimate } = calcularPreciosCotizacion(editSvcsForPricing, editNNinos, editExtraHours);
   const editLogisticsFeeAmount = editLogisticsFeeEnabled && editLogisticsFee ? parseInt(editLogisticsFee) || 0 : 0;
-  const editTotalEstimate = editServicesTotalEstimate + editLogisticsFeeAmount;
+  const editDiscountPctNum = editDiscountEnabled ? Math.max(0, Math.min(100, parseFloat(editDiscountPercentage) || 0)) : 0;
+  const { discountAmount: editDiscountAmount, totalConDescuento: editServicesAfterDiscount } = aplicarDescuento(editServicesTotalEstimate, editDiscountPctNum);
+  const editTotalEstimate = editServicesAfterDiscount + editLogisticsFeeAmount;
 
   const editServicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
     const cat = svc.category || 'Otros';
@@ -913,6 +919,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
         total_estimate: editTotalEstimate,
         logistics_fee_enabled: editLogisticsFeeEnabled,
         logistics_fee: editLogisticsFeeAmount,
+        discount_enabled: editDiscountEnabled,
+        discount_percentage: editDiscountPctNum,
         extra_hours: editExtraHours,
         updated_at: new Date().toISOString(),
       };
