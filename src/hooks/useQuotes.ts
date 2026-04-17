@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useServices, Service } from '@/contexts/ServicesContext';
 import { useToast } from '@/hooks/use-toast';
-import { calcularPreciosCotizacion } from '@/lib/pricing';
+import { calcularPreciosCotizacion, aplicarDescuento } from '@/lib/pricing';
 
 export interface QuoteData {
   customerName: string;
@@ -16,6 +16,8 @@ export interface QuoteData {
   location?: string;
   source: 'onboarding' | 'services';
   extraHours?: number;
+  discountEnabled?: boolean;
+  discountPercentage?: number;
 }
 
 export const useQuotes = () => {
@@ -35,11 +37,16 @@ export const useQuotes = () => {
         category: item.service.category,
         hora_extra: (item.service as any).hora_extra ?? 0,
       }));
-      const { perService: priceMap, total: totalEstimate } = calcularPreciosCotizacion(
+      const { perService: priceMap, total: servicesSubtotal } = calcularPreciosCotizacion(
         svcsForPricing,
         quoteData.childrenCount || 15,
         extraHours
       );
+
+      const discountEnabled = quoteData.discountEnabled ?? false;
+      const discountPercentage = discountEnabled ? (quoteData.discountPercentage ?? 0) : 0;
+      const { totalConDescuento } = aplicarDescuento(servicesSubtotal, discountPercentage);
+      const totalEstimate = totalConDescuento;
 
       // Create the quote
         const { data: quote, error: quoteError } = await supabase
@@ -56,6 +63,8 @@ export const useQuotes = () => {
           location: quoteData.location,
           total_estimate: totalEstimate,
           extra_hours: extraHours,
+          discount_enabled: discountEnabled,
+          discount_percentage: discountPercentage,
           source: quoteData.source,
           status: 'pending'
         })
