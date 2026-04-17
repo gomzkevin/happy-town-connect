@@ -32,6 +32,8 @@ interface QuoteRequest {
   titulo?: string;
   subtitulo?: string;
   logistics_fee?: number;
+  discount_enabled?: boolean;
+  discount_percentage?: number;
 }
 
 interface FontSet {
@@ -307,8 +309,8 @@ function precioTaller(dbPrice: number, nNinos: number): number {
 function calcularTotal(
   config: QuoteRequest,
   dbServices: Map<string, DBService>
-): { total: number; desglose: Record<string, number> } {
-  let total = 0;
+): { total: number; desglose: Record<string, number>; discountAmount: number; servicesSubtotal: number } {
+  let servicesSubtotal = 0;
   const desglose: Record<string, number> = {};
   const extraHours = Math.max(0, (config.horas || 3) - 3);
 
@@ -322,7 +324,7 @@ function calcularTotal(
         p += (svc?.hora_extra ?? 0) * extraHours;
       }
     }
-    total += p;
+    servicesSubtotal += p;
     desglose.estaciones = p;
   }
 
@@ -331,7 +333,7 @@ function calcularTotal(
     if (extraHours > 0) {
       p += (dbServices?.get(key)?.hora_extra ?? 0) * extraHours;
     }
-    total += p;
+    servicesSubtotal += p;
     desglose[key] = p;
   }
 
@@ -341,9 +343,18 @@ function calcularTotal(
     if (extraHours > 0) {
       p += (dbSvc?.hora_extra ?? 0) * extraHours;
     }
-    total += p;
+    servicesSubtotal += p;
     desglose[key] = p;
   }
+
+  // Apply discount on services subtotal (NOT on logistics fee)
+  const discountPct = config.discount_enabled ? Math.max(0, Math.min(100, config.discount_percentage || 0)) : 0;
+  const discountAmount = Math.round((servicesSubtotal * discountPct) / 100);
+  if (discountAmount > 0) {
+    desglose['discount'] = -discountAmount;
+  }
+
+  let total = servicesSubtotal - discountAmount;
 
   // Add logistics fee if present
   if (config.logistics_fee && config.logistics_fee > 0) {
@@ -351,7 +362,7 @@ function calcularTotal(
     desglose['logistics_fee'] = config.logistics_fee;
   }
 
-  return { total, desglose };
+  return { total, desglose, discountAmount, servicesSubtotal };
 }
 
 // ─── Layout Engine ──────────────────────────────────────────────
@@ -1290,6 +1301,8 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     fijos,
     talleres,
     logistics_fee: quote.logistics_fee_enabled ? (quote.logistics_fee || 0) : 0,
+    discount_enabled: quote.discount_enabled || false,
+    discount_percentage: quote.discount_percentage ? Number(quote.discount_percentage) : 0,
   };
 }
 
