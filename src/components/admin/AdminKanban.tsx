@@ -1267,6 +1267,16 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                         <span className="font-medium">${(quote.logistics_fee ?? 0).toLocaleString()}</span>
                       </div>
                     )}
+                    {quote.discount_enabled && (quote.discount_percentage ?? 0) > 0 && (() => {
+                      const svcSubtotal = services.reduce((sum, s) => sum + s.service_price * s.quantity, 0);
+                      const dAmount = Math.round((svcSubtotal * (quote.discount_percentage ?? 0)) / 100);
+                      return (
+                        <div className="flex justify-between text-sm bg-japitown-green-tag/10 rounded-md px-3 py-1.5 text-japitown-green-tag">
+                          <span>Descuento ({quote.discount_percentage}%)</span>
+                          <span className="font-medium">-${dAmount.toLocaleString()}</span>
+                        </div>
+                      );
+                    })()}
                     <div className="flex justify-between text-sm font-bold px-3 pt-1">
                       <span>Total estimado</span>
                       <span>${totalEstimate.toLocaleString()}</span>
