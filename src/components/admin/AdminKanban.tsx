@@ -16,7 +16,7 @@ import { format, differenceInDays, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from '@/hooks/use-toast';
 import { useQuotePayments } from '@/hooks/useQuotePayments';
-import { calcularPreciosCotizacion, type ServiceForPricing } from '@/lib/pricing';
+import { calcularPreciosCotizacion, aplicarDescuento, type ServiceForPricing } from '@/lib/pricing';
 
 // Types
 interface Quote {
@@ -43,6 +43,8 @@ interface Quote {
   pdf_url: string | null;
   logistics_fee_enabled?: boolean;
   logistics_fee?: number;
+  discount_enabled?: boolean;
+  discount_percentage?: number;
 }
 
 interface QuoteService {
@@ -411,6 +413,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
   });
   const [logisticsFeeEnabled, setLogisticsFeeEnabled] = useState(false);
   const [logisticsFee, setLogisticsFee] = useState('');
+  const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [discountPercentage, setDiscountPercentage] = useState('');
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [dateConflicts, setDateConflicts] = useState<{ customer_name: string; status: string }[]>([]);
 
@@ -448,7 +452,9 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
     .filter(Boolean) as ServiceForPricing[];
   const { perService: priceMap, total: servicesTotalEstimate } = calcularPreciosCotizacion(selectedSvcsForPricing, nNinos, extraHours);
   const logisticsFeeAmount = logisticsFeeEnabled && logisticsFee ? parseInt(logisticsFee) || 0 : 0;
-  const totalEstimate = servicesTotalEstimate + logisticsFeeAmount;
+  const discountPctNum = discountEnabled ? Math.max(0, Math.min(100, parseFloat(discountPercentage) || 0)) : 0;
+  const { discountAmount, totalConDescuento: servicesAfterDiscount } = aplicarDescuento(servicesTotalEstimate, discountPctNum);
+  const totalEstimate = servicesAfterDiscount + logisticsFeeAmount;
 
   // Group services by category
   const servicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
@@ -497,6 +503,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
           total_estimate: totalEstimate,
           logistics_fee_enabled: logisticsFeeEnabled,
           logistics_fee: logisticsFeeAmount,
+          discount_enabled: discountEnabled,
+          discount_percentage: discountPctNum,
           extra_hours: extraHours,
           source: getSourceValue(),
           quote_type: 'manual',
@@ -710,6 +718,34 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
             )}
           </div>
 
+          {/* Discount toggle */}
+          <div className="border rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-medium">Descuento</Label>
+              <Switch checked={discountEnabled} onCheckedChange={setDiscountEnabled} />
+            </div>
+            {discountEnabled && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Porcentaje (%)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  value={discountPercentage}
+                  onChange={e => setDiscountPercentage(e.target.value)}
+                  placeholder="Ej. 10"
+                  className="h-9"
+                />
+                {discountAmount > 0 && (
+                  <p className="text-[11px] text-japitown-green-tag font-medium">
+                    -${discountAmount.toLocaleString()} MXN sobre subtotal de servicios
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           <Separator />
 
           {/* Notes */}
@@ -770,6 +806,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   const [editSelectedServices, setEditSelectedServices] = useState<Set<string>>(new Set());
   const [editLogisticsFeeEnabled, setEditLogisticsFeeEnabled] = useState(false);
   const [editLogisticsFee, setEditLogisticsFee] = useState('');
+  const [editDiscountEnabled, setEditDiscountEnabled] = useState(false);
+  const [editDiscountPercentage, setEditDiscountPercentage] = useState('');
 
   useEffect(() => {
     if (!quote) return;
@@ -815,6 +853,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     setEditSelectedServices(currentIds);
     setEditLogisticsFeeEnabled(quote.logistics_fee_enabled || false);
     setEditLogisticsFee(quote.logistics_fee ? String(quote.logistics_fee) : '');
+    setEditDiscountEnabled(quote.discount_enabled || false);
+    setEditDiscountPercentage(quote.discount_percentage ? String(quote.discount_percentage) : '');
     setIsEditing(true);
   };
 
@@ -838,7 +878,9 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
     .filter(Boolean) as ServiceForPricing[];
   const { perService: editPriceMap, total: editServicesTotalEstimate } = calcularPreciosCotizacion(editSvcsForPricing, editNNinos, editExtraHours);
   const editLogisticsFeeAmount = editLogisticsFeeEnabled && editLogisticsFee ? parseInt(editLogisticsFee) || 0 : 0;
-  const editTotalEstimate = editServicesTotalEstimate + editLogisticsFeeAmount;
+  const editDiscountPctNum = editDiscountEnabled ? Math.max(0, Math.min(100, parseFloat(editDiscountPercentage) || 0)) : 0;
+  const { discountAmount: editDiscountAmount, totalConDescuento: editServicesAfterDiscount } = aplicarDescuento(editServicesTotalEstimate, editDiscountPctNum);
+  const editTotalEstimate = editServicesAfterDiscount + editLogisticsFeeAmount;
 
   const editServicesByCategory = availableServices.reduce<Record<string, ServiceOption[]>>((acc, svc) => {
     const cat = svc.category || 'Otros';
@@ -877,6 +919,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
         total_estimate: editTotalEstimate,
         logistics_fee_enabled: editLogisticsFeeEnabled,
         logistics_fee: editLogisticsFeeAmount,
+        discount_enabled: editDiscountEnabled,
+        discount_percentage: editDiscountPctNum,
         extra_hours: editExtraHours,
         updated_at: new Date().toISOString(),
       };
@@ -1112,6 +1156,34 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                 )}
               </div>
 
+              {/* Discount toggle - edit mode */}
+              <div className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium">Descuento</Label>
+                  <Switch checked={editDiscountEnabled} onCheckedChange={setEditDiscountEnabled} />
+                </div>
+                {editDiscountEnabled && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Porcentaje (%)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={editDiscountPercentage}
+                      onChange={e => setEditDiscountPercentage(e.target.value)}
+                      placeholder="Ej. 10"
+                      className="h-9"
+                    />
+                    {editDiscountAmount > 0 && (
+                      <p className="text-[11px] text-japitown-green-tag font-medium">
+                        -${editDiscountAmount.toLocaleString()} MXN sobre subtotal de servicios
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <Separator />
 
               {/* Editable notes */}
@@ -1195,6 +1267,16 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
                         <span className="font-medium">${(quote.logistics_fee ?? 0).toLocaleString()}</span>
                       </div>
                     )}
+                    {quote.discount_enabled && (quote.discount_percentage ?? 0) > 0 && (() => {
+                      const svcSubtotal = services.reduce((sum, s) => sum + s.service_price * s.quantity, 0);
+                      const dAmount = Math.round((svcSubtotal * (quote.discount_percentage ?? 0)) / 100);
+                      return (
+                        <div className="flex justify-between text-sm bg-japitown-green-tag/10 rounded-md px-3 py-1.5 text-japitown-green-tag">
+                          <span>Descuento ({quote.discount_percentage}%)</span>
+                          <span className="font-medium">-${dAmount.toLocaleString()}</span>
+                        </div>
+                      );
+                    })()}
                     <div className="flex justify-between text-sm font-bold px-3 pt-1">
                       <span>Total estimado</span>
                       <span>${totalEstimate.toLocaleString()}</span>

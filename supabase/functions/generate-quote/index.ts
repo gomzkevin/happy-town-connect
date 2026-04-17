@@ -32,6 +32,8 @@ interface QuoteRequest {
   titulo?: string;
   subtitulo?: string;
   logistics_fee?: number;
+  discount_enabled?: boolean;
+  discount_percentage?: number;
 }
 
 interface FontSet {
@@ -307,8 +309,8 @@ function precioTaller(dbPrice: number, nNinos: number): number {
 function calcularTotal(
   config: QuoteRequest,
   dbServices: Map<string, DBService>
-): { total: number; desglose: Record<string, number> } {
-  let total = 0;
+): { total: number; desglose: Record<string, number>; discountAmount: number; servicesSubtotal: number } {
+  let servicesSubtotal = 0;
   const desglose: Record<string, number> = {};
   const extraHours = Math.max(0, (config.horas || 3) - 3);
 
@@ -322,7 +324,7 @@ function calcularTotal(
         p += (svc?.hora_extra ?? 0) * extraHours;
       }
     }
-    total += p;
+    servicesSubtotal += p;
     desglose.estaciones = p;
   }
 
@@ -331,7 +333,7 @@ function calcularTotal(
     if (extraHours > 0) {
       p += (dbServices?.get(key)?.hora_extra ?? 0) * extraHours;
     }
-    total += p;
+    servicesSubtotal += p;
     desglose[key] = p;
   }
 
@@ -341,9 +343,18 @@ function calcularTotal(
     if (extraHours > 0) {
       p += (dbSvc?.hora_extra ?? 0) * extraHours;
     }
-    total += p;
+    servicesSubtotal += p;
     desglose[key] = p;
   }
+
+  // Apply discount on services subtotal (NOT on logistics fee)
+  const discountPct = config.discount_enabled ? Math.max(0, Math.min(100, config.discount_percentage || 0)) : 0;
+  const discountAmount = Math.round((servicesSubtotal * discountPct) / 100);
+  if (discountAmount > 0) {
+    desglose['discount'] = -discountAmount;
+  }
+
+  let total = servicesSubtotal - discountAmount;
 
   // Add logistics fee if present
   if (config.logistics_fee && config.logistics_fee > 0) {
@@ -351,7 +362,7 @@ function calcularTotal(
     desglose['logistics_fee'] = config.logistics_fee;
   }
 
-  return { total, desglose };
+  return { total, desglose, discountAmount, servicesSubtotal };
 }
 
 // ─── Layout Engine ──────────────────────────────────────────────
@@ -1063,7 +1074,7 @@ function drawVigencia(page: PDFPage, fonts: FontSet, y: number, vigencia: string
 // ─── Main Pipeline ──────────────────────────────────────────────
 async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DBService>, supabase?: any, bankInfo?: string): Promise<Uint8Array> {
   const resolved = resolveDefaults(config);
-  const { total } = calcularTotal(resolved, dbServices);
+  const { total, discountAmount } = calcularTotal(resolved, dbServices);
   const bloques = calcularLayout(resolved, dbServices);
   console.log(`[DIAG generateQuotePDF] total=${total}, bloques=${bloques.length}, config.estaciones=${JSON.stringify(resolved.estaciones)} config.talleres=${JSON.stringify(resolved.talleres)}`);
 
@@ -1103,8 +1114,9 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
 
   // Page 1 no longer includes conditions/payment — more space for cards
   const LOGISTICS_FEE_H = (config.logistics_fee && config.logistics_fee > 0) ? 36 : 0; // 28 + 8 gap
+  const DISCOUNT_H = (discountAmount > 0) ? 36 : 0; // 28 + 8 gap
   const totalStuffH_p1 = HEADER_H + TITLE_H + CALLOUT_H + contentH +
-    LOGISTICS_FEE_H + TOTAL_BAR_H + EXTRA_HOUR_H + ICON_BAND_H + RAINBOW_H + FOOTER_H;
+    LOGISTICS_FEE_H + DISCOUNT_H + TOTAL_BAR_H + EXTRA_HOUR_H + ICON_BAND_H + RAINBOW_H + FOOTER_H;
 
   const numContentGaps = Math.max(blockHeights.length - 1, 0);
   const MIN_GAP_HEADER = 6;
@@ -1172,6 +1184,29 @@ async function generateQuotePDF(config: QuoteRequest, dbServices: Map<string, DB
       x: lx + lw - 10 - feeW, y: y - 18, size: 10, font: fonts.bold, color: rgb(0.35, 0.25, 0.1),
     });
     y -= LOGISTICS_H + 8;
+  }
+
+  // Draw discount row before total if present (green styling)
+  if (discountAmount > 0) {
+    const DISC_H = 28;
+    const dx = ML;
+    const dw = W - 2 * ML;
+    page1.drawRectangle({
+      x: dx, y: y - DISC_H, width: dw, height: DISC_H,
+      color: rgb(0.88, 0.96, 0.88), // light green bg
+      borderColor: rgb(0.4, 0.7, 0.4),
+      borderWidth: 0.5,
+    });
+    const pctLabel = `Descuento (${(config.discount_percentage ?? 0).toLocaleString("es-MX", { maximumFractionDigits: 2 })}%)`;
+    page1.drawText(pctLabel, {
+      x: dx + 10, y: y - 18, size: 9, font: fonts.medium, color: rgb(0.1, 0.4, 0.15),
+    });
+    const dText = `-$${discountAmount.toLocaleString("es-MX")}`;
+    const dW = fonts.bold.widthOfTextAtSize(dText, 10);
+    page1.drawText(dText, {
+      x: dx + dw - 10 - dW, y: y - 18, size: 10, font: fonts.bold, color: rgb(0.1, 0.4, 0.15),
+    });
+    y -= DISC_H + 8;
   }
 
   y = drawTotalBar(page1, fonts, y, total, resumen);
@@ -1290,6 +1325,8 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     fijos,
     talleres,
     logistics_fee: quote.logistics_fee_enabled ? (quote.logistics_fee || 0) : 0,
+    discount_enabled: quote.discount_enabled || false,
+    discount_percentage: quote.discount_percentage ? Number(quote.discount_percentage) : 0,
   };
 }
 

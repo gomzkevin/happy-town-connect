@@ -545,6 +545,8 @@ export type Database = {
           customer_name: string
           deposit_amount: number | null
           deposit_paid: boolean | null
+          discount_enabled: boolean
+          discount_percentage: number
           email: string
           event_date: string | null
           expires_at: string | null
@@ -577,6 +579,8 @@ export type Database = {
           customer_name: string
           deposit_amount?: number | null
           deposit_paid?: boolean | null
+          discount_enabled?: boolean
+          discount_percentage?: number
           email: string
           event_date?: string | null
           expires_at?: string | null
@@ -609,6 +613,8 @@ export type Database = {
           customer_name?: string
           deposit_amount?: number | null
           deposit_paid?: boolean | null
+          discount_enabled?: boolean
+          discount_percentage?: number
           email?: string
           event_date?: string | null
           expires_at?: string | null
