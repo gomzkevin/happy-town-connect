@@ -23,6 +23,7 @@ interface QuoteRequest {
   estaciones?: string[];
   fijos?: string[];
   talleres?: string[];
+  per_child?: string[];
   hora_evento?: string;
   fecha_emision?: string;
   vigencia?: string;
@@ -81,6 +82,7 @@ interface DBService {
   features: string[] | null;
   pdf_color: string;
   pdf_subtitle: string | null;
+  pricing_type?: string;
 }
 
 // deno-lint-ignore no-explicit-any
