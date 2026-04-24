@@ -63,6 +63,7 @@ interface ServiceOption {
   is_active: boolean;
   category: string;
   hora_extra: number;
+  pricing_type?: 'fixed' | 'per_child' | string;
 }
 
 type StageKey = 'pending' | 'contacted' | 'confirmed' | 'upcoming' | 'completed' | 'cancelled';
