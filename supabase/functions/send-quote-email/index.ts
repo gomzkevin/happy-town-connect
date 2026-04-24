@@ -359,8 +359,21 @@ const handler = async (req: Request): Promise<Response> => {
     const emailResult = await resend.emails.send(emailPayload);
 
     if (emailResult.error) {
-      await logQuoteHistory(data.quoteId, 'email_sent', data.email, 'failed', emailResult, emailResult.error.message);
-      throw emailResult.error;
+      const errMsg = emailResult.error.message || String(emailResult.error);
+      console.error('❌ Resend send failed:', errMsg);
+      await logQuoteHistory(data.quoteId, 'email_sent', data.email, 'failed', emailResult, errMsg);
+
+      // Return 200 with success:false so frontend can warn user without crashing the flow.
+      return new Response(
+        JSON.stringify({
+          success: false,
+          emailSent: false,
+          error: errMsg,
+          quoteNumber,
+          pdfAttached: !!pdfResult,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
     }
 
     await logQuoteHistory(data.quoteId, 'email_sent', data.email, 'success', {
@@ -396,6 +409,7 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(
       JSON.stringify({
         success: true,
+        emailSent: true,
         emailId: emailResult.data?.id,
         quoteNumber,
         pdfAttached: !!pdfResult,
@@ -405,7 +419,7 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error("Error in send-quote-email:", error);
     return new Response(
-      JSON.stringify({ error: error.message || 'An unexpected error occurred', success: false }),
+      JSON.stringify({ error: error.message || 'An unexpected error occurred', success: false, emailSent: false }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
