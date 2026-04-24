@@ -488,6 +488,7 @@ function resolveDefaults(config: QuoteRequest): QuoteRequest {
     estaciones: config.estaciones || [],
     fijos: config.fijos || [],
     talleres: config.talleres || [],
+    per_child: config.per_child || [],
     fecha_emision: config.fecha_emision || formatDate(new Date()),
     vigencia: config.vigencia || "15 días naturales",
     anticipo_pct: config.anticipo_pct ?? 50,
@@ -1383,7 +1384,7 @@ serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: dbServicesRaw } = await supabase
-      .from("services").select("id, title, category, base_price, hora_extra, features, pdf_color, pdf_subtitle").eq("is_active", true);
+      .from("services").select("id, title, category, base_price, hora_extra, features, pdf_color, pdf_subtitle, pricing_type").eq("is_active", true);
     const dbServices = new Map<string, DBService>();
     for (const s of dbServicesRaw || []) {
       dbServices.set(s.id, s as DBService);
