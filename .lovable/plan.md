@@ -1,91 +1,74 @@
 
 
-# Agregar Descuentos a Cotizaciones
+# Fix: Kit yesitos como producto "por niño" (sin horas extra)
 
-## Concepto
-Toggle de descuento (similar al de "Gastos de operación / arrastre") que aplica un **porcentaje** sobre el subtotal de servicios + horas extra (sin afectar gastos operativos). Se muestra en la UI admin, en el detalle de la cotización y en el PDF como una línea visible antes de "INVERSIÓN TOTAL".
+## Problema detectado
 
-## Decisión de alcance
-**El descuento se aplica solo sobre el subtotal de servicios** (no sobre logistics_fee). Razones:
-- Los gastos operativos son costos reales (gasolina, arrastre) que no tienen margen para descontar.
-- El cliente percibe el descuento sobre el "valor del servicio", no sobre cargos administrativos.
-- Es más limpio fiscalmente y operativamente.
+"Kit yesitos personalizados" es el único producto del catálogo que se cobra **por niño** (precio base × número de niños), no como servicio fijo o estación. Hoy:
 
-Fórmula final:
-```
-subtotal_servicios = suma(servicios + horas_extra)
-descuento_monto    = round(subtotal_servicios * discount_percentage / 100)
-total_final        = subtotal_servicios - descuento_monto + logistics_fee
-```
+1. Está mal categorizado en BD: `category: "talleres-creativos"` (kebab) — distinto a "Talleres Creativos" usado por la lógica.
+2. `pricing.ts` (frontend) no lo reconoce como taller → cae en bucket `otros` → cobra $25 plano.
+3. `generate-quote` (Edge Function) sí lo trata como taller → le aplica multiplicador por niños **y** suma $800 por hora extra.
+4. Hay un campo `pricing_type` en la tabla `services` (valores: `fixed` | `per_child`) que **nunca se usa**. Es el campo natural para resolver esto.
+5. El `id` actual `"Kit yesitos "` tiene un espacio al final — frágil.
 
-## Modelo de datos
+Resultado: el precio que ve el cliente y el que sale en el PDF no coinciden, y se le cobran horas extra que no aplican.
 
-Nueva migración a tabla `quotes`:
-```sql
-ALTER TABLE quotes
-  ADD COLUMN discount_enabled boolean NOT NULL DEFAULT false,
-  ADD COLUMN discount_percentage numeric(5,2) NOT NULL DEFAULT 0;
-```
-- `discount_percentage`: 0–100, validar en UI (max 100, min 0).
-- Guardamos % en vez de monto fijo para que sea recalculable si cambian servicios.
-- `total_estimate` en BD seguirá guardándose **ya con el descuento aplicado** (es lo que aparece en kanban, reportes, etc.).
+## Decisión de modelo
 
-## Cambios por archivo
+Usar el campo existente `pricing_type` como **fuente única de verdad** del modo de cobro:
 
-### 1. BD — migración
-Agregar `discount_enabled` y `discount_percentage` a `quotes`.
+| `pricing_type` | Fórmula | Horas extra |
+|---|---|---|
+| `fixed` (default) | Lógica actual por categoría (combo estaciones / multiplicador talleres) | Suma `hora_extra × extraHours` |
+| `per_child` | `base_price × children_count` | **No aplica** (kit consumible, no servicio cronometrado) |
+
+Razón: el "Kit yesitos" es un consumible físico (un kit por niño). Las horas extra son tiempo operativo del staff — no aplican a un producto que se entrega.
+
+En el PDF se sigue renderizando como una tarjeta de servicio normal, pero su precio y subtítulo reflejan la naturaleza per-child.
+
+## Cambios
+
+### 1. BD — corrección de datos (migración)
+- Normalizar el id: borrar/reemplazar `"Kit yesitos "` (con espacio) → `"kit-yesitos"`.
+- Fijar `category = 'Talleres Creativos'` (consistente con el resto).
+- Fijar `pricing_type = 'per_child'`.
+- Fijar `hora_extra = 0` (no aplica).
+- Confirmar `base_price = 25`.
+- Reasignar `quote_services.service_id` viejo al nuevo id para no romper cotizaciones existentes.
 
 ### 2. `src/lib/pricing.ts`
-Agregar helper `aplicarDescuento(subtotal, percentage) => { discountAmount, totalConDescuento }` para reutilizar en admin y PDF.
+- Agregar `pricing_type?: 'fixed' | 'per_child'` y `price_per_child?: number` a `ServiceForPricing`.
+- En `calcularPreciosCotizacion`: antes de clasificar por categoría, separar los servicios `per_child`. Su precio = `base_price × nNinos`. **No** suma horas extra.
+- Resto de la lógica (estaciones combo, talleres multiplicador, otros fijos) intacta.
 
-### 3. `src/components/admin/AdminKanban.tsx`
-- **NewQuoteDialog**: agregar bloque toggle "Descuento" con input numérico de % (0-100), justo debajo del bloque de logistics_fee. Calcular y guardar `discount_enabled`, `discount_percentage` y aplicar descuento sobre subtotal de servicios para `total_estimate`.
-- **QuoteDetailDialog (modo edit)**: mismo bloque, con estados `editDiscountEnabled` / `editDiscountPercentage`.
-- **QuoteDetailDialog (modo view)**: mostrar línea "Descuento (X%)" en color verde con monto restado, antes del total.
-- Extender interface `Quote` con los dos nuevos campos.
+### 3. `src/hooks/useQuotes.ts`
+- Pasar `pricing_type` al calcular precios para que la lógica nueva aplique.
 
-### 4. `src/hooks/useQuotes.ts`
-- Agregar `discountEnabled` y `discountPercentage` a `QuoteData`.
-- Calcular descuento sobre subtotal de servicios; guardar `total_estimate` ya con descuento aplicado.
-- Insertar `discount_enabled` y `discount_percentage` en la fila.
+### 4. `src/components/admin/AdminKanban.tsx`
+- Incluir `pricing_type` en los `select(...)` de `services` (NewQuoteDialog y edit mode) y propagarlo al cálculo.
 
-### 5. `src/components/ServiceCart.tsx` y `src/components/RamiOnboarding.tsx`
-**No** se agrega UI pública (descuentos son herramienta de cierre de venta interno).
-Solo aseguramos que pasamos `discountEnabled: false, discountPercentage: 0` por default al `submitQuote`.
+### 5. `supabase/functions/generate-quote/index.ts`
+- En `mapQuoteToConfig`: si `dbSvc.pricing_type === 'per_child'`, clasificarlo en un nuevo bucket `perChild[]` (no en talleres ni fijos).
+- En `calcularTotal`: bucket `perChild` aporta `Σ base_price × n_ninos`, sin horas extra ni descuento por combo.
+- En el render: cada servicio `per_child` se dibuja como una tarjeta normal (misma estética que talleres/fijos). El precio que se muestra es `base_price × n_ninos`. El subtítulo de la tarjeta usa el formato existente (`pdf_subtitle` de la BD); si está vacío, usar uno genérico (ej. "Kit personalizado por niño · X niños").
+- En la nota de hora extra: excluir `per_child` del cálculo de precios extra disponibles.
+- Redesplegar.
 
-### 6. `supabase/functions/generate-quote/index.ts`
-- Extender `QuoteRequest` con `discount_enabled?: boolean; discount_percentage?: number`.
-- En `mapQuoteToConfig`: leer ambos campos del quote.
-- En `calcularTotal`: calcular `subtotalServicios` (estaciones + fijos + talleres con horas extra), restar descuento, sumar logistics_fee al final. Devolver también `discountAmount` para el render.
-- En el render de la página 1: agregar fila visual antes de logistics_fee (o entre logistics_fee y total) con texto "Descuento (X%)" y monto en verde, similar al estilo del logistics_fee row pero con color distintivo (verde).
-- Recalcular `LOGISTICS_FEE_H` y agregar `DISCOUNT_H` al cálculo de espacio.
-- Redesplegar Edge Function.
+## Layout sin cambios visuales mayores
+La tarjeta de Kit yesitos se ve igual que cualquier otra tarjeta de servicio. La única diferencia es el precio total, que ya refleja `base_price × niños`.
 
-## Layout del PDF (orden visual)
-```text
-[Tarjetas de servicios]
-[Gastos de operación: $XXX]   ← si aplica
-[Descuento (10%): -$XXX]      ← NUEVO si aplica, en verde
-[INVERSIÓN TOTAL: $XXXX MXN]
-[Hora adicional disponible…]
-```
+## Validación post-deploy
+Crear una cotización de prueba con 35 niños + Kit yesitos + 2 horas extra:
+- Kit yesitos debe mostrar **$875** ($25 × 35), NO sumarle nada por las 2 horas extra.
+- Los demás servicios sí deben tener el extra aplicado normalmente.
 
-## Vista detalle del kanban (orden visual)
-```text
-- Servicio 1 ........ $X
-- Servicio 2 ........ $X
-- Gastos operación .. $X
-- Descuento (10%) ... -$X    ← verde
-─────────────────────────
-Total estimado ...... $X
-```
-
-## Archivos a modificar
+## Archivos modificados
 | Archivo | Cambio |
 |---|---|
-| Migración BD | `discount_enabled`, `discount_percentage` en `quotes` |
-| `src/lib/pricing.ts` | Helper `aplicarDescuento` |
-| `src/components/admin/AdminKanban.tsx` | Toggle en NewQuoteDialog y edit, fila en view |
-| `src/hooks/useQuotes.ts` | Campos en QuoteData e INSERT |
-| `supabase/functions/generate-quote/index.ts` | Lógica + render de fila descuento |
+| Nueva migración SQL | Normalizar `Kit yesitos` (id, category, pricing_type, hora_extra=0) y reasignar `quote_services` |
+| `src/lib/pricing.ts` | Soportar `pricing_type='per_child'` |
+| `src/hooks/useQuotes.ts` | Propagar `pricing_type` |
+| `src/components/admin/AdminKanban.tsx` | Cargar `pricing_type` en queries |
+| `supabase/functions/generate-quote/index.ts` | Bucket `perChild`, total y render |
 
