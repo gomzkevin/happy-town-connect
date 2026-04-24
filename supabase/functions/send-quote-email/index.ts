@@ -334,9 +334,13 @@ const handler = async (req: Request): Promise<Response> => {
     const emailSubject = emailTemplate?.subject ||
       `🎉 Tu cotización #${quoteNumber} de ${emailData.companyName} está lista`;
 
+    // CRITICAL: 'from' must use a verified domain in Resend.
+    // Customer-facing contact email goes in reply_to so replies reach the business inbox.
+    const VERIFIED_SENDER = 'cotizaciones@japitown.com';
     const emailPayload: any = {
-      from: `${emailData.companyName} <${emailData.companyEmail}>`,
+      from: `${emailData.companyName} <${VERIFIED_SENDER}>`,
       to: [data.email],
+      reply_to: emailData.companyEmail ? [emailData.companyEmail] : undefined,
       subject: emailSubject,
       html: emailHtml,
     };
