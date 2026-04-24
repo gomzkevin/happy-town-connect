@@ -349,6 +349,14 @@ function calcularTotal(
     desglose[key] = p;
   }
 
+  // Per-child products: base_price × n_ninos, no extra hours, no multiplier
+  for (const key of config.per_child ?? []) {
+    const dbSvc = dbServices?.get(key);
+    const p = (dbSvc?.base_price ?? 0) * Math.max(1, config.n_ninos || 1);
+    servicesSubtotal += p;
+    desglose[key] = p;
+  }
+
   // Apply discount on services subtotal (NOT on logistics fee)
   const discountPct = config.discount_enabled ? Math.max(0, Math.min(100, config.discount_percentage || 0)) : 0;
   const discountAmount = Math.round((servicesSubtotal * discountPct) / 100);
