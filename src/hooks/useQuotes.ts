@@ -36,6 +36,7 @@ export const useQuotes = () => {
         base_price: item.service.base_price ?? parseInt(item.service.price.replace(/[^\d]/g, '')),
         category: item.service.category,
         hora_extra: (item.service as any).hora_extra ?? 0,
+        pricing_type: (item.service as any).pricing_type ?? 'fixed',
       }));
       const { perService: priceMap, total: servicesSubtotal } = calcularPreciosCotizacion(
         svcsForPricing,

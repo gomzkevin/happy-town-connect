@@ -63,6 +63,7 @@ interface ServiceOption {
   is_active: boolean;
   category: string;
   hora_extra: number;
+  pricing_type?: 'fixed' | 'per_child' | string;
 }
 
 type StageKey = 'pending' | 'contacted' | 'confirmed' | 'upcoming' | 'completed' | 'cancelled';
@@ -420,8 +421,8 @@ function NewQuoteDialog({ open, onClose, onCreated }: { open: boolean; onClose: 
 
   useEffect(() => {
     if (!open) return;
-    supabase.from('services').select('id, title, price, base_price, is_active, category, hora_extra').eq('is_active', true).order('category').then(({ data }) => {
-      setAvailableServices((data || []).map((s: any) => ({ ...s, hora_extra: s.hora_extra ?? 0 })) as ServiceOption[]);
+    supabase.from('services').select('id, title, price, base_price, is_active, category, hora_extra, pricing_type').eq('is_active', true).order('category').then(({ data }) => {
+      setAvailableServices((data || []).map((s: any) => ({ ...s, hora_extra: s.hora_extra ?? 0, pricing_type: s.pricing_type ?? 'fixed' })) as ServiceOption[]);
     });
   }, [open]);
 
@@ -829,8 +830,8 @@ function QuoteDetailDialog({ quote, open, onClose, onStatusChange, onPaymentChan
   // Load available services when entering edit mode
   useEffect(() => {
     if (!isEditing) return;
-    supabase.from('services').select('id, title, price, base_price, is_active, category, hora_extra').eq('is_active', true).order('category').then(({ data }) => {
-      setAvailableServices((data || []).map((s: any) => ({ ...s, hora_extra: s.hora_extra ?? 0 })) as ServiceOption[]);
+    supabase.from('services').select('id, title, price, base_price, is_active, category, hora_extra, pricing_type').eq('is_active', true).order('category').then(({ data }) => {
+      setAvailableServices((data || []).map((s: any) => ({ ...s, hora_extra: s.hora_extra ?? 0, pricing_type: s.pricing_type ?? 'fixed' })) as ServiceOption[]);
     });
   }, [isEditing]);
 

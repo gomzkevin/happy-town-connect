@@ -23,6 +23,7 @@ interface QuoteRequest {
   estaciones?: string[];
   fijos?: string[];
   talleres?: string[];
+  per_child?: string[];
   hora_evento?: string;
   fecha_emision?: string;
   vigencia?: string;
@@ -81,6 +82,7 @@ interface DBService {
   features: string[] | null;
   pdf_color: string;
   pdf_subtitle: string | null;
+  pricing_type?: string;
 }
 
 // deno-lint-ignore no-explicit-any
@@ -347,6 +349,14 @@ function calcularTotal(
     desglose[key] = p;
   }
 
+  // Per-child products: base_price × n_ninos, no extra hours, no multiplier
+  for (const key of config.per_child ?? []) {
+    const dbSvc = dbServices?.get(key);
+    const p = (dbSvc?.base_price ?? 0) * Math.max(1, config.n_ninos || 1);
+    servicesSubtotal += p;
+    desglose[key] = p;
+  }
+
   // Apply discount on services subtotal (NOT on logistics fee)
   const discountPct = config.discount_enabled ? Math.max(0, Math.min(100, config.discount_percentage || 0)) : 0;
   const discountAmount = Math.round((servicesSubtotal * discountPct) / 100);
@@ -425,6 +435,23 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
     });
   }
 
+  // Per-child products (e.g. Kit yesitos): base_price × n_ninos, no extra hours
+  for (const key of config.per_child ?? []) {
+    const dbSvc = dbServices?.get(key);
+    const precio = (dbSvc?.base_price ?? 0) * Math.max(1, config.n_ninos || 1);
+    const subtitulo = dbSvc?.pdf_subtitle && dbSvc.pdf_subtitle.trim()
+      ? dbSvc.pdf_subtitle
+      : `Kit personalizado por niño · ${config.n_ninos} niños`;
+    cards.push({
+      tipo: "taller", key,
+      nombre: dbSvc?.title || key,
+      precio,
+      subtitulo,
+      items: dbSvc?.features || [],
+      color: dbSvc?.pdf_color || "pink",
+    });
+  }
+
   console.log(`[DIAG calcularLayout] cards generados: ${cards.map(c => `${c.key}(${c.tipo})`).join(", ")} total=${cards.length}`);
   const filas = distribuirEnFilas(cards);
   for (const fila of filas) {
@@ -461,6 +488,7 @@ function resolveDefaults(config: QuoteRequest): QuoteRequest {
     estaciones: config.estaciones || [],
     fijos: config.fijos || [],
     talleres: config.talleres || [],
+    per_child: config.per_child || [],
     fecha_emision: config.fecha_emision || formatDate(new Date()),
     vigencia: config.vigencia || "15 días naturales",
     anticipo_pct: config.anticipo_pct ?? 50,
@@ -1272,7 +1300,7 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
   // Fetch all active services from DB for dynamic classification fallback
   const { data: allDbServices } = await supabase
     .from("services")
-    .select("id, title, category, base_price, hora_extra, features, pdf_color, pdf_subtitle")
+    .select("id, title, category, base_price, hora_extra, features, pdf_color, pdf_subtitle, pricing_type")
     .eq("is_active", true);
 
   const dbServices = new Map<string, any>();
@@ -1283,28 +1311,34 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
   const estaciones: string[] = [];
   const fijos: string[] = [];
   const talleres: string[] = [];
+  const perChild: string[] = [];
 
   for (const qs of qServices || []) {
     const sid = qs.service_id;
 
-    // Classify by DB category (single source of truth)
+    // Classify by pricing_type first (per_child overrides category), then by DB category
     const dbSvc = dbServices.get(sid);
     if (dbSvc) {
-      const cat = dbSvc.category?.toLowerCase() || "";
-      if (cat.includes("estacion") || cat.includes("juego")) {
-        estaciones.push(sid);
-      } else if (cat.includes("taller") || cat.includes("creativ")) {
-        talleres.push(sid);
+      if (dbSvc.pricing_type === 'per_child') {
+        perChild.push(sid);
+        console.log(`[DIAG] service_id "${sid}" classified as per_child`);
       } else {
-        fijos.push(sid);
+        const cat = dbSvc.category?.toLowerCase() || "";
+        if (cat.includes("estacion") || cat.includes("juego")) {
+          estaciones.push(sid);
+        } else if (cat.includes("taller") || cat.includes("creativ")) {
+          talleres.push(sid);
+        } else {
+          fijos.push(sid);
+        }
+        console.log(`[DIAG] service_id "${sid}" classified by DB category "${dbSvc.category}"`);
       }
-      console.log(`[DIAG] service_id "${sid}" classified by DB category "${dbSvc.category}"`);
     } else {
       console.warn(`[DIAG] service_id "${sid}" not found in DB — skipped`);
     }
   }
   console.log(`[DIAG mapQuoteToConfig] service_ids recibidos: ${(qServices||[]).map((q: any)=>q.service_id).join(", ")}`);
-  console.log(`[DIAG mapQuoteToConfig] estaciones=${JSON.stringify(estaciones)} talleres=${JSON.stringify(talleres)} fijos=${JSON.stringify(fijos)}`);
+  console.log(`[DIAG mapQuoteToConfig] estaciones=${JSON.stringify(estaciones)} talleres=${JSON.stringify(talleres)} fijos=${JSON.stringify(fijos)} per_child=${JSON.stringify(perChild)}`);
 
   let fecha = "";
   if (quote.event_date) {
@@ -1324,6 +1358,7 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     estaciones,
     fijos,
     talleres,
+    per_child: perChild,
     logistics_fee: quote.logistics_fee_enabled ? (quote.logistics_fee || 0) : 0,
     discount_enabled: quote.discount_enabled || false,
     discount_percentage: quote.discount_percentage ? Number(quote.discount_percentage) : 0,
@@ -1349,7 +1384,7 @@ serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: dbServicesRaw } = await supabase
-      .from("services").select("id, title, category, base_price, hora_extra, features, pdf_color, pdf_subtitle").eq("is_active", true);
+      .from("services").select("id, title, category, base_price, hora_extra, features, pdf_color, pdf_subtitle, pricing_type").eq("is_active", true);
     const dbServices = new Map<string, DBService>();
     for (const s of dbServicesRaw || []) {
       dbServices.set(s.id, s as DBService);
