@@ -126,18 +126,25 @@ export const useQuotes = () => {
         { body: emailData }
       );
 
-      if (emailError) {
-        console.error('Error sending email:', emailError);
-        // Continue with success even if email fails
-      }
-
       // Clear the cart
       clearSelection();
 
-      toast({
-        title: "¡Cotización enviada!",
-        description: "Recibirás tu cotización personalizada en menos de 24 horas.",
-      });
+      // Detect email delivery failure (function returns success:false when Resend rejects)
+      const emailFailed = !!emailError || emailResult?.emailSent === false || emailResult?.success === false;
+
+      if (emailFailed) {
+        console.error('Email delivery failed:', emailError || emailResult);
+        toast({
+          title: "Cotización guardada",
+          description: "Tu solicitud quedó registrada, pero no pudimos enviar el correo automáticamente. Te contactaremos personalmente en breve.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "¡Cotización enviada!",
+          description: "Recibirás tu cotización personalizada en menos de 24 horas.",
+        });
+      }
 
       return quote;
     } catch (error) {
