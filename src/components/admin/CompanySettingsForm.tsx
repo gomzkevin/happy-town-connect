@@ -106,11 +106,15 @@ export const CompanySettingsForm: React.FC = () => {
                   <FormItem>
                     <FormLabel className="flex items-center gap-2">
                       <Mail className="h-4 w-4" />
-                      Email de Contacto
+                      Email de contacto (respuestas)
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="cotizaciones@japitown.com" {...field} />
+                      <Input placeholder="contacto@japitown.com" {...field} />
                     </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Aquí llegan las respuestas de los clientes. El remitente real
+                      es <code>cotizaciones@japitown.com</code> (dominio verificado en Resend).
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
