@@ -35,6 +35,7 @@ export interface ServiceForPricing {
   base_price: number;
   category: string;
   hora_extra?: number;
+  pricing_type?: 'fixed' | 'per_child' | string;
 }
 
 /**
@@ -46,13 +47,22 @@ export function calcularPreciosCotizacion(
   nNinos: number,
   extraHours: number = 0
 ): { perService: Map<string, number>; total: number } {
-  const estaciones = services.filter(s => s.category === 'Estaciones de Juego');
-  const talleres = services.filter(s => s.category === 'Talleres Creativos');
-  const otros = services.filter(
+  // Per-child products are billed independently of category/extra hours
+  const perChildItems = services.filter(s => s.pricing_type === 'per_child');
+  const fixedScope = services.filter(s => s.pricing_type !== 'per_child');
+
+  const estaciones = fixedScope.filter(s => s.category === 'Estaciones de Juego');
+  const talleres = fixedScope.filter(s => s.category === 'Talleres Creativos');
+  const otros = fixedScope.filter(
     s => s.category !== 'Estaciones de Juego' && s.category !== 'Talleres Creativos'
   );
 
   const perService = new Map<string, number>();
+
+  // Per-child products: base_price × nNinos, no extra hours
+  perChildItems.forEach(s => {
+    perService.set(s.id, s.base_price * Math.max(1, nNinos || 1));
+  });
 
   // Estaciones — pair pricing
   if (estaciones.length === 1) {
@@ -79,9 +89,10 @@ export function calcularPreciosCotizacion(
     perService.set(s.id, s.base_price);
   });
 
-  // Add extra hours cost to each service
+  // Add extra hours cost to each service (excluding per_child products)
   if (extraHours > 0) {
     for (const s of services) {
+      if (s.pricing_type === 'per_child') continue;
       const currentPrice = perService.get(s.id) ?? 0;
       const horaExtra = s.hora_extra ?? 0;
       perService.set(s.id, currentPrice + horaExtra * extraHours);
