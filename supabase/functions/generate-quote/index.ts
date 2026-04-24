@@ -435,6 +435,23 @@ function calcularLayout(config: QuoteRequest, dbServices: Map<string, DBService>
     });
   }
 
+  // Per-child products (e.g. Kit yesitos): base_price × n_ninos, no extra hours
+  for (const key of config.per_child ?? []) {
+    const dbSvc = dbServices?.get(key);
+    const precio = (dbSvc?.base_price ?? 0) * Math.max(1, config.n_ninos || 1);
+    const subtitulo = dbSvc?.pdf_subtitle && dbSvc.pdf_subtitle.trim()
+      ? dbSvc.pdf_subtitle
+      : `Kit personalizado por niño · ${config.n_ninos} niños`;
+    cards.push({
+      tipo: "taller", key,
+      nombre: dbSvc?.title || key,
+      precio,
+      subtitulo,
+      items: dbSvc?.features || [],
+      color: dbSvc?.pdf_color || "pink",
+    });
+  }
+
   console.log(`[DIAG calcularLayout] cards generados: ${cards.map(c => `${c.key}(${c.tipo})`).join(", ")} total=${cards.length}`);
   const filas = distribuirEnFilas(cards);
   for (const fila of filas) {
