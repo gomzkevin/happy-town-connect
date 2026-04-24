@@ -1299,7 +1299,7 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
   // Fetch all active services from DB for dynamic classification fallback
   const { data: allDbServices } = await supabase
     .from("services")
-    .select("id, title, category, base_price, hora_extra, features, pdf_color, pdf_subtitle")
+    .select("id, title, category, base_price, hora_extra, features, pdf_color, pdf_subtitle, pricing_type")
     .eq("is_active", true);
 
   const dbServices = new Map<string, any>();
@@ -1310,28 +1310,34 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
   const estaciones: string[] = [];
   const fijos: string[] = [];
   const talleres: string[] = [];
+  const perChild: string[] = [];
 
   for (const qs of qServices || []) {
     const sid = qs.service_id;
 
-    // Classify by DB category (single source of truth)
+    // Classify by pricing_type first (per_child overrides category), then by DB category
     const dbSvc = dbServices.get(sid);
     if (dbSvc) {
-      const cat = dbSvc.category?.toLowerCase() || "";
-      if (cat.includes("estacion") || cat.includes("juego")) {
-        estaciones.push(sid);
-      } else if (cat.includes("taller") || cat.includes("creativ")) {
-        talleres.push(sid);
+      if (dbSvc.pricing_type === 'per_child') {
+        perChild.push(sid);
+        console.log(`[DIAG] service_id "${sid}" classified as per_child`);
       } else {
-        fijos.push(sid);
+        const cat = dbSvc.category?.toLowerCase() || "";
+        if (cat.includes("estacion") || cat.includes("juego")) {
+          estaciones.push(sid);
+        } else if (cat.includes("taller") || cat.includes("creativ")) {
+          talleres.push(sid);
+        } else {
+          fijos.push(sid);
+        }
+        console.log(`[DIAG] service_id "${sid}" classified by DB category "${dbSvc.category}"`);
       }
-      console.log(`[DIAG] service_id "${sid}" classified by DB category "${dbSvc.category}"`);
     } else {
       console.warn(`[DIAG] service_id "${sid}" not found in DB — skipped`);
     }
   }
   console.log(`[DIAG mapQuoteToConfig] service_ids recibidos: ${(qServices||[]).map((q: any)=>q.service_id).join(", ")}`);
-  console.log(`[DIAG mapQuoteToConfig] estaciones=${JSON.stringify(estaciones)} talleres=${JSON.stringify(talleres)} fijos=${JSON.stringify(fijos)}`);
+  console.log(`[DIAG mapQuoteToConfig] estaciones=${JSON.stringify(estaciones)} talleres=${JSON.stringify(talleres)} fijos=${JSON.stringify(fijos)} per_child=${JSON.stringify(perChild)}`);
 
   let fecha = "";
   if (quote.event_date) {
@@ -1351,6 +1357,7 @@ async function mapQuoteToConfig(supabase: any, quoteId: string): Promise<QuoteRe
     estaciones,
     fijos,
     talleres,
+    per_child: perChild,
     logistics_fee: quote.logistics_fee_enabled ? (quote.logistics_fee || 0) : 0,
     discount_enabled: quote.discount_enabled || false,
     discount_percentage: quote.discount_percentage ? Number(quote.discount_percentage) : 0,
