@@ -74,7 +74,8 @@ export function calcularPreciosCotizacion(
     perService.set(estaciones[0].id, estaciones[0].base_price);
   } else if (estaciones.length >= 2) {
     const totalEstaciones =
-      Math.floor(estaciones.length / 2) * 3000 + (estaciones.length % 2) * 1800;
+      Math.floor(estaciones.length / 2) * PRECIO_PAR_ESTACIONES +
+      (estaciones.length % 2) * PRECIO_ESTACION_INDIVIDUAL;
     // Distribute evenly across stations for display purposes
     const perStation = Math.round(totalEstaciones / estaciones.length);
     const remainder = totalEstaciones - perStation * estaciones.length;
