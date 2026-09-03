@@ -297,14 +297,17 @@ function getMultiplicador(nNinos: number): number {
 function precioEstaciones(n: number, dbServices?: Map<string, DBService>, estacionIds?: string[]): number {
   if (n === 0) return 0;
   if (n === 1) {
-    // For a single station, use its base_price from DB, or fallback to 1800
+    // For a single station, use its base_price from DB, or fallback to the standard price
     if (dbServices && estacionIds && estacionIds.length > 0) {
       const svc = dbServices.get(estacionIds[0]);
       if (svc) return svc.base_price;
     }
-    return 1800;
+    return PRECIO_ESTACION_INDIVIDUAL;
   }
-  return Math.floor(n / 2) * 3000 + (n % 2) * 1800;
+  return (
+    Math.floor(n / 2) * PRECIO_PAR_ESTACIONES +
+    (n % 2) * PRECIO_ESTACION_INDIVIDUAL
+  );
 }
 
 function precioTaller(dbPrice: number, nNinos: number): number {
