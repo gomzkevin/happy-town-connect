@@ -16,6 +16,11 @@
  *   Se suma hora_extra * extraHours al precio base de cada servicio.
  */
 
+/** Precio de una estación cotizada de forma individual / impar sobrante */
+export const PRECIO_ESTACION_INDIVIDUAL = 2000;
+/** Precio del par de estaciones (promoción 2x) */
+export const PRECIO_PAR_ESTACIONES = 3500;
+
 const TIERS = [
   { limite: 15, multiplicador: 1.0 },
   { limite: 30, multiplicador: 1.3 },
