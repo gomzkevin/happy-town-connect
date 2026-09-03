@@ -129,6 +129,9 @@ export function aplicarDescuento(
  */
 export function precioEstaciones(n: number, singleBasePrice?: number): number {
   if (n === 0) return 0;
-  if (n === 1) return singleBasePrice ?? 1800;
-  return Math.floor(n / 2) * 3000 + (n % 2) * 1800;
+  if (n === 1) return singleBasePrice ?? PRECIO_ESTACION_INDIVIDUAL;
+  return (
+    Math.floor(n / 2) * PRECIO_PAR_ESTACIONES +
+    (n % 2) * PRECIO_ESTACION_INDIVIDUAL
+  );
 }
