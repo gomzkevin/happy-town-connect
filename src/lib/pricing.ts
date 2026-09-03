@@ -2,8 +2,8 @@
  * Shared pricing logic — mirrors the Edge Function generate-quote rules.
  *
  * Estaciones de Juego:
- *   - 1 sola estación → base_price individual (ej. $1,800)
- *   - 2+ estaciones   → floor(n/2) * 3000 + (n%2) * 1800
+ *   - 1 sola estación → base_price individual (ej. $2,000)
+ *   - 2+ estaciones   → floor(n/2) * 3500 + (n%2) * 2000
  *
  * Talleres Creativos:
  *   - base_price × multiplicador(nNiños)
@@ -15,6 +15,11 @@
  *   Cada servicio tiene un campo hora_extra ($/hr adicional).
  *   Se suma hora_extra * extraHours al precio base de cada servicio.
  */
+
+/** Precio de una estación cotizada de forma individual / impar sobrante */
+export const PRECIO_ESTACION_INDIVIDUAL = 2000;
+/** Precio del par de estaciones (promoción 2x) */
+export const PRECIO_PAR_ESTACIONES = 3500;
 
 const TIERS = [
   { limite: 15, multiplicador: 1.0 },
@@ -69,7 +74,8 @@ export function calcularPreciosCotizacion(
     perService.set(estaciones[0].id, estaciones[0].base_price);
   } else if (estaciones.length >= 2) {
     const totalEstaciones =
-      Math.floor(estaciones.length / 2) * 3000 + (estaciones.length % 2) * 1800;
+      Math.floor(estaciones.length / 2) * PRECIO_PAR_ESTACIONES +
+      (estaciones.length % 2) * PRECIO_ESTACION_INDIVIDUAL;
     // Distribute evenly across stations for display purposes
     const perStation = Math.round(totalEstaciones / estaciones.length);
     const remainder = totalEstaciones - perStation * estaciones.length;
@@ -123,6 +129,9 @@ export function aplicarDescuento(
  */
 export function precioEstaciones(n: number, singleBasePrice?: number): number {
   if (n === 0) return 0;
-  if (n === 1) return singleBasePrice ?? 1800;
-  return Math.floor(n / 2) * 3000 + (n % 2) * 1800;
+  if (n === 1) return singleBasePrice ?? PRECIO_ESTACION_INDIVIDUAL;
+  return (
+    Math.floor(n / 2) * PRECIO_PAR_ESTACIONES +
+    (n % 2) * PRECIO_ESTACION_INDIVIDUAL
+  );
 }

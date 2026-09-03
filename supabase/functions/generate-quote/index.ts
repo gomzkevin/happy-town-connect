@@ -277,6 +277,9 @@ function deriveServiceSets(dbServices: Map<string, DBService>): {
 // No hardcoded catalogs remain — the DB is the single source of truth.
 
 // ─── Pricing ────────────────────────────────────────────────────
+const PRECIO_ESTACION_INDIVIDUAL = 2000;
+const PRECIO_PAR_ESTACIONES = 3500;
+
 const TIERS = [
   { limite: 15, multiplicador: 1.0 },
   { limite: 30, multiplicador: 1.3 },
@@ -294,14 +297,17 @@ function getMultiplicador(nNinos: number): number {
 function precioEstaciones(n: number, dbServices?: Map<string, DBService>, estacionIds?: string[]): number {
   if (n === 0) return 0;
   if (n === 1) {
-    // For a single station, use its base_price from DB, or fallback to 1800
+    // For a single station, use its base_price from DB, or fallback to the standard price
     if (dbServices && estacionIds && estacionIds.length > 0) {
       const svc = dbServices.get(estacionIds[0]);
       if (svc) return svc.base_price;
     }
-    return 1800;
+    return PRECIO_ESTACION_INDIVIDUAL;
   }
-  return Math.floor(n / 2) * 3000 + (n % 2) * 1800;
+  return (
+    Math.floor(n / 2) * PRECIO_PAR_ESTACIONES +
+    (n % 2) * PRECIO_ESTACION_INDIVIDUAL
+  );
 }
 
 function precioTaller(dbPrice: number, nNinos: number): number {
@@ -710,7 +716,7 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
     const name2 = svc2?.title || key2;
     const color1 = BULLET_MAP[(svc1?.pdf_color || "blue") as keyof typeof BULLET_MAP] || C.bullet_blue;
     const pairLabel = `${name1} + ${name2}`;
-    const pairPrice = 3000 + ((svc1?.hora_extra || 800) + (svc2?.hora_extra || 800)) * extraHours;
+    const pairPrice = PRECIO_PAR_ESTACIONES + ((svc1?.hora_extra || 800) + (svc2?.hora_extra || 800)) * extraHours;
     const pairPriceStr = formatPrice(pairPrice);
 
     page.drawCircle({ x: ML + 22, y: cy + 3, size: 3.5, color: color1 });
@@ -734,7 +740,7 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
     const svc = dbServices?.get(key);
     const name = svc?.title || key;
     const color = BULLET_MAP[(svc?.pdf_color || "blue") as keyof typeof BULLET_MAP] || C.bullet_blue;
-    const singlePrice = 1800 + (svc?.hora_extra || 800) * extraHours;
+    const singlePrice = PRECIO_ESTACION_INDIVIDUAL + (svc?.hora_extra || 800) * extraHours;
     const singlePriceStr = formatPrice(singlePrice);
 
     page.drawCircle({ x: ML + 22, y: cy + 3, size: 3.5, color });

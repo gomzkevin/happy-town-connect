@@ -171,6 +171,9 @@ async function logQuoteHistory(
 
 // ─── Pricing Logic (mirrors src/lib/pricing.ts) ────────────────
 
+const PRECIO_ESTACION_INDIVIDUAL = 2000;
+const PRECIO_PAR_ESTACIONES = 3500;
+
 const TIERS = [
   { limite: 15, multiplicador: 1.0 },
   { limite: 30, multiplicador: 1.3 },
@@ -207,7 +210,8 @@ function calcularPreciosCotizacion(
     perService.set(estaciones[0].id, estaciones[0].base_price);
   } else if (estaciones.length >= 2) {
     const totalEstaciones =
-      Math.floor(estaciones.length / 2) * 3000 + (estaciones.length % 2) * 1800;
+      Math.floor(estaciones.length / 2) * PRECIO_PAR_ESTACIONES +
+      (estaciones.length % 2) * PRECIO_ESTACION_INDIVIDUAL;
     const perStation = Math.round(totalEstaciones / estaciones.length);
     const remainder = totalEstaciones - perStation * estaciones.length;
     estaciones.forEach((s, i) => {
