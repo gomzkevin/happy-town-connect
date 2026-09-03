@@ -171,6 +171,9 @@ async function logQuoteHistory(
 
 // ─── Pricing Logic (mirrors src/lib/pricing.ts) ────────────────
 
+const PRECIO_ESTACION_INDIVIDUAL = 2000;
+const PRECIO_PAR_ESTACIONES = 3500;
+
 const TIERS = [
   { limite: 15, multiplicador: 1.0 },
   { limite: 30, multiplicador: 1.3 },
