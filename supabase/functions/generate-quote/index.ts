@@ -716,7 +716,7 @@ function drawEstacionResumen(page: PDFPage, fonts: FontSet, y: number, estacione
     const name2 = svc2?.title || key2;
     const color1 = BULLET_MAP[(svc1?.pdf_color || "blue") as keyof typeof BULLET_MAP] || C.bullet_blue;
     const pairLabel = `${name1} + ${name2}`;
-    const pairPrice = 3000 + ((svc1?.hora_extra || 800) + (svc2?.hora_extra || 800)) * extraHours;
+    const pairPrice = PRECIO_PAR_ESTACIONES + ((svc1?.hora_extra || 800) + (svc2?.hora_extra || 800)) * extraHours;
     const pairPriceStr = formatPrice(pairPrice);
 
     page.drawCircle({ x: ML + 22, y: cy + 3, size: 3.5, color: color1 });
