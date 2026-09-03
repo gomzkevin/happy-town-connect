@@ -2,8 +2,8 @@
  * Shared pricing logic — mirrors the Edge Function generate-quote rules.
  *
  * Estaciones de Juego:
- *   - 1 sola estación → base_price individual (ej. $1,800)
- *   - 2+ estaciones   → floor(n/2) * 3000 + (n%2) * 1800
+ *   - 1 sola estación → base_price individual (ej. $2,000)
+ *   - 2+ estaciones   → floor(n/2) * 3500 + (n%2) * 2000
  *
  * Talleres Creativos:
  *   - base_price × multiplicador(nNiños)
