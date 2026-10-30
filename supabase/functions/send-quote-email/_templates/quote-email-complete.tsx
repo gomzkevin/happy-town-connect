@@ -15,6 +15,8 @@ import {
 import * as React from 'npm:react@18.3.1'
 
 interface QuoteEmailCompleteProps {
+  pdfAttached?: boolean
+  assetsBase: string
   customerName: string
   email: string
   phone?: string
@@ -32,13 +34,16 @@ interface QuoteEmailCompleteProps {
     quantity: number
     category?: string
   }>
+  discountAmount?: number
+  logisticsFee?: number
+  savedAdjustment?: number
   totalEstimate: number
   termsConditions?: string
   quoteNumber: string
   createdDate: string
 }
 
-const ASSETS_BASE = 'https://hnkkgjmudteyzzfbogto.supabase.co/storage/v1/object/public/japitown-assets'
+
 
 function getCategoryBadge(category?: string): { label: string; bg: string; color: string } {
   if (!category) return { label: '', bg: 'transparent', color: '#555250' }
@@ -51,6 +56,8 @@ function getCategoryBadge(category?: string): { label: string; bg: string; color
 }
 
 export const QuoteEmailComplete = ({
+  pdfAttached = false,
+  assetsBase,
   customerName,
   email,
   phone,
@@ -64,6 +71,9 @@ export const QuoteEmailComplete = ({
   logoUrl,
   services,
   totalEstimate,
+  discountAmount = 0,
+  logisticsFee = 0,
+  savedAdjustment = 0,
   termsConditions,
   quoteNumber,
   createdDate,
@@ -90,21 +100,21 @@ export const QuoteEmailComplete = ({
         {/* Header with logo on cream background */}
         <Section style={header}>
           <Img
-            src={`${ASSETS_BASE}/icons/Iconos-17.png`}
+            src={`${assetsBase}/icons/Iconos-17.png`}
             alt=""
             width="28"
             height="28"
             style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '8px' }}
           />
           <Img
-            src={`${ASSETS_BASE}/icons/Iconos-15.png`}
+            src={`${assetsBase}/icons/Iconos-15.png`}
             alt=""
             width="28"
             height="28"
             style={{ display: 'inline-block', verticalAlign: 'middle', marginLeft: '8px' }}
           />
           <Img
-            src={`${ASSETS_BASE}/logos/Logo-21.png`}
+            src={logoUrl || `${assetsBase}/logos/Logo-21.png`}
             alt={`${companyName} Logo`}
             width="180"
             height="auto"
@@ -151,7 +161,7 @@ export const QuoteEmailComplete = ({
           <Text style={text}>
             Gracias por tu interés en <strong>Japitown</strong>. Hemos preparado una cotización personalizada para tu evento.
           </Text>
-          {services.length > 0 && (
+          {pdfAttached && (
             <Text style={{ ...text, color: '#a68bea', fontWeight: '600' }}>
               📎 Adjuntamos tu cotización en PDF para que la conserves.
             </Text>
@@ -219,6 +229,16 @@ export const QuoteEmailComplete = ({
                   </tr>
                 )
               })}
+              {[
+                {label: 'Descuento', amount: -discountAmount},
+                {label: 'Logística', amount: logisticsFee},
+                {label: 'Ajuste de cotización guardada', amount: savedAdjustment},
+              ].filter(row => row.amount !== 0).map(row => (
+                <tr key={row.label}>
+                  <td style={tableCell} colSpan={3}>{row.label}</td>
+                  <td style={{...tableCell, textAlign: 'right'}}>${row.amount.toLocaleString()}</td>
+                </tr>
+              ))}
               <tr style={totalRow}>
                 <td style={{ ...totalCell, borderRight: 'none' }} colSpan={3}>
                   <strong>TOTAL ESTIMADO</strong>
@@ -263,12 +283,9 @@ export const QuoteEmailComplete = ({
           <Section style={termsSection} className="print-friendly">
             <Heading style={h3}>📋 Términos y Condiciones</Heading>
             {termsConditions.split('\n').filter((line: string) => line.trim()).map((line: string, i: number) => {
-              const processed = childrenCount
-                ? line.replace(/\d+\s*niños/gi, `${childrenCount} niños`)
-                : line;
               return (
                 <Text key={i} style={termsText}>
-                  • {processed.replace(/^[•\-\*]\s*/, '').trim()}
+                  • {line.replace(/^[•*-]\s*/, '').trim()}
                 </Text>
               );
             })}
@@ -279,11 +296,11 @@ export const QuoteEmailComplete = ({
         <Section style={footer}>
           <Row>
             <Column style={{ textAlign: 'center' }}>
-              <Img src={`${ASSETS_BASE}/icons/Iconos-19.png`} alt="" width="24" height="24" style={{ display: 'inline-block', margin: '0 4px' }} />
-              <Img src={`${ASSETS_BASE}/icons/Iconos-13.png`} alt="" width="24" height="24" style={{ display: 'inline-block', margin: '0 4px' }} />
-              <Img src={`${ASSETS_BASE}/icons/Iconos-14.png`} alt="" width="24" height="24" style={{ display: 'inline-block', margin: '0 4px' }} />
-              <Img src={`${ASSETS_BASE}/icons/Iconos-17.png`} alt="" width="24" height="24" style={{ display: 'inline-block', margin: '0 4px' }} />
-              <Img src={`${ASSETS_BASE}/icons/Iconos-15.png`} alt="" width="24" height="24" style={{ display: 'inline-block', margin: '0 4px' }} />
+              <Img src={`${assetsBase}/icons/Iconos-19.png`} alt="" width="24" height="24" style={{ display: 'inline-block', margin: '0 4px' }} />
+              <Img src={`${assetsBase}/icons/Iconos-13.png`} alt="" width="24" height="24" style={{ display: 'inline-block', margin: '0 4px' }} />
+              <Img src={`${assetsBase}/icons/Iconos-14.png`} alt="" width="24" height="24" style={{ display: 'inline-block', margin: '0 4px' }} />
+              <Img src={`${assetsBase}/icons/Iconos-17.png`} alt="" width="24" height="24" style={{ display: 'inline-block', margin: '0 4px' }} />
+              <Img src={`${assetsBase}/icons/Iconos-15.png`} alt="" width="24" height="24" style={{ display: 'inline-block', margin: '0 4px' }} />
             </Column>
           </Row>
           <Text style={footerText}>

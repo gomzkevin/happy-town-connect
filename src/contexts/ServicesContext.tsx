@@ -13,6 +13,8 @@ export interface Service {
   age_range?: string;
   space_requirements?: string;
   base_price?: number;
+  hora_extra?: number;
+  pricing_type?: string;
 }
 
 export interface SelectedService {
@@ -26,7 +28,6 @@ interface ServicesContextType {
   removeService: (serviceId: string) => void;
   updateQuantity: (serviceId: string, quantity: number) => void;
   clearSelection: () => void;
-  getTotalPrice: () => number;
   hasMinimumServices: () => boolean;
   canRemoveService: (serviceId: string) => boolean;
   getRemainingToMinimum: () => number;
@@ -62,6 +63,7 @@ export const ServicesProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updateQuantity = (serviceId: string, quantity: number) => {
+    if (!Number.isSafeInteger(quantity)) return;
     if (quantity <= 0) {
       removeService(serviceId);
       return;
@@ -77,13 +79,6 @@ export const ServicesProvider = ({ children }: { children: ReactNode }) => {
 
   const clearSelection = () => {
     setSelectedServices([]);
-  };
-
-  const getTotalPrice = () => {
-    return selectedServices.reduce((total, item) => {
-      const price = parseInt(item.service.price.replace(/[^\d]/g, ''));
-      return total + (price * item.quantity);
-    }, 0);
   };
 
   const hasMinimumServices = () => {
@@ -105,7 +100,6 @@ export const ServicesProvider = ({ children }: { children: ReactNode }) => {
       removeService,
       updateQuantity,
       clearSelection,
-      getTotalPrice,
       hasMinimumServices,
       canRemoveService,
       getRemainingToMinimum
