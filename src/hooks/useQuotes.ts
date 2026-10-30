@@ -33,6 +33,7 @@ export const useQuotes = () => {
       const extraHours = quoteData.extraHours ?? 0;
       const svcsForPricing = selectedServices.map(item => ({
         id: item.service.id,
+        quantity: item.quantity,
         base_price: item.service.base_price ?? parseInt(item.service.price.replace(/[^\d]/g, '')),
         category: item.service.category,
         hora_extra: (item.service as any).hora_extra ?? 0,

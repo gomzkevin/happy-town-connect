@@ -3,6 +3,7 @@ import { Resend } from "npm:resend@2.0.0";
 import { renderAsync } from "npm:@react-email/components@0.0.22";
 import React from "npm:react@18.3.1";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import { buildQuoteEmailData } from '../_shared/quote-email-data.ts';
 import { QuoteEmailComplete } from './_templates/quote-email-complete.tsx';
 
 // Initialize Supabase client
@@ -169,71 +170,6 @@ async function logQuoteHistory(
   }
 }
 
-// ─── Pricing Logic (mirrors src/lib/pricing.ts) ────────────────
-
-const PRECIO_ESTACION_INDIVIDUAL = 2000;
-const PRECIO_PAR_ESTACIONES = 3500;
-
-const TIERS = [
-  { limite: 15, multiplicador: 1.0 },
-  { limite: 30, multiplicador: 1.3 },
-  { limite: 50, multiplicador: 1.5 },
-  { limite: Infinity, multiplicador: 1.8 },
-];
-
-function getMultiplicador(nNinos: number): number {
-  for (const tier of TIERS) {
-    if (nNinos <= tier.limite) return tier.multiplicador;
-  }
-  return 1.8;
-}
-
-interface ServiceForPricing {
-  id: string;
-  base_price: number;
-  category: string;
-}
-
-function calcularPreciosCotizacion(
-  services: ServiceForPricing[],
-  nNinos: number
-): { perService: Map<string, number>; total: number } {
-  const estaciones = services.filter(s => s.category === 'Estaciones de Juego');
-  const talleres = services.filter(s => s.category === 'Talleres Creativos');
-  const otros = services.filter(
-    s => s.category !== 'Estaciones de Juego' && s.category !== 'Talleres Creativos'
-  );
-
-  const perService = new Map<string, number>();
-
-  if (estaciones.length === 1) {
-    perService.set(estaciones[0].id, estaciones[0].base_price);
-  } else if (estaciones.length >= 2) {
-    const totalEstaciones =
-      Math.floor(estaciones.length / 2) * PRECIO_PAR_ESTACIONES +
-      (estaciones.length % 2) * PRECIO_ESTACION_INDIVIDUAL;
-    const perStation = Math.round(totalEstaciones / estaciones.length);
-    const remainder = totalEstaciones - perStation * estaciones.length;
-    estaciones.forEach((s, i) => {
-      perService.set(s.id, perStation + (i === 0 ? remainder : 0));
-    });
-  }
-
-  const mult = getMultiplicador(nNinos || 15);
-  talleres.forEach(s => {
-    perService.set(s.id, Math.round(s.base_price * mult));
-  });
-
-  otros.forEach(s => {
-    perService.set(s.id, s.base_price);
-  });
-
-  let total = 0;
-  perService.forEach(v => (total += v));
-
-  return { perService, total };
-}
-
 // ─── Main Handler ───────────────────────────────────────────────
 
 const handler = async (req: Request): Promise<Response> => {
@@ -248,7 +184,10 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Email service is not properly configured. Please check RESEND_API_KEY.");
     }
 
-    const data: QuoteEmailRequest = await req.json();
+    const requestData: QuoteEmailRequest = await req.json();
+    const { data: savedQuote, error: quoteError } = await supabase.from('quotes').select('*').eq('id', requestData.quoteId).single();
+    if (quoteError || !savedQuote) throw new Error('Quote not found');
+    const data = { ...requestData, quoteId: savedQuote.id, customerName: savedQuote.customer_name, email: savedQuote.email, phone: savedQuote.phone };
     console.log('Processing quote email for:', data.customerName);
 
     // Fetch settings + real services from DB in parallel
@@ -256,7 +195,7 @@ const handler = async (req: Request): Promise<Response> => {
       supabase.from('company_settings').select('*').single(),
       supabase.from('email_templates').select('*').eq('template_type', 'quote').eq('is_active', true).single(),
       supabase.from('notification_settings').select('*').single(),
-      supabase.from('quote_services').select('service_id, service_name, service_price, quantity').eq('quote_id', data.quoteId),
+      supabase.from('quote_services').select('id, service_id, service_name, service_price, quantity').eq('quote_id', data.quoteId),
     ]);
 
     const companySettings = companyResult.data;
@@ -264,75 +203,35 @@ const handler = async (req: Request): Promise<Response> => {
     const notificationSettings = notificationResult.data;
     const quoteServices = quoteServicesResult.data || [];
 
-    // Fetch real base_price + category from services table
-    const serviceIds = quoteServices.map(qs => qs.service_id);
-    let dbServicesMap = new Map<string, { base_price: number; category: string }>();
-
-    if (serviceIds.length > 0) {
-      const { data: dbServices } = await supabase
-        .from('services')
-        .select('id, base_price, category')
-        .in('id', serviceIds);
-
-      if (dbServices) {
-        dbServices.forEach(s => dbServicesMap.set(s.id, { base_price: s.base_price, category: s.category }));
-      }
-    }
-
-    // Recalculate prices using DB data and pricing logic
-    const svcsForPricing: ServiceForPricing[] = quoteServices.map(qs => {
-      const dbSvc = dbServicesMap.get(qs.service_id);
-      return {
-        id: qs.service_id,
-        base_price: dbSvc?.base_price ?? qs.service_price,
-        category: dbSvc?.category ?? '',
-      };
-    });
-
-    const nNinos = data.childrenCount || 15;
-    const { perService: priceMap, total: calculatedTotal } = calcularPreciosCotizacion(svcsForPricing, nNinos);
-
-    // Build services array with correct prices for the email
-    const servicesForEmail = quoteServices.map(qs => ({
-      name: qs.service_name,
-      price: priceMap.get(qs.service_id) ?? qs.service_price,
-      quantity: qs.quantity,
-      category: dbServicesMap.get(qs.service_id)?.category,
-    }));
-
-    console.log('📊 DB prices recalculated:', { servicesForEmail, calculatedTotal });
-
-    const quoteNumber = `QUO-${Date.now().toString().slice(-6)}`;
-    const createdDate = new Date().toLocaleDateString('es-MX', {
-      year: 'numeric', month: 'long', day: 'numeric',
-    });
+    if (quoteServicesResult.error) throw new Error('Failed to load saved quote services');
+    const savedEmailData = buildQuoteEmailData(savedQuote, quoteServices);
+    const servicesForEmail = savedEmailData.services;
+    const calculatedTotal = savedEmailData.totalEstimate;
+    const { quoteNumber, createdDate } = savedEmailData;
 
     // Generate PDF in parallel with email rendering
     const pdfPromise = generateAndDownloadPDF(data.quoteId, quoteNumber, data.customerName);
 
     const emailData = {
-      customerName: data.customerName,
-      email: data.email,
-      phone: data.phone,
+      ...savedEmailData,
+      assetsBase: `${supabaseUrl}/storage/v1/object/public/japitown-assets`,
       companyName: companySettings?.company_name || 'Japitown',
-      companyEmail: companySettings?.email || 'fvh_32@hotmail.com',
+      companyEmail: companySettings?.email || 'cotizaciones@japitown.com',
       companyPhone: companySettings?.phone,
       companyAddress: companySettings?.address,
       logoUrl: companySettings?.logo_url,
       services: servicesForEmail,
       totalEstimate: calculatedTotal,
-      eventDate: data.eventDate,
-      childrenCount: data.childrenCount,
-      location: data.location,
+
       termsConditions: companySettings?.terms_conditions,
       quoteNumber,
       createdDate,
     };
 
-    const [emailHtml, pdfResult] = await Promise.all([
-      renderAsync(React.createElement(QuoteEmailComplete, emailData)),
-      pdfPromise,
-    ]);
+    const pdfResult = await pdfPromise;
+    const emailHtml = await renderAsync(React.createElement(QuoteEmailComplete, {
+      ...emailData, pdfAttached: !!pdfResult,
+    }));
 
     // Build email payload
     const emailSubject = emailTemplate?.subject ||
@@ -340,7 +239,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // CRITICAL: 'from' must use a verified domain in Resend.
     // Customer-facing contact email goes in reply_to so replies reach the business inbox.
-    const VERIFIED_SENDER = 'cotizaciones@japitown.com';
+    const VERIFIED_SENDER = Deno.env.get('RESEND_FROM_EMAIL') || 'cotizaciones@japitown.com';
     const emailPayload: any = {
       from: `${emailData.companyName} <${VERIFIED_SENDER}>`,
       to: [data.email],

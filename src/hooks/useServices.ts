@@ -6,6 +6,9 @@ export interface Service {
   title: string;
   description: string;
   price: string;
+  base_price?: number;
+  hora_extra?: number | null;
+  pricing_type?: string;
   category: string;
   icon: string;
   features?: string[];
@@ -27,6 +30,7 @@ export const useServices = () => {
   const fetchServices = async () => {
     try {
       setLoading(true);
+      setError(null);
       const { data, error } = await supabase
         .from('services')
         .select('*')
@@ -35,9 +39,11 @@ export const useServices = () => {
 
       if (error) throw error;
       setServices(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching services:', error);
-      setError(error.message);
+      setError(error && typeof error === 'object' && 'message' in error
+        ? String(error.message)
+        : 'Error al cargar los servicios');
     } finally {
       setLoading(false);
     }

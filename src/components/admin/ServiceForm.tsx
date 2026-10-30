@@ -1,31 +1,16 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription, FormMessage } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
 import { X, Plus } from 'lucide-react';
-import { Service } from '@/hooks/useServices';
-
-const serviceSchema = z.object({
-  id: z.string().min(1, 'ID es requerido'),
-  title: z.string().min(1, 'Título es requerido'),
-  description: z.string().min(1, 'Descripción es requerida'),
-  price: z.string().min(1, 'Precio es requerido'),
-  category: z.string().min(1, 'Categoría es requerida'),
-  icon: z.string().min(1, 'Icono es requerido'),
-  features: z.array(z.string()).optional(),
-  duration: z.string().optional(),
-  max_participants: z.number().min(1).optional(),
-  age_range: z.string().optional(),
-  space_requirements: z.string().optional(),
-});
-
-type ServiceFormData = z.infer<typeof serviceSchema>;
+import type { Service } from '@/hooks/useServices';
+import { buildServiceSubmission, createServiceFormSchema, getServiceFormDefaults, getServiceCategoryOptions, getServicePricingOptions } from '@/lib/service-form';
+import type { ServiceFormData } from '@/lib/service-form';
 
 interface ServiceFormProps {
   onSubmit: (data: ServiceFormData) => void;
@@ -33,14 +18,6 @@ interface ServiceFormProps {
   initialData?: Service;
   loading?: boolean;
 }
-
-const categories = [
-  'talleres-creativos',
-  'entretenimiento',
-  'educativo',
-  'deportivo',
-  'tematico'
-];
 
 const icons = [
   'palette',
@@ -64,28 +41,27 @@ export const ServiceForm: React.FC<ServiceFormProps> = ({
   const [features, setFeatures] = React.useState<string[]>(initialData?.features || []);
   const [newFeature, setNewFeature] = React.useState('');
 
+  const serviceSchema = React.useMemo(() => createServiceFormSchema(initialData), [initialData]);
+  const categories = getServiceCategoryOptions(initialData?.category);
+  const pricingTypes = getServicePricingOptions(initialData?.pricing_type);
+  const iconOptions = initialData?.icon && !icons.includes(initialData.icon)
+    ? [...icons, initialData.icon]
+    : icons;
+
   const form = useForm<ServiceFormData>({
     resolver: zodResolver(serviceSchema),
-    defaultValues: {
-      id: initialData?.id || '',
-      title: initialData?.title || '',
-      description: initialData?.description || '',
-      price: initialData?.price || '',
-      category: initialData?.category || '',
-      icon: initialData?.icon || '',
-      features: initialData?.features || [],
-      duration: initialData?.duration || '2 horas',
-      max_participants: initialData?.max_participants || 8,
-      age_range: initialData?.age_range || '4-12 años',
-      space_requirements: initialData?.space_requirements || '',
-    }
+    defaultValues: getServiceFormDefaults(initialData),
   });
+  const { reset } = form;
+
+  React.useEffect(() => {
+    reset(getServiceFormDefaults(initialData));
+    setFeatures([...(initialData?.features ?? [])]);
+    setNewFeature('');
+  }, [initialData, reset]);
 
   const handleSubmit = (data: ServiceFormData) => {
-    onSubmit({
-      ...data,
-      features,
-    });
+    onSubmit(buildServiceSubmission(data, features, initialData));
   };
 
   const addFeature = () => {
@@ -146,7 +122,7 @@ export const ServiceForm: React.FC<ServiceFormProps> = ({
                     <SelectContent>
                       {categories.map((category) => (
                         <SelectItem key={category} value={category}>
-                          {category.charAt(0).toUpperCase() + category.slice(1).replace('-', ' ')}
+                          {category}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -191,10 +167,11 @@ export const ServiceForm: React.FC<ServiceFormProps> = ({
               name="price"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Precio</FormLabel>
+                  <FormLabel>Precio mostrado</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="ej: $150.000" />
+                    <Input {...field} placeholder="ej: Desde $1,500" />
                   </FormControl>
+                  <FormDescription>Texto del catálogo. Las cotizaciones usan el precio base numérico.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -213,13 +190,89 @@ export const ServiceForm: React.FC<ServiceFormProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {icons.map((icon) => (
+                      {iconOptions.map((icon) => (
                         <SelectItem key={icon} value={icon}>
                           {icon}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FormField
+              control={form.control}
+              name="base_price"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Precio base numérico</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="number"
+                      min={0}
+                      max={2147483647}
+                      step={1}
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value === '' ? undefined : e.target.valueAsNumber)}
+                      placeholder="ej: 1500"
+                    />
+                  </FormControl>
+                  <FormDescription>Importe para cotizar, sin símbolos ni separadores.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="hora_extra"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Precio por hora extra</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="number"
+                      min={0}
+                      max={2147483647}
+                      step={1}
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value === '' ? undefined : e.target.valueAsNumber)}
+                      placeholder="ej: 800"
+                    />
+                  </FormControl>
+                  <FormDescription>No se aplica al cobro por niño.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="pricing_type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de precio</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un tipo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {pricingTypes.map((pricingType) => (
+                        <SelectItem key={pricingType} value={pricingType}>
+                          {pricingType === 'fixed' ? 'Por servicio' : pricingType === 'per_child' ? 'Por niño' : `${pricingType} (actual)`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>Por servicio conserva las reglas de su categoría.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -251,7 +304,10 @@ export const ServiceForm: React.FC<ServiceFormProps> = ({
                     <Input 
                       type="number" 
                       {...field} 
-                      onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      min={1}
+                      step={1}
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value === '' ? undefined : e.target.valueAsNumber)}
                       placeholder="ej: 8" 
                     />
                   </FormControl>
